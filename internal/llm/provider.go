@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/amit/docsgraphcontext/internal/config"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/config"
 )
 
 // Option configures LLM completion.

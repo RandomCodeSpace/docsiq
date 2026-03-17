@@ -3,12 +3,12 @@ package api
 import (
 	"net/http"
 
-	"github.com/amit/docsgraphcontext/internal/config"
-	"github.com/amit/docsgraphcontext/internal/embedder"
-	"github.com/amit/docsgraphcontext/internal/llm"
-	"github.com/amit/docsgraphcontext/internal/mcp"
-	"github.com/amit/docsgraphcontext/internal/store"
-	"github.com/amit/docsgraphcontext/ui"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/config"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/embedder"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/llm"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/mcp"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/store"
+	"github.com/RandomCodeSpace/docsgraphcontext/ui"
 )
 
 // NewRouter builds the single http.ServeMux with all routes.

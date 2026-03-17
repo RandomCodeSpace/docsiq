@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/amit/docsgraphcontext/internal/config"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/config"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
 )

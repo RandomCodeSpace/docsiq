@@ -16,7 +16,7 @@ import (
 
 	"golang.org/x/net/html"
 
-	"github.com/amit/docsgraphcontext/internal/loader"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/loader"
 )
 
 // Page is a fetched documentation page.

@@ -10,10 +10,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/amit/docsgraphcontext/internal/api"
-	"github.com/amit/docsgraphcontext/internal/embedder"
-	"github.com/amit/docsgraphcontext/internal/llm"
-	"github.com/amit/docsgraphcontext/internal/store"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/api"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/embedder"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/llm"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/store"
 	"github.com/spf13/cobra"
 )
 

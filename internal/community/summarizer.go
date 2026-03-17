@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/amit/docsgraphcontext/internal/llm"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/llm"
 )
 
 // CommunityReport holds LLM-generated community metadata.

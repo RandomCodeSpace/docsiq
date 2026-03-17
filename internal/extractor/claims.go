@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/amit/docsgraphcontext/internal/llm"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/llm"
 )
 
 // Claim is a factual covariate extracted from text.

@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/amit/docsgraphcontext/internal/embedder"
-	"github.com/amit/docsgraphcontext/internal/llm"
-	"github.com/amit/docsgraphcontext/internal/store"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/embedder"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/llm"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/store"
 )
 
 // GlobalSearchResult aggregates community summaries.
