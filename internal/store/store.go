@@ -35,20 +35,34 @@ func (s *Store) Close() error { return s.db.Close() }
 func (s *Store) DB() *sql.DB { return s.db }
 
 func (s *Store) migrate() error {
-	_, err := s.db.Exec(schema)
-	return err
+	if _, err := s.db.Exec(schema); err != nil {
+		return err
+	}
+	// Idempotent column additions for existing databases
+	migrations := []string{
+		`ALTER TABLE documents ADD COLUMN version      INTEGER NOT NULL DEFAULT 1`,
+		`ALTER TABLE documents ADD COLUMN canonical_id TEXT`,
+		`ALTER TABLE documents ADD COLUMN is_latest    INTEGER NOT NULL DEFAULT 1`,
+	}
+	for _, m := range migrations {
+		s.db.Exec(m) // ignore "duplicate column" errors
+	}
+	return nil
 }
 
 const schema = `
 CREATE TABLE IF NOT EXISTS documents (
-    id          TEXT PRIMARY KEY,
-    path        TEXT NOT NULL,
-    title       TEXT,
-    doc_type    TEXT,
-    file_hash   TEXT UNIQUE,
-    structured  TEXT,
-    created_at  INTEGER,
-    updated_at  INTEGER
+    id           TEXT PRIMARY KEY,
+    path         TEXT NOT NULL,
+    title        TEXT,
+    doc_type     TEXT,
+    file_hash    TEXT UNIQUE,
+    structured   TEXT,
+    version      INTEGER NOT NULL DEFAULT 1,
+    canonical_id TEXT,              -- NULL on first version; points to v1 ID on all later versions
+    is_latest    INTEGER NOT NULL DEFAULT 1,
+    created_at   INTEGER,
+    updated_at   INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS chunks (
@@ -111,6 +125,8 @@ CREATE TABLE IF NOT EXISTS community_members (
     PRIMARY KEY (community_id, entity_id)
 );
 
+CREATE INDEX IF NOT EXISTS idx_doc_canonical      ON documents(canonical_id);
+CREATE INDEX IF NOT EXISTS idx_doc_path_latest    ON documents(path, is_latest);
 CREATE INDEX IF NOT EXISTS idx_chunks_doc         ON chunks(doc_id);
 CREATE INDEX IF NOT EXISTS idx_embeddings_model   ON embeddings(model);
 CREATE INDEX IF NOT EXISTS idx_entities_name      ON entities(name);
@@ -158,70 +174,138 @@ func CosineSimilarity(a, b []float32) float32 {
 // ── Document CRUD ─────────────────────────────────────────────────────────────
 
 type Document struct {
-	ID         string
-	Path       string
-	Title      string
-	DocType    string
-	FileHash   string
-	Structured string
-	CreatedAt  int64
-	UpdatedAt  int64
+	ID          string
+	Path        string
+	Title       string
+	DocType     string
+	FileHash    string
+	Structured  string
+	Version     int
+	CanonicalID string // empty on v1; ID of first version on v2+
+	IsLatest    bool
+	CreatedAt   int64
+	UpdatedAt   int64
+}
+
+// CanonicalOrID returns CanonicalID if set, otherwise the document's own ID.
+// This is the stable identifier across all versions of a file.
+func (d *Document) CanonicalOrID() string {
+	if d.CanonicalID != "" {
+		return d.CanonicalID
+	}
+	return d.ID
 }
 
 func (s *Store) UpsertDocument(ctx context.Context, doc *Document) error {
 	now := time.Now().Unix()
+	if doc.Version == 0 {
+		doc.Version = 1
+	}
+	var canonicalID any
+	if doc.CanonicalID != "" {
+		canonicalID = doc.CanonicalID
+	}
+	isLatest := 0
+	if doc.IsLatest {
+		isLatest = 1
+	}
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO documents (id, path, title, doc_type, file_hash, structured, created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?)
+		INSERT INTO documents (id, path, title, doc_type, file_hash, structured, version, canonical_id, is_latest, created_at, updated_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			path=excluded.path, title=excluded.title, doc_type=excluded.doc_type,
-			file_hash=excluded.file_hash, structured=excluded.structured, updated_at=excluded.updated_at`,
-		doc.ID, doc.Path, doc.Title, doc.DocType, doc.FileHash, doc.Structured, now, now)
+			file_hash=excluded.file_hash, structured=excluded.structured,
+			version=excluded.version, canonical_id=excluded.canonical_id,
+			is_latest=excluded.is_latest, updated_at=excluded.updated_at`,
+		doc.ID, doc.Path, doc.Title, doc.DocType, doc.FileHash, doc.Structured,
+		doc.Version, canonicalID, isLatest, now, now)
 	return err
+}
+
+// SupersedeDocument marks a document as no longer the latest version.
+func (s *Store) SupersedeDocument(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE documents SET is_latest=0, updated_at=? WHERE id=?`, time.Now().Unix(), id)
+	return err
+}
+
+// GetDocumentVersions returns all versions of a document by canonical ID, oldest first.
+func (s *Store) GetDocumentVersions(ctx context.Context, canonicalID string) ([]*Document, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id,path,title,doc_type,file_hash,structured,version,canonical_id,is_latest,created_at,updated_at
+		FROM documents
+		WHERE id=? OR canonical_id=?
+		ORDER BY version ASC`, canonicalID, canonicalID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var docs []*Document
+	for rows.Next() {
+		d, err := scanDocRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		docs = append(docs, d)
+	}
+	return docs, rows.Err()
+}
+
+const docSelect = `SELECT id,path,title,doc_type,file_hash,structured,version,canonical_id,is_latest,created_at,updated_at FROM documents`
+
+func scanDocRow(rows *sql.Rows) (*Document, error) {
+	var d Document
+	var canonicalID sql.NullString
+	var isLatest int
+	err := rows.Scan(&d.ID, &d.Path, &d.Title, &d.DocType, &d.FileHash, &d.Structured,
+		&d.Version, &canonicalID, &isLatest, &d.CreatedAt, &d.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	if canonicalID.Valid {
+		d.CanonicalID = canonicalID.String
+	}
+	d.IsLatest = isLatest == 1
+	return &d, nil
+}
+
+func scanDocSingleRow(row *sql.Row) (*Document, error) {
+	var d Document
+	var canonicalID sql.NullString
+	var isLatest int
+	err := row.Scan(&d.ID, &d.Path, &d.Title, &d.DocType, &d.FileHash, &d.Structured,
+		&d.Version, &canonicalID, &isLatest, &d.CreatedAt, &d.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if canonicalID.Valid {
+		d.CanonicalID = canonicalID.String
+	}
+	d.IsLatest = isLatest == 1
+	return &d, nil
 }
 
 func (s *Store) GetDocumentByHash(ctx context.Context, hash string) (*Document, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT id,path,title,doc_type,file_hash,structured,created_at,updated_at FROM documents WHERE file_hash=?`, hash)
-	var d Document
-	err := row.Scan(&d.ID, &d.Path, &d.Title, &d.DocType, &d.FileHash, &d.Structured, &d.CreatedAt, &d.UpdatedAt)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	return &d, err
+	return scanDocSingleRow(s.db.QueryRowContext(ctx, docSelect+` WHERE file_hash=?`, hash))
 }
 
 func (s *Store) GetDocumentByPath(ctx context.Context, path string) (*Document, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT id,path,title,doc_type,file_hash,structured,created_at,updated_at FROM documents WHERE path=?`, path)
-	var d Document
-	err := row.Scan(&d.ID, &d.Path, &d.Title, &d.DocType, &d.FileHash, &d.Structured, &d.CreatedAt, &d.UpdatedAt)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	return &d, err
-}
-
-// DeleteDocument removes a document and all its cascading data
-// (chunks, embeddings, relationships, claims) via ON DELETE CASCADE.
-func (s *Store) DeleteDocument(ctx context.Context, id string) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM documents WHERE id=?`, id)
-	return err
+	// Returns the latest version at this path.
+	return scanDocSingleRow(s.db.QueryRowContext(ctx, docSelect+` WHERE path=? AND is_latest=1`, path))
 }
 
 func (s *Store) GetDocument(ctx context.Context, id string) (*Document, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT id,path,title,doc_type,file_hash,structured,created_at,updated_at FROM documents WHERE id=?`, id)
-	var d Document
-	err := row.Scan(&d.ID, &d.Path, &d.Title, &d.DocType, &d.FileHash, &d.Structured, &d.CreatedAt, &d.UpdatedAt)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	return &d, err
+	return scanDocSingleRow(s.db.QueryRowContext(ctx, docSelect+` WHERE id=?`, id))
 }
 
 func (s *Store) ListDocuments(ctx context.Context, docType string, limit, offset int) ([]*Document, error) {
-	q := `SELECT id,path,title,doc_type,file_hash,structured,created_at,updated_at FROM documents`
+	// Default: only latest versions.
+	q := docSelect + ` WHERE is_latest=1`
 	args := []any{}
 	if docType != "" {
-		q += ` WHERE doc_type=?`
+		q += ` AND doc_type=?`
 		args = append(args, docType)
 	}
 	q += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`
@@ -233,11 +317,11 @@ func (s *Store) ListDocuments(ctx context.Context, docType string, limit, offset
 	defer rows.Close()
 	var docs []*Document
 	for rows.Next() {
-		var d Document
-		if err := rows.Scan(&d.ID, &d.Path, &d.Title, &d.DocType, &d.FileHash, &d.Structured, &d.CreatedAt, &d.UpdatedAt); err != nil {
+		d, err := scanDocRow(rows)
+		if err != nil {
 			return nil, err
 		}
-		docs = append(docs, &d)
+		docs = append(docs, d)
 	}
 	return docs, rows.Err()
 }

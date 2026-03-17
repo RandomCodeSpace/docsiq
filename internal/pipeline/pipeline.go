@@ -118,19 +118,24 @@ func (p *Pipeline) indexFile(ctx context.Context, path string, opts IndexOptions
 	h := sha256.Sum256(data)
 	hash := hex.EncodeToString(h[:])
 
-	// Incremental indexing: look up by path, compare hash.
+	// Incremental versioning: look up the latest version at this path.
 	existing, err := p.store.GetDocumentByPath(ctx, path)
 	if err != nil {
 		return err
 	}
+	if existing != nil && existing.FileHash == hash && !opts.Force {
+		return nil // unchanged — skip
+	}
+
+	// Determine version number and canonical ID for this (possibly new) version.
+	nextVersion := 1
+	canonicalID := ""
 	if existing != nil {
-		if existing.FileHash == hash && !opts.Force {
-			return nil // unchanged — skip
-		}
-		// Content changed (or --force): delete old document and all cascading data,
-		// then fall through to re-index.
-		if err := p.store.DeleteDocument(ctx, existing.ID); err != nil {
-			return fmt.Errorf("delete stale doc: %w", err)
+		nextVersion = existing.Version + 1
+		canonicalID = existing.CanonicalOrID()
+		// Mark the previous version as superseded (keep all its data in the graph).
+		if err := p.store.SupersedeDocument(ctx, existing.ID); err != nil {
+			return fmt.Errorf("supersede old version: %w", err)
 		}
 	}
 
@@ -147,11 +152,14 @@ func (p *Pipeline) indexFile(ctx context.Context, path string, opts IndexOptions
 
 	docID := uuid.New().String()
 	if err := p.store.UpsertDocument(ctx, &store.Document{
-		ID:       docID,
-		Path:     path,
-		Title:    doc.Title,
-		DocType:  doc.DocType,
-		FileHash: hash,
+		ID:          docID,
+		Path:        path,
+		Title:       doc.Title,
+		DocType:     doc.DocType,
+		FileHash:    hash,
+		Version:     nextVersion,
+		CanonicalID: canonicalID,
+		IsLatest:    true,
 	}); err != nil {
 		return fmt.Errorf("upsert doc: %w", err)
 	}

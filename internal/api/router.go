@@ -25,6 +25,7 @@ func NewRouter(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *
 	mux.HandleFunc("GET /api/stats", h.getStats)
 	mux.HandleFunc("GET /api/documents", h.listDocuments)
 	mux.HandleFunc("GET /api/documents/{id}", h.getDocument)
+	mux.HandleFunc("GET /api/documents/{id}/versions", h.getDocumentVersions)
 	mux.HandleFunc("POST /api/search", h.search)
 	mux.HandleFunc("GET /api/graph/neighborhood", h.graphNeighborhood)
 	mux.HandleFunc("GET /api/entities", h.listEntities)

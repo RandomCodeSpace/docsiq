@@ -62,6 +62,25 @@ func (h *handlers) listDocuments(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, docs)
 }
 
+func (h *handlers) getDocumentVersions(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	doc, err := h.store.GetDocument(r.Context(), id)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if doc == nil {
+		writeError(w, 404, "document not found")
+		return
+	}
+	versions, err := h.store.GetDocumentVersions(r.Context(), doc.CanonicalOrID())
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, 200, versions)
+}
+
 func (h *handlers) getDocument(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	doc, err := h.store.GetDocument(r.Context(), id)
