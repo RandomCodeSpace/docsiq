@@ -1,92 +1,14 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DocsContext</title>
-  <link rel="stylesheet" href="/style.css" />
-</head>
-<body>
-  <nav class="navbar">
-    <div class="brand">DocsContext</div>
-    <div class="nav-links">
-      <a href="#" onclick="showTab('search')">Search</a>
-      <a href="#" onclick="showTab('documents')">Documents</a>
-      <a href="#" onclick="showTab('graph')">Graph</a>
-      <a href="#" onclick="showTab('communities')">Communities</a>
-      <a href="#" onclick="showTab('upload')">Upload</a>
-      <a href="#" onclick="showTab('stats')">Stats</a>
-    </div>
-  </nav>
-  <main>
-    <div id="tab-search" class="tab active">
-      <h2>Search</h2>
-      <div class="search-controls">
-        <input id="search-query" type="text" placeholder="Enter your query..." />
-        <select id="search-mode">
-          <option value="local">Local (vector + graph)</option>
-          <option value="global">Global (community synthesis)</option>
-        </select>
-        <input id="search-topk" type="number" value="5" min="1" max="50" style="width:70px" title="Top K" />
-        <button onclick="doSearch()">Search</button>
-      </div>
-      <div id="search-results" class="results"></div>
-    </div>
-
-    <div id="tab-documents" class="tab">
-      <h2>Documents</h2>
-      <div class="controls">
-        <select id="doc-type-filter">
-          <option value="">All types</option>
-          <option value="pdf">PDF</option>
-          <option value="docx">DOCX</option>
-          <option value="txt">TXT</option>
-          <option value="md">Markdown</option>
-        </select>
-        <button onclick="loadDocuments()">Load</button>
-      </div>
-      <div id="documents-list" class="results"></div>
-    </div>
-
-    <div id="tab-graph" class="tab">
-      <h2>Knowledge Graph</h2>
-      <div class="controls">
-        <input id="graph-entity" type="text" placeholder="Entity name..." />
-        <input id="graph-depth" type="number" value="2" min="1" max="5" style="width:60px" title="Depth" />
-        <button onclick="loadGraph()">Load Subgraph</button>
-      </div>
-      <div id="graph-container"></div>
-    </div>
-
-    <div id="tab-communities" class="tab">
-      <h2>Communities</h2>
-      <div class="controls">
-        <input id="comm-level" type="number" value="-1" min="-1" max="10" style="width:70px" title="Level (-1=all)" />
-        <button onclick="loadCommunities()">Load</button>
-      </div>
-      <div id="communities-list" class="results"></div>
-    </div>
-
-    <div id="tab-upload" class="tab">
-      <h2>Upload Documents</h2>
-      <div class="upload-area" id="upload-area">
-        <p>Drag &amp; drop files here or click to browse</p>
-        <input type="file" id="file-input" multiple accept=".pdf,.docx,.txt,.md" style="display:none" />
-      </div>
-      <div id="selected-files"></div>
-      <button id="upload-btn" onclick="doUpload()" style="display:none">Upload &amp; Index</button>
-      <div id="upload-progress" class="results"></div>
-    </div>
-
-    <div id="tab-stats" class="tab">
-      <h2>Index Statistics</h2>
-      <button onclick="loadStats()">Refresh</button>
-      <div id="stats-display" class="results"></div>
-    </div>
-  </main>
-  <script src="/graph.js"></script>
-  <script src="/app.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DocsContext</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
 
 

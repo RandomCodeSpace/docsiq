@@ -1,6 +1,11 @@
 package ui
 
-import "embed"
+import (
+	"embed"
+	"io/fs"
+)
 
-//go:embed index.html app.js graph.js style.css
-var Assets embed.FS
+//go:embed dist
+var dist embed.FS
+
+var Assets, _ = fs.Sub(dist, "dist")

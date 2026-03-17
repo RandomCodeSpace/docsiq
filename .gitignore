@@ -11,8 +11,30 @@ DocsContext-*
 
 # Build artifacts
 dist/
+# Keep the embedded SPA dist so `go build` works without a separate frontend build
+!ui/dist
+!ui/dist/**
+*.out
+
+# Go workspace
+go.work
+go.work.sum
+
+# Frontend tooling
+ui/node_modules/
+ui/*.tsbuildinfo
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Editor
+.vscode/
+.idea/
 
 # OS
 .DS_Store
 Thumbs.db
 
+dist/

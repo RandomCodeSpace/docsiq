@@ -1,8 +1,11 @@
 package api
 
 import (
+	"io/fs"
 	"log/slog"
 	"net/http"
+	"path"
+	"strings"
 	"time"
 
 	"github.com/RandomCodeSpace/docscontext/internal/config"
@@ -37,9 +40,40 @@ func NewRouter(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *
 	mux.HandleFunc("GET /api/upload/progress", h.uploadProgress)
 
 	// Embedded UI
-	mux.Handle("/", http.FileServer(http.FS(ui.Assets)))
+	mux.Handle("/", spaHandler(ui.Assets))
 
 	return loggingMiddleware(mux)
+}
+
+func spaHandler(assets fs.FS) http.Handler {
+	fileServer := http.FileServer(http.FS(assets))
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/mcp") {
+			http.NotFound(w, r)
+			return
+		}
+
+		cleanPath := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
+		if cleanPath == "." || cleanPath == "" {
+			cleanPath = "index.html"
+		}
+
+		if strings.Contains(path.Base(cleanPath), ".") {
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+
+		content, err := fs.ReadFile(assets, "index.html")
+		if err != nil {
+			http.Error(w, "index.html not found", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(content)
+	})
 }
 
 // loggingMiddleware logs method, path, status code, and duration for every request.
@@ -76,4 +110,3 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.status = code
 	rw.ResponseWriter.WriteHeader(code)
 }
-
