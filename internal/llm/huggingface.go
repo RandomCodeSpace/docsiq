@@ -8,7 +8,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/amit/docsgraphcontext/internal/config"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/config"
 )
 
 // huggingFaceProvider calls a local TGI (Text Generation Inference) endpoint.

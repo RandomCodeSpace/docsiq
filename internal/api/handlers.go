@@ -10,12 +10,12 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/amit/docsgraphcontext/internal/config"
-	"github.com/amit/docsgraphcontext/internal/embedder"
-	"github.com/amit/docsgraphcontext/internal/llm"
-	"github.com/amit/docsgraphcontext/internal/pipeline"
-	"github.com/amit/docsgraphcontext/internal/search"
-	"github.com/amit/docsgraphcontext/internal/store"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/config"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/embedder"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/llm"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/pipeline"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/search"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/store"
 )
 
 type handlers struct {

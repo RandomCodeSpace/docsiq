@@ -6,7 +6,7 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/amit/docsgraphcontext/internal/store"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/store"
 	"github.com/spf13/cobra"
 )
 

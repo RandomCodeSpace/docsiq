@@ -4,8 +4,8 @@ import (
 	"context"
 	"sort"
 
-	"github.com/amit/docsgraphcontext/internal/embedder"
-	"github.com/amit/docsgraphcontext/internal/store"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/embedder"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/store"
 )
 
 // ChunkResult is a search result from chunk/vector search.

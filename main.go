@@ -1,6 +1,6 @@
 package main
 
-import "github.com/amit/docsgraphcontext/cmd"
+import "github.com/RandomCodeSpace/docsgraphcontext/cmd"
 
 func main() {
 	cmd.Execute()

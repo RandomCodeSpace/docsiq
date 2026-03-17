@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/amit/docsgraphcontext/internal/config"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/config"
 	"github.com/spf13/cobra"
 )
 

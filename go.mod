@@ -1,4 +1,4 @@
-module github.com/amit/docsgraphcontext
+module github.com/RandomCodeSpace/docsgraphcontext
 
 go 1.25.0
 

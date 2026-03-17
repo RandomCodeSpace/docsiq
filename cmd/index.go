@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/amit/docsgraphcontext/internal/llm"
-	"github.com/amit/docsgraphcontext/internal/pipeline"
-	"github.com/amit/docsgraphcontext/internal/store"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/llm"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/pipeline"
+	"github.com/RandomCodeSpace/docsgraphcontext/internal/store"
 	"github.com/spf13/cobra"
 )
 
