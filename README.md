@@ -1,5 +1,11 @@
 # DocsContext
 
+[![Security Scan](https://github.com/RandomCodeSpace/docscontext/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/RandomCodeSpace/docscontext/actions/workflows/ci.yml)
+[![OpenSSF Scan](https://github.com/RandomCodeSpace/docscontext/actions/workflows/ci.yml/badge.svg?branch=main&label=OpenSSF%20scan)](https://github.com/RandomCodeSpace/docscontext/actions/workflows/ci.yml)
+[![OpenSSF Score](https://api.securityscorecards.dev/projects/github.com/RandomCodeSpace/docscontext/badge)](https://securityscorecards.dev/viewer/?uri=github.com/RandomCodeSpace/docscontext)
+[![Release](https://img.shields.io/github/v/release/RandomCodeSpace/docscontext)](https://github.com/RandomCodeSpace/docscontext/releases)
+[![Beta](https://img.shields.io/github/v/release/RandomCodeSpace/docscontext?include_prereleases&label=beta)](https://github.com/RandomCodeSpace/docscontext/releases)
+
 A pure Go ([CGO_ENABLED=0](https://pkg.go.dev/cmd/cgo)) GraphRAG tool inspired by [Microsoft GraphRAG](https://github.com/microsoft/graphrag).
 Ingests unstructured documents, builds a hierarchical knowledge graph with community detection, and exposes an **MCP server + embedded Web UI** on a single port.
 
