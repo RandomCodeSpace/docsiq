@@ -1,10 +1,47 @@
 package loader
 
 import (
+	"bytes"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 )
+
+// ErrBinaryFile is returned when a file appears to contain binary content.
+var ErrBinaryFile = fmt.Errorf("file appears to be binary")
+
+// isBinary reads the first 8 KB of a file and returns true if it contains
+// null bytes or a high ratio of non-printable bytes — standard heuristic
+// used by git, file(1), and similar tools.
+func isBinary(path string) (bool, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+
+	buf := make([]byte, 8192)
+	n, err := f.Read(buf)
+	if err != nil && n == 0 {
+		return false, err
+	}
+	buf = buf[:n]
+
+	// Null byte → binary
+	if bytes.IndexByte(buf, 0x00) >= 0 {
+		return true, nil
+	}
+
+	// >30 % non-printable, non-whitespace bytes → binary
+	nonPrint := 0
+	for _, b := range buf {
+		if b < 0x09 || (b > 0x0d && b < 0x20) || b == 0x7f {
+			nonPrint++
+		}
+	}
+	return float64(nonPrint)/float64(len(buf)) > 0.30, nil
+}
 
 // RawDocument is the output of loading a file.
 type RawDocument struct {
@@ -32,7 +69,16 @@ func init() {
 }
 
 // Load dispatches to the correct loader by file extension.
+// Returns ErrBinaryFile (non-fatal) if the file looks like a binary.
 func Load(path string) (*RawDocument, error) {
+	binary, err := isBinary(path)
+	if err != nil {
+		return nil, err
+	}
+	if binary {
+		return nil, fmt.Errorf("%w: %s", ErrBinaryFile, path)
+	}
+
 	ext := strings.ToLower(filepath.Ext(path))
 	for _, l := range registry {
 		if l.Supports(ext) {

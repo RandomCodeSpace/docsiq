@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -139,9 +140,15 @@ func (p *Pipeline) indexFile(ctx context.Context, path string, opts IndexOptions
 		}
 	}
 
-	// Phase 1a: Load
+	// Phase 1a: Load — skip binary files gracefully
 	doc, err := loader.Load(path)
 	if err != nil {
+		if errors.Is(err, loader.ErrBinaryFile) {
+			if opts.Verbose {
+				fmt.Fprintf(os.Stderr, "  skip binary: %s\n", path)
+			}
+			return nil
+		}
 		return fmt.Errorf("load: %w", err)
 	}
 
