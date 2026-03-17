@@ -2,7 +2,7 @@
 
 [![Security Scan](https://github.com/RandomCodeSpace/docscontext/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/RandomCodeSpace/docscontext/actions/workflows/ci.yml)
 [![OpenSSF Scan](https://github.com/RandomCodeSpace/docscontext/actions/workflows/ci.yml/badge.svg?branch=main&label=OpenSSF%20scan)](https://github.com/RandomCodeSpace/docscontext/actions/workflows/ci.yml)
-[![OpenSSF Score](https://api.scorecard.dev/projects/github.com/RandomCodeSpace/docscontext/badge)](https://scorecard.dev/viewer/?uri=github.com/RandomCodeSpace/docscontext)
+[![OpenSSF Score](https://api.securityscorecards.dev/projects/github.com/RandomCodeSpace/docscontext/badge)](https://securityscorecards.dev/viewer/?uri=github.com/RandomCodeSpace/docscontext)
 [![Release](https://img.shields.io/github/v/release/RandomCodeSpace/docscontext)](https://github.com/RandomCodeSpace/docscontext/releases)
 [![Beta](https://img.shields.io/github/v/release/RandomCodeSpace/docscontext?include_prereleases&label=beta)](https://github.com/RandomCodeSpace/docscontext/releases)
 
@@ -179,8 +179,3 @@ All data lives in a single SQLite file at `$DATA_DIR/docscontext.db`.
 | Plain text | `.txt`, `.text` | UTF-8 encoding expected |
 
 > **Tip:** For best graph quality, prefer documents with clear structure (headings, named entities, factual prose). Scanned PDFs or heavily formatted spreadsheets will produce sparse graphs.
-
-## License
-
-MIT
-
