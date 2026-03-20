@@ -778,6 +778,17 @@ func (s *Store) ClearCommunities(ctx context.Context) error {
 	return err
 }
 
+// GraphFingerprint returns counts of entities, relationships, and communities
+// to detect whether the graph has changed since last finalization.
+func (s *Store) GraphFingerprint(ctx context.Context) (entities, relationships, communities int, err error) {
+	err = s.db.QueryRowContext(ctx, `
+		SELECT
+			(SELECT COUNT(*) FROM entities),
+			(SELECT COUNT(*) FROM relationships),
+			(SELECT COUNT(*) FROM communities)`).Scan(&entities, &relationships, &communities)
+	return
+}
+
 func scanCommunity(row *sql.Row) (*Community, error) {
 	var c Community
 	var blob []byte

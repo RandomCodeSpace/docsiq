@@ -81,7 +81,7 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetDefault("indexing.extract_graph", true)
 	v.SetDefault("indexing.extract_claims", true)
 	v.SetDefault("indexing.max_gleanings", 1)
-	v.SetDefault("community.min_community_size", 3)
+	v.SetDefault("community.min_community_size", 2)
 	v.SetDefault("community.max_levels", 3)
 	v.SetDefault("server.host", "127.0.0.1")
 	v.SetDefault("server.port", 8080)

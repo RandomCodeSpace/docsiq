@@ -181,6 +181,12 @@ func (p *Pipeline) IndexURL(ctx context.Context, rootURL string, opts IndexOptio
 
 // indexFile processes a single file through Phases 1-2.
 func (p *Pipeline) indexFile(ctx context.Context, path string, opts IndexOptions) error {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("resolve absolute path: %w", err)
+	}
+	path = absPath
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -550,6 +556,17 @@ func (p *Pipeline) Finalize(ctx context.Context, verbose bool) error {
 	if err != nil {
 		return fmt.Errorf("load relationships: %w", err)
 	}
+
+	// Check if finalization can be skipped: communities already exist and
+	// entity/relationship counts haven't changed since last run.
+	existingEntities, existingRels, existingComms, fpErr := p.store.GraphFingerprint(ctx)
+	if fpErr == nil && existingComms > 0 &&
+		existingEntities == len(entities) && existingRels == len(rels) {
+		slog.Info("⏭️ skipping finalization — graph unchanged since last run",
+			"entities", len(entities), "relationships", len(rels), "communities", existingComms)
+		return nil
+	}
+
 	slog.Info("🧩 Phase 3: running Louvain community detection",
 		"entities", len(entities), "relationships", len(rels))
 
@@ -640,6 +657,12 @@ func (p *Pipeline) Finalize(ctx context.Context, verbose bool) error {
 		}
 	}
 
+	if len(workItems) == 0 {
+		slog.Warn("⚠️ all communities filtered out by min_community_size",
+			"min_community_size", p.cfg.Community.MinCommunitySize,
+			"hint", "lower community.min_community_size in config or index more documents")
+		return nil
+	}
 	slog.Info("🧩 Phase 4: summarising communities", "communities", len(workItems))
 
 	type commResult struct {
