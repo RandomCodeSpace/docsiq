@@ -168,7 +168,7 @@ func (h *handlers) graphNeighborhood(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if entity == nil {
-		writeJSON(w, 200, map[string]any{"nodes": []any{}, "edges": []any{}})
+		writeJSON(w, 404, map[string]any{"error": "entity not found", "nodes": []any{}, "edges": []any{}})
 		return
 	}
 

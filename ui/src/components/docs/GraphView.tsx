@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react'
 import { Orbit } from 'lucide-react'
 import type { GraphNeighborhood } from '@/types/api'
+import type { GraphStatus } from '@/hooks/useGraph'
 
 interface Props {
   graph: GraphNeighborhood | null
   loading: boolean
   error: string | null
+  status: GraphStatus
   onLoad: (entity: string, depth: number) => void
 }
 
@@ -19,7 +21,7 @@ const typeColors: Record<string, string> = {
   Other: '#64748b',
 }
 
-export default function GraphView({ graph, loading, error, onLoad }: Props) {
+export default function GraphView({ graph, loading, error, status, onLoad }: Props) {
   const [entity, setEntity] = useState('')
   const [depth, setDepth] = useState(2)
 
@@ -63,8 +65,14 @@ export default function GraphView({ graph, loading, error, onLoad }: Props) {
       <div className="card" style={{ minHeight: 0, overflow: 'hidden', display: 'grid', gridTemplateRows: '1fr auto', gap: '0.9rem' }}>
         <div style={{ position: 'relative', minHeight: 420, overflow: 'hidden', borderRadius: 12, background: 'radial-gradient(circle at top, rgba(56,189,248,0.12), transparent 35%), linear-gradient(180deg, var(--bg-card), var(--bg-base))', border: '1px solid var(--border)' }}>
           {!graph?.nodes?.length && (
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Orbit size={16} /> No graph loaded</div>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                <Orbit size={16} />
+                {status === 'no_entities' && <span>No entities indexed yet. Upload documents to build the graph.</span>}
+                {status === 'not_found' && <span>Entity not found. Try a different name.</span>}
+                {status === 'idle' && <span>Enter an entity name to explore its neighborhood.</span>}
+                {(status === 'loaded' || status === 'error') && !graph?.nodes?.length && <span>No graph loaded</span>}
+              </div>
             </div>
           )}
           {graph?.nodes?.length ? (

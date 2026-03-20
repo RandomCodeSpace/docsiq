@@ -21,7 +21,7 @@ export default function App() {
   const { stats, loading: statsLoading, error: statsError } = useStats()
   const { results, loading: searchLoading, error: searchError, search } = useSearch()
   const { documents, docType, loading: docsLoading, selectType } = useDocuments()
-  const { graph, loading: graphLoading, error: graphError, loadGraph } = useGraph()
+  const { graph, loading: graphLoading, error: graphError, status: graphStatus, loadGraph, setNoEntities } = useGraph()
   const {
     communities,
     level,
@@ -36,10 +36,20 @@ export default function App() {
   const [view, setView] = useState<DocsView>('overview')
 
   useEffect(() => {
-    if (!graph && !graphLoading) {
-      void loadGraph('DocsContext', 2)
+    if (!graph && !graphLoading && graphStatus === 'idle') {
+      fetch('/api/entities?limit=1')
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => {
+          const first = Array.isArray(data) ? data[0] : null
+          if (first?.name) {
+            void loadGraph(first.name, 2)
+          } else {
+            setNoEntities()
+          }
+        })
+        .catch(() => setNoEntities())
     }
-  }, [graph, graphLoading, loadGraph])
+  }, [graph, graphLoading, graphStatus, loadGraph, setNoEntities])
 
   return (
     <>
@@ -87,7 +97,7 @@ export default function App() {
         )}
 
         {view === 'graph' && (
-          <GraphView graph={graph} loading={graphLoading} error={graphError} onLoad={(entity, depth) => void loadGraph(entity, depth)} />
+          <GraphView graph={graph} loading={graphLoading} error={graphError} status={graphStatus} onLoad={(entity, depth) => void loadGraph(entity, depth)} />
         )}
 
         {view === 'communities' && (
