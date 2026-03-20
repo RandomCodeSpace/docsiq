@@ -39,13 +39,13 @@ var serveCmd = &cobra.Command{
 			return fmt.Errorf("open store: %w", err)
 		}
 		defer st.Close()
-		slog.Info("store opened", "path", cfg.DBPath())
+		slog.Info("📂 store opened", "path", cfg.DBPath())
 
 		prov, err := llm.NewProvider(&cfg.LLM)
 		if err != nil {
 			return fmt.Errorf("llm provider: %w", err)
 		}
-		slog.Info("LLM provider initialised", "provider", prov.Name(), "model", prov.ModelID())
+		slog.Info("⚙️ LLM provider initialised", "provider", prov.Name(), "model", prov.ModelID())
 
 		emb := embedder.New(prov, cfg.Indexing.BatchSize)
 		router := api.NewRouter(st, prov, emb, cfg)
@@ -58,7 +58,7 @@ var serveCmd = &cobra.Command{
 
 		srv := &http.Server{Handler: router, ReadTimeout: 60 * time.Second, WriteTimeout: 120 * time.Second}
 
-		slog.Info("server started",
+		slog.Info("🚀 server started",
 			"addr", "http://"+addr,
 			"ui", "http://"+addr+"/",
 			"mcp", "http://"+addr+"/mcp",
@@ -70,19 +70,19 @@ var serveCmd = &cobra.Command{
 
 		go func() {
 			if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
-				slog.Error("server error", "err", err)
+				slog.Error("❌ server error", "err", err)
 			}
 		}()
 
 		<-ctx.Done()
-		slog.Info("shutting down...")
+		slog.Info("🛑 shutting down...")
 		shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := srv.Shutdown(shutCtx); err != nil {
-			slog.Error("shutdown error", "err", err)
+			slog.Error("❌ shutdown error", "err", err)
 			return err
 		}
-		slog.Info("shutdown complete")
+		slog.Info("✅ shutdown complete")
 		return nil
 	},
 }

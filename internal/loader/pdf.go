@@ -12,6 +12,12 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 )
 
+func init() {
+	// Disable pdfcpu's config directory lookup to avoid "config not found"
+	// errors when ~/.config/pdfcpu/ does not exist.
+	model.ConfigPath = "disable"
+}
+
 type PDFLoader struct{}
 
 func (l *PDFLoader) Supports(ext string) bool { return ext == ".pdf" }

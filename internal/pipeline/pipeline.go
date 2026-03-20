@@ -81,7 +81,7 @@ func (p *Pipeline) IndexPath(ctx context.Context, path string, opts IndexOptions
 		return fmt.Errorf("no supported files found in %s", path)
 	}
 
-	slog.Info("indexing files", "path", path, "count", len(files), "workers", workers)
+	slog.Info("📄 indexing files", "path", path, "count", len(files), "workers", workers)
 
 	bar := progressbar.NewOptions(len(files),
 		progressbar.OptionSetDescription("Indexing"),
@@ -103,7 +103,7 @@ func (p *Pipeline) IndexPath(ctx context.Context, path string, opts IndexOptions
 			defer bar.Add(1)
 
 			if err := p.indexFile(ctx, filePath, opts); err != nil {
-				slog.Warn("failed to index file", "path", filePath, "err", err)
+				slog.Warn("⚠️ failed to index file", "path", filePath, "err", err)
 				mu.Lock()
 				errs = append(errs, fmt.Sprintf("%s: %v", filePath, err))
 				mu.Unlock()
@@ -113,10 +113,10 @@ func (p *Pipeline) IndexPath(ctx context.Context, path string, opts IndexOptions
 	wg.Wait()
 
 	if len(errs) > 0 {
-		slog.Error("indexing finished with errors", "failed", len(errs), "total", len(files))
+		slog.Error("❌ indexing finished with errors", "failed", len(errs), "total", len(files))
 		return fmt.Errorf("indexing errors:\n%s", strings.Join(errs, "\n"))
 	}
-	slog.Info("indexing complete", "files", len(files))
+	slog.Info("✅ indexing complete", "files", len(files))
 	return nil
 }
 
@@ -127,7 +127,7 @@ func (p *Pipeline) IndexURL(ctx context.Context, rootURL string, opts IndexOptio
 		workers = p.cfg.Indexing.Workers
 	}
 
-	slog.Info("crawling site", "url", rootURL)
+	slog.Info("🌐 crawling site", "url", rootURL)
 	pages, err := crawler.Crawl(ctx, rootURL, crawler.Options{
 		MaxPages:    opts.MaxPages,
 		MaxDepth:    opts.MaxDepth,
@@ -140,7 +140,7 @@ func (p *Pipeline) IndexURL(ctx context.Context, rootURL string, opts IndexOptio
 	if len(pages) == 0 {
 		return fmt.Errorf("no pages found at %s", rootURL)
 	}
-	slog.Info("crawl complete, indexing pages", "url", rootURL, "pages", len(pages))
+	slog.Info("✅ crawl complete, indexing pages", "url", rootURL, "pages", len(pages))
 
 	bar := progressbar.NewOptions(len(pages),
 		progressbar.OptionSetDescription("Indexing pages"),
@@ -161,7 +161,7 @@ func (p *Pipeline) IndexURL(ctx context.Context, rootURL string, opts IndexOptio
 			defer func() { <-sem }()
 			defer bar.Add(1)
 			if err := p.indexRawDoc(ctx, doc, opts); err != nil {
-				slog.Warn("failed to index page", "url", doc.Path, "err", err)
+				slog.Warn("⚠️ failed to index page", "url", doc.Path, "err", err)
 				mu.Lock()
 				errs = append(errs, fmt.Sprintf("%s: %v", doc.Path, err))
 				mu.Unlock()
@@ -171,10 +171,10 @@ func (p *Pipeline) IndexURL(ctx context.Context, rootURL string, opts IndexOptio
 	wg.Wait()
 
 	if len(errs) > 0 {
-		slog.Error("web indexing finished with errors", "failed", len(errs), "total", len(pages))
+		slog.Error("❌ web indexing finished with errors", "failed", len(errs), "total", len(pages))
 		return fmt.Errorf("indexing errors:\n%s", strings.Join(errs, "\n"))
 	}
-	slog.Info("web indexing complete", "url", rootURL, "pages", len(pages))
+	slog.Info("✅ web indexing complete", "url", rootURL, "pages", len(pages))
 	return nil
 }
 
@@ -192,11 +192,11 @@ func (p *Pipeline) indexFile(ctx context.Context, path string, opts IndexOptions
 		return err
 	}
 	if existing != nil && existing.FileHash == hash && !opts.Force {
-		slog.Debug("skipping unchanged file", "path", path)
+		slog.Info("⏭️ skipping unchanged file", "path", path)
 		return nil
 	}
 	if existing != nil {
-		slog.Info("superseding existing document version", "path", path, "old_version", existing.Version)
+		slog.Info("📄 superseding existing document version", "path", path, "old_version", existing.Version)
 		if err := p.store.SupersedeDocument(ctx, existing.ID); err != nil {
 			return fmt.Errorf("supersede old version: %w", err)
 		}
@@ -206,7 +206,7 @@ func (p *Pipeline) indexFile(ctx context.Context, path string, opts IndexOptions
 	doc, err := loader.Load(path)
 	if err != nil {
 		if errors.Is(err, loader.ErrBinaryFile) {
-			slog.Debug("skipping binary file", "path", path)
+			slog.Warn("⏭️ skipping binary file", "path", path)
 			return nil
 		}
 		return fmt.Errorf("load: %w", err)
@@ -216,11 +216,11 @@ func (p *Pipeline) indexFile(ctx context.Context, path string, opts IndexOptions
 
 	chunks := p.chunker.Split(doc.Content)
 	if len(chunks) == 0 {
-		slog.Warn("no chunks produced for file, skipping", "path", path)
+		slog.Warn("⏭️ no chunks produced for file, skipping", "path", path)
 		return nil
 	}
 
-	slog.Debug("indexing file", "path", path, "version", nextVersion, "chunks", len(chunks), "doc_type", doc.DocType)
+	slog.Debug("📄 indexing file", "path", path, "version", nextVersion, "chunks", len(chunks), "doc_type", doc.DocType)
 
 	docID := uuid.New().String()
 	if err := p.store.UpsertDocument(ctx, &store.Document{
@@ -262,7 +262,7 @@ func (p *Pipeline) indexFile(ctx context.Context, path string, opts IndexOptions
 	if err != nil {
 		return fmt.Errorf("embed: %w", err)
 	}
-	slog.Debug("chunks embedded", "path", path, "chunks", len(vecs))
+	slog.Debug("📊 chunks embedded", "path", path, "chunks", len(vecs))
 
 	if err := p.store.BatchUpsertEmbeddings(ctx, p.provider.ModelID(), chunkIDs, vecs); err != nil {
 		return fmt.Errorf("batch store embeddings: %w", err)
@@ -302,7 +302,7 @@ func (p *Pipeline) indexFile(ctx context.Context, path string, opts IndexOptions
 
 	for label, e := range map[string]error{"graph": graphErr, "claims": claimsErr, "structure": structureErr} {
 		if e != nil {
-			slog.Warn("extraction warning", "phase", label, "path", path, "err", e)
+			slog.Warn("⚠️ extraction warning", "phase", label, "path", path, "err", e)
 		}
 	}
 
@@ -335,7 +335,7 @@ func (p *Pipeline) extractGraph(ctx context.Context, docID string, texts []strin
 			}
 			res, err := extractor.ExtractEntities(ctx, p.provider, texts[start:end])
 			if err != nil {
-				slog.Debug("entity extraction batch failed", "doc_id", docID, "batch", idx, "err", err)
+				slog.Debug("⚠️ entity extraction batch failed", "doc_id", docID, "batch", idx, "err", err)
 			}
 			results[idx] = batchResult{res, err}
 		}(bi)
@@ -424,7 +424,7 @@ func (p *Pipeline) extractGraph(ctx context.Context, docID string, texts []strin
 		}
 	}
 
-	slog.Debug("graph extraction complete", "doc_id", docID,
+	slog.Debug("🔗 graph extraction complete", "doc_id", docID,
 		"entities", len(toUpsert), "relationships", len(rels))
 
 	return p.store.BatchInsertRelationships(ctx, rels)
@@ -464,7 +464,7 @@ func (p *Pipeline) extractClaims(ctx context.Context, docID string, texts []stri
 		})
 	}
 
-	slog.Debug("claims extracted", "doc_id", docID, "claims", len(claims))
+	slog.Debug("📋 claims extracted", "doc_id", docID, "claims", len(claims))
 	return p.store.BatchInsertClaims(ctx, claims)
 }
 
@@ -495,7 +495,7 @@ func (p *Pipeline) structureDocument(ctx context.Context, docID, content string)
 
 // Finalize runs Phases 3-4: community detection + parallel summaries.
 func (p *Pipeline) Finalize(ctx context.Context, verbose bool) error {
-	slog.Info("Phase 3: loading entities and relationships")
+	slog.Info("🧩 Phase 3: loading entities and relationships")
 	entities, err := p.store.AllEntities(ctx)
 	if err != nil {
 		return fmt.Errorf("load entities: %w", err)
@@ -508,7 +508,7 @@ func (p *Pipeline) Finalize(ctx context.Context, verbose bool) error {
 	if err != nil {
 		return fmt.Errorf("load relationships: %w", err)
 	}
-	slog.Info("Phase 3: running Louvain community detection",
+	slog.Info("🧩 Phase 3: running Louvain community detection",
 		"entities", len(entities), "relationships", len(rels))
 
 	nodes := make([]string, len(entities))
@@ -525,7 +525,7 @@ func (p *Pipeline) Finalize(ctx context.Context, verbose bool) error {
 
 	g := community.NewGraph(nodes, edges)
 	levels := community.HierarchicalLouvain(g, p.cfg.Community.MaxLevels, 100)
-	slog.Info("Phase 3: community detection complete", "levels", len(levels))
+	slog.Info("✅ Phase 3: community detection complete", "levels", len(levels))
 
 	if err := p.store.ClearCommunities(ctx); err != nil {
 		return err
@@ -598,7 +598,7 @@ func (p *Pipeline) Finalize(ctx context.Context, verbose bool) error {
 		}
 	}
 
-	slog.Info("Phase 4: summarising communities", "communities", len(workItems))
+	slog.Info("🧩 Phase 4: summarising communities", "communities", len(workItems))
 
 	type commResult struct {
 		work    commWork
@@ -620,13 +620,13 @@ func (p *Pipeline) Finalize(ctx context.Context, verbose bool) error {
 			res := commResult{work: work}
 			report, err := community.Summarize(ctx, p.provider, work.entityDescs, work.relDescs)
 			if err != nil {
-				slog.Warn("community summary failed", "community_idx", idx, "level", work.level, "err", err)
+				slog.Warn("⚠️ community summary failed", "community_idx", idx, "level", work.level, "err", err)
 				res.title = fmt.Sprintf("Community %d (Level %d)", idx, work.level)
 				res.summary = fmt.Sprintf("Contains %d entities.", work.rank)
 			} else {
 				res.title = report.Title
 				res.summary = report.Summary
-				slog.Debug("community summarised", "idx", idx, "level", work.level, "title", report.Title)
+				slog.Debug("✅ community summarised", "idx", idx, "level", work.level, "title", report.Title)
 			}
 
 			if res.summary != "" {
@@ -634,7 +634,7 @@ func (p *Pipeline) Finalize(ctx context.Context, verbose bool) error {
 				if err == nil {
 					res.vector = vec
 				} else {
-					slog.Warn("community summary embedding failed", "community_idx", idx, "err", err)
+					slog.Warn("⚠️ community summary embedding failed", "community_idx", idx, "err", err)
 				}
 			}
 			results[idx] = res
@@ -642,7 +642,7 @@ func (p *Pipeline) Finalize(ctx context.Context, verbose bool) error {
 	}
 	wg.Wait()
 
-	slog.Info("Phase 4: writing communities to store")
+	slog.Info("💾 Phase 4: writing communities to store")
 	communityAssignments := map[string]string{}
 	for _, res := range results {
 		if err := p.store.UpsertCommunity(ctx, &store.Community{
@@ -685,7 +685,7 @@ func (p *Pipeline) Finalize(ctx context.Context, verbose bool) error {
 		}
 	}
 	if len(toEmbed) > 0 {
-		slog.Info("embedding entity descriptions", "count", len(toEmbed))
+		slog.Info("📊 embedding entity descriptions", "count", len(toEmbed))
 		descTexts := make([]string, len(toEmbed))
 		for i, e := range toEmbed {
 			descTexts[i] = e.Description
@@ -699,11 +699,11 @@ func (p *Pipeline) Finalize(ctx context.Context, verbose bool) error {
 			}
 			p.store.BatchUpsertEntities(ctx, toEmbed)
 		} else {
-			slog.Warn("entity description embedding failed", "err", err)
+			slog.Warn("⚠️ entity description embedding failed", "err", err)
 		}
 	}
 
-	slog.Info("Finalize complete",
+	slog.Info("✅ Finalize complete",
 		"communities", len(workItems),
 		"entities_updated", len(communityAssignments))
 	return nil
@@ -731,11 +731,11 @@ func (p *Pipeline) indexRawDoc(ctx context.Context, doc *loader.RawDocument, opt
 		return err
 	}
 	if existing != nil && existing.FileHash == hash && !opts.Force {
-		slog.Debug("skipping unchanged page", "url", doc.Path)
+		slog.Info("⏭️ skipping unchanged page", "url", doc.Path)
 		return nil
 	}
 	if existing != nil {
-		slog.Info("superseding existing page version", "url", doc.Path, "old_version", existing.Version)
+		slog.Info("📄 superseding existing page version", "url", doc.Path, "old_version", existing.Version)
 		if err := p.store.SupersedeDocument(ctx, existing.ID); err != nil {
 			return fmt.Errorf("supersede old version: %w", err)
 		}
@@ -744,11 +744,11 @@ func (p *Pipeline) indexRawDoc(ctx context.Context, doc *loader.RawDocument, opt
 	nextVersion, canonicalID := versionInfo(existing)
 	chunks := p.chunker.Split(doc.Content)
 	if len(chunks) == 0 {
-		slog.Warn("no chunks produced for page, skipping", "url", doc.Path)
+		slog.Warn("⏭️ no chunks produced for page, skipping", "url", doc.Path)
 		return nil
 	}
 
-	slog.Debug("indexing page", "url", doc.Path, "version", nextVersion, "chunks", len(chunks))
+	slog.Debug("🌐 indexing page", "url", doc.Path, "version", nextVersion, "chunks", len(chunks))
 
 	docID := uuid.New().String()
 	if err := p.store.UpsertDocument(ctx, &store.Document{
@@ -788,7 +788,7 @@ func (p *Pipeline) indexRawDoc(ctx context.Context, doc *loader.RawDocument, opt
 	if err != nil {
 		return fmt.Errorf("embed: %w", err)
 	}
-	slog.Debug("chunks embedded", "url", doc.Path, "chunks", len(vecs))
+	slog.Debug("📊 chunks embedded", "url", doc.Path, "chunks", len(vecs))
 
 	if err := p.store.BatchUpsertEmbeddings(ctx, p.provider.ModelID(), chunkIDs, vecs); err != nil {
 		return fmt.Errorf("batch store embeddings: %w", err)
@@ -823,7 +823,7 @@ func (p *Pipeline) indexRawDoc(ctx context.Context, doc *loader.RawDocument, opt
 
 	for label, e := range map[string]error{"graph": graphErr, "claims": claimsErr, "structure": structureErr} {
 		if e != nil {
-			slog.Warn("extraction warning", "phase", label, "url", doc.Path, "err", e)
+			slog.Warn("⚠️ extraction warning", "phase", label, "url", doc.Path, "err", e)
 		}
 	}
 	return nil

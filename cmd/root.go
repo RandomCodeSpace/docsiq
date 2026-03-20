@@ -55,11 +55,11 @@ func initConfig() {
 	var err error
 	cfg, err = config.Load(cfgFile)
 	if err != nil {
-		slog.Error("config error", "err", err)
+		slog.Error("❌ config error", "err", err)
 		os.Exit(1)
 	}
 	if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
-		slog.Error("failed to create data directory", "path", cfg.DataDir, "err", err)
+		slog.Error("❌ failed to create data directory", "path", cfg.DataDir, "err", err)
 		os.Exit(1)
 	}
 }

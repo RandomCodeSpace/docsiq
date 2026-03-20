@@ -113,14 +113,14 @@ func Load(cfgFile string) (*Config, error) {
 
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			slog.Warn("no config file found, using defaults",
+			slog.Warn("⚠️ no config file found, using defaults",
 				"searched_paths", []string{defaultCfgDirLower, defaultCfgDir, "."},
 				"expected_names", "config.yaml or config.yml")
 		} else {
 			return nil, fmt.Errorf("reading config: %w", err)
 		}
 	} else {
-		slog.Info("loaded config file", "path", v.ConfigFileUsed())
+		slog.Info("⚙️ loaded config file", "path", v.ConfigFileUsed())
 	}
 
 	var cfg Config
@@ -128,7 +128,7 @@ func Load(cfgFile string) (*Config, error) {
 		return nil, fmt.Errorf("unmarshaling config: %w", err)
 	}
 
-	slog.Info("resolved LLM config", "provider", cfg.LLM.Provider)
+	slog.Info("⚙️ resolved LLM config", "provider", cfg.LLM.Provider)
 
 	// Expand home dir
 	if strings.HasPrefix(cfg.DataDir, "~/") {

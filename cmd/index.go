@@ -39,12 +39,12 @@ var indexCmd = &cobra.Command{
 				return fmt.Errorf("llm provider: %w", err)
 			}
 			pl := pipeline.New(st, prov, cfg)
-			slog.Info("running Phase 3-4: community detection + summaries")
+			slog.Info("🧩 running Phase 3-4: community detection + summaries")
 			if err := pl.Finalize(cmd.Context(), indexVerbose); err != nil {
-				slog.Error("finalization failed", "err", err)
+				slog.Error("❌ finalization failed", "err", err)
 				return err
 			}
-			slog.Info("finalization complete")
+			slog.Info("✅ finalization complete")
 			return nil
 		}
 
@@ -63,13 +63,13 @@ var indexCmd = &cobra.Command{
 		}
 
 		if indexURL != "" {
-			slog.Info("crawling documentation site", "url", indexURL, "workers", indexWorkers,
+			slog.Info("🌐 crawling documentation site", "url", indexURL, "workers", indexWorkers,
 				"max_pages", indexMaxPages, "max_depth", indexMaxDepth)
 			if err := pl.IndexURL(cmd.Context(), indexURL, opts); err != nil {
-				slog.Error("web indexing failed", "url", indexURL, "err", err)
+				slog.Error("❌ web indexing failed", "url", indexURL, "err", err)
 				return err
 			}
-			slog.Info("web indexing complete", "url", indexURL)
+			slog.Info("✅ web indexing complete", "url", indexURL)
 			return nil
 		}
 
@@ -77,12 +77,12 @@ var indexCmd = &cobra.Command{
 			return fmt.Errorf("path or --url required (or use --finalize)")
 		}
 
-		slog.Info("indexing path", "path", args[0], "workers", indexWorkers, "force", indexForce)
+		slog.Info("📄 indexing path", "path", args[0], "workers", indexWorkers, "force", indexForce)
 		if err := pl.IndexPath(cmd.Context(), args[0], opts); err != nil {
-			slog.Error("indexing failed", "path", args[0], "err", err)
+			slog.Error("❌ indexing failed", "path", args[0], "err", err)
 			return err
 		}
-		slog.Info("indexing complete", "path", args[0])
+		slog.Info("✅ indexing complete", "path", args[0])
 		return nil
 	},
 }

@@ -38,7 +38,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeError(w http.ResponseWriter, r *http.Request, status int, msg string, err error) {
 	if status >= 500 && err != nil {
-		slog.ErrorContext(r.Context(), "handler error", "path", r.URL.Path, "err", err)
+		slog.ErrorContext(r.Context(), "❌ handler error", "path", r.URL.Path, "err", err)
 	}
 	writeJSON(w, status, map[string]string{"error": msg})
 }
@@ -124,7 +124,7 @@ func (h *handlers) search(w http.ResponseWriter, r *http.Request) {
 		req.GraphDepth = 2
 	}
 
-	slog.InfoContext(r.Context(), "search request", "mode", req.Mode, "query", req.Query, "top_k", req.TopK)
+	slog.InfoContext(r.Context(), "🔍 search request", "mode", req.Mode, "query", req.Query, "top_k", req.TopK)
 
 	ctx := r.Context()
 	switch req.Mode {
@@ -156,7 +156,7 @@ func (h *handlers) graphNeighborhood(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.DebugContext(r.Context(), "graph neighborhood request", "entity", name, "depth", depth)
+	slog.DebugContext(r.Context(), "🔗 graph neighborhood request", "entity", name, "depth", depth)
 
 	ctx := r.Context()
 	entity, err := h.store.GetEntityByName(ctx, name)
@@ -206,7 +206,7 @@ func (h *handlers) graphNeighborhood(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	slog.DebugContext(r.Context(), "graph neighborhood result", "entity", name, "nodes", len(nodes), "edges", len(edges))
+	slog.DebugContext(r.Context(), "🔗 graph neighborhood result", "entity", name, "nodes", len(nodes), "edges", len(edges))
 	writeJSON(w, 200, map[string]any{"nodes": nodes, "edges": edges})
 }
 
@@ -297,7 +297,7 @@ func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jobID := fmt.Sprintf("job-%d", len(h.jobProgress))
-	slog.Info("upload job queued", "job_id", jobID, "files", len(paths))
+	slog.Info("📦 upload job queued", "job_id", jobID, "files", len(paths))
 
 	h.uploadMu.Lock()
 	h.jobProgress = append(h.jobProgress, fmt.Sprintf("queued: %d files", len(paths)))
@@ -307,15 +307,15 @@ func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
 		defer os.RemoveAll(tmpDir)
 		pl := pipeline.New(h.store, h.provider, h.cfg)
 		for _, p := range paths {
-			slog.Info("upload indexing file", "job_id", jobID, "file", filepath.Base(p))
+			slog.Info("📦 upload indexing file", "job_id", jobID, "file", filepath.Base(p))
 			h.setProgress(jobID, fmt.Sprintf("indexing: %s", filepath.Base(p)))
 			if err := pl.IndexPath(r.Context(), p, pipeline.IndexOptions{}); err != nil {
-				slog.Error("upload indexing failed", "job_id", jobID, "file", filepath.Base(p), "err", err)
+				slog.Error("❌ upload indexing failed", "job_id", jobID, "file", filepath.Base(p), "err", err)
 				h.setProgress(jobID, fmt.Sprintf("error: %v", err))
 				return
 			}
 		}
-		slog.Info("upload job complete", "job_id", jobID, "files", len(paths))
+		slog.Info("✅ upload job complete", "job_id", jobID, "files", len(paths))
 		h.setProgress(jobID, "done")
 	}()
 
