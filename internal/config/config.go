@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -95,13 +96,14 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetDefault("server.port", 8080)
 
 	// Config file
+	defaultCfgDirLower := filepath.Join(home, ".docscontext")
 	if cfgFile != "" {
 		v.SetConfigFile(cfgFile)
 	} else {
+		v.AddConfigPath(defaultCfgDirLower)
 		v.AddConfigPath(defaultCfgDir)
 		v.AddConfigPath(".")
 		v.SetConfigName("config")
-		v.SetConfigType("yaml")
 	}
 
 	// Env overrides
@@ -110,15 +112,23 @@ func Load(cfgFile string) (*Config, error) {
 	v.AutomaticEnv()
 
 	if err := v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			slog.Warn("no config file found, using defaults",
+				"searched_paths", []string{defaultCfgDirLower, defaultCfgDir, "."},
+				"expected_names", "config.yaml or config.yml")
+		} else {
 			return nil, fmt.Errorf("reading config: %w", err)
 		}
+	} else {
+		slog.Info("loaded config file", "path", v.ConfigFileUsed())
 	}
 
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("unmarshaling config: %w", err)
 	}
+
+	slog.Info("resolved LLM config", "provider", cfg.LLM.Provider)
 
 	// Expand home dir
 	if strings.HasPrefix(cfg.DataDir, "~/") {
