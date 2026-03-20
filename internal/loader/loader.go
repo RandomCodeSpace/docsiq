@@ -68,18 +68,30 @@ func init() {
 	}
 }
 
+// knownBinaryFormats are file extensions for formats that are inherently binary
+// but have dedicated loaders that know how to parse them.
+var knownBinaryFormats = map[string]bool{
+	".pdf":  true,
+	".docx": true,
+}
+
 // Load dispatches to the correct loader by file extension.
 // Returns ErrBinaryFile (non-fatal) if the file looks like a binary.
 func Load(path string) (*RawDocument, error) {
-	binary, err := isBinary(path)
-	if err != nil {
-		return nil, err
-	}
-	if binary {
-		return nil, fmt.Errorf("%w: %s", ErrBinaryFile, path)
+	ext := strings.ToLower(filepath.Ext(path))
+
+	// Skip binary detection for formats that are inherently binary but have
+	// dedicated parsers (PDF, DOCX).
+	if !knownBinaryFormats[ext] {
+		binary, err := isBinary(path)
+		if err != nil {
+			return nil, err
+		}
+		if binary {
+			return nil, fmt.Errorf("%w: %s", ErrBinaryFile, path)
+		}
 	}
 
-	ext := strings.ToLower(filepath.Ext(path))
 	for _, l := range registry {
 		if l.Supports(ext) {
 			return l.Load(path)
