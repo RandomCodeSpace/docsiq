@@ -10,8 +10,10 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/RandomCodeSpace/docscontext/internal/config"
 	"github.com/RandomCodeSpace/docscontext/internal/embedder"
@@ -329,7 +331,7 @@ func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		h.setProgress(jobID, "finalizing")
-		if err := pl.Finalize(bgCtx, false); err != nil {
+		if err := pl.Finalize(bgCtx, false, true); err != nil {
 			slog.Warn("⚠️ upload finalization failed", "job_id", jobID, "err", err)
 		}
 		slog.Info("✅ upload job complete", "job_id", jobID, "files", len(paths))
@@ -353,18 +355,39 @@ func (h *handlers) uploadProgress(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	h.uploadMu.Lock()
-	progress := make(map[string]string, len(h.jobProgress))
-	for k, v := range h.jobProgress {
-		progress[k] = v
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
 	}
-	h.uploadMu.Unlock()
 
-	for _, msg := range progress {
-		fmt.Fprintf(w, "data: %s\n\n", msg)
-	}
-	if f, ok := w.(http.Flusher); ok {
-		f.Flush()
+	ctx := r.Context()
+	lastMsg := ""
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			h.uploadMu.Lock()
+			// Send the latest message from any job.
+			var msg string
+			for _, v := range h.jobProgress {
+				msg = v
+			}
+			h.uploadMu.Unlock()
+
+			if msg != "" && msg != lastMsg {
+				fmt.Fprintf(w, "data: %s\n\n", msg)
+				flusher.Flush()
+				lastMsg = msg
+				if msg == "done" || strings.HasPrefix(msg, "error:") {
+					return
+				}
+			}
+		}
 	}
 }
 

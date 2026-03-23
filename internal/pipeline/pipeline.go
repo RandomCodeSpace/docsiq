@@ -542,7 +542,9 @@ func (p *Pipeline) structureDocument(ctx context.Context, docID, content string)
 }
 
 // Finalize runs Phases 3-4: community detection + parallel summaries.
-func (p *Pipeline) Finalize(ctx context.Context, verbose bool) error {
+// If force is true, the graph fingerprint cache is ignored and communities
+// are always regenerated.
+func (p *Pipeline) Finalize(ctx context.Context, verbose bool, force ...bool) error {
 	slog.Info("🧩 Phase 3: loading entities and relationships")
 	entities, err := p.store.AllEntities(ctx)
 	if err != nil {
@@ -559,12 +561,15 @@ func (p *Pipeline) Finalize(ctx context.Context, verbose bool) error {
 
 	// Check if finalization can be skipped: communities already exist and
 	// entity/relationship counts haven't changed since last run.
-	existingEntities, existingRels, existingComms, fpErr := p.store.GraphFingerprint(ctx)
-	if fpErr == nil && existingComms > 0 &&
-		existingEntities == len(entities) && existingRels == len(rels) {
-		slog.Info("⏭️ skipping finalization — graph unchanged since last run",
-			"entities", len(entities), "relationships", len(rels), "communities", existingComms)
-		return nil
+	forceFinalize := len(force) > 0 && force[0]
+	if !forceFinalize {
+		existingEntities, existingRels, existingComms, fpErr := p.store.GraphFingerprint(ctx)
+		if fpErr == nil && existingComms > 0 &&
+			existingEntities == len(entities) && existingRels == len(rels) {
+			slog.Info("⏭️ skipping finalization — graph unchanged since last run",
+				"entities", len(entities), "relationships", len(rels), "communities", existingComms)
+			return nil
+		}
 	}
 
 	slog.Info("🧩 Phase 3: running Louvain community detection",

@@ -48,14 +48,41 @@ func Summarize(ctx context.Context, provider llm.Provider, entityDescriptions []
 		return nil, fmt.Errorf("community summarize: %w", err)
 	}
 
+	report := parseCommunityReport(resp)
+	return report, nil
+}
+
+// parseCommunityReport extracts TITLE: and SUMMARY: from the LLM response.
+// The summary may span multiple lines — everything after the SUMMARY: prefix
+// until the end (or the next known prefix) is captured.
+func parseCommunityReport(resp string) *CommunityReport {
 	report := &CommunityReport{}
-	for _, line := range strings.Split(resp, "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "TITLE:") {
-			report.Title = strings.TrimSpace(strings.TrimPrefix(line, "TITLE:"))
-		} else if strings.HasPrefix(line, "SUMMARY:") {
-			report.Summary = strings.TrimSpace(strings.TrimPrefix(line, "SUMMARY:"))
+	lines := strings.Split(resp, "\n")
+	var summaryLines []string
+	inSummary := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		upper := strings.ToUpper(trimmed)
+		switch {
+		case strings.HasPrefix(upper, "TITLE:"):
+			inSummary = false
+			report.Title = strings.TrimSpace(trimmed[len("TITLE:"):])
+		case strings.HasPrefix(upper, "SUMMARY:"):
+			inSummary = true
+			first := strings.TrimSpace(trimmed[len("SUMMARY:"):])
+			if first != "" {
+				summaryLines = append(summaryLines, first)
+			}
+		default:
+			if inSummary && trimmed != "" {
+				summaryLines = append(summaryLines, trimmed)
+			}
 		}
+	}
+
+	if len(summaryLines) > 0 {
+		report.Summary = strings.Join(summaryLines, " ")
 	}
 	if report.Title == "" {
 		report.Title = "Community"
@@ -63,6 +90,6 @@ func Summarize(ctx context.Context, provider llm.Provider, entityDescriptions []
 	if report.Summary == "" {
 		report.Summary = resp
 	}
-	return report, nil
+	return report
 }
 
