@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"encoding/xml"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 )
@@ -35,6 +36,10 @@ func (l *DOCXLoader) Load(path string) (*RawDocument, error) {
 		}
 	}
 
+	if strings.TrimSpace(content) == "" {
+		return nil, fmt.Errorf("docx extract: no text content found in %s", path)
+	}
+
 	title := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 	return &RawDocument{
 		Path:    path,
@@ -51,7 +56,10 @@ func extractDocxText(r interface{ Read([]byte) (int, error) }) (string, error) {
 	for {
 		tok, err := dec.Token()
 		if err != nil {
-			break
+			if err == io.EOF {
+				break
+			}
+			return sb.String(), fmt.Errorf("docx xml decode: %w", err)
 		}
 		switch t := tok.(type) {
 		case xml.StartElement:

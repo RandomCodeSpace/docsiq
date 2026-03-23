@@ -94,7 +94,14 @@ func Load(path string) (*RawDocument, error) {
 
 	for _, l := range registry {
 		if l.Supports(ext) {
-			return l.Load(path)
+			doc, err := l.Load(path)
+			if err != nil {
+				return nil, err
+			}
+			if strings.TrimSpace(doc.Content) == "" {
+				return nil, fmt.Errorf("loader produced empty content for %s", path)
+			}
+			return doc, nil
 		}
 	}
 	return nil, fmt.Errorf("no loader for extension: %s", ext)

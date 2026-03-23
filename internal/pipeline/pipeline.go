@@ -223,8 +223,8 @@ func (p *Pipeline) indexFile(ctx context.Context, path string, opts IndexOptions
 
 	chunks := p.chunker.Split(doc.Content)
 	if len(chunks) == 0 {
-		slog.Warn("⏭️ no chunks produced for file, skipping", "path", path)
-		return nil
+		slog.Warn("❌ no chunks produced for file", "path", path)
+		return fmt.Errorf("no chunks produced for file: %s", path)
 	}
 
 	slog.Debug("📄 indexing file", "path", path, "version", nextVersion, "chunks", len(chunks), "doc_type", doc.DocType)
@@ -309,7 +309,7 @@ func (p *Pipeline) indexFile(ctx context.Context, path string, opts IndexOptions
 
 	for label, e := range map[string]error{"graph": graphErr, "claims": claimsErr, "structure": structureErr} {
 		if e != nil {
-			slog.Warn("⚠️ extraction warning", "phase", label, "path", path, "err", e)
+			slog.Warn("⚠️ extraction failed", "phase", label, "path", path, "err", e)
 		}
 	}
 
@@ -355,7 +355,7 @@ func (p *Pipeline) extractGraph(ctx context.Context, docID string, texts []strin
 			res, err := extractor.ExtractEntities(ctx, p.provider, texts[start:end],
 				extractor.WithMaxGleanings(maxGleanings))
 			if err != nil {
-				slog.Debug("⚠️ entity extraction batch failed", "doc_id", docID, "batch", idx, "err", err)
+				slog.Warn("⚠️ entity extraction batch failed", "doc_id", docID, "batch", idx, "err", err)
 			}
 			results[idx] = batchResult{res, err}
 		}(bi)

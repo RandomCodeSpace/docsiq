@@ -38,11 +38,16 @@ func (l *PDFLoader) Load(path string) (*RawDocument, error) {
 		sb.WriteString("\n")
 	}
 
+	content := sb.String()
+	if strings.TrimSpace(content) == "" {
+		return nil, fmt.Errorf("pdf extract: no text content found in %s (may be image-only)", path)
+	}
+
 	title := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 	return &RawDocument{
 		Path:    path,
 		Title:   title,
 		DocType: "pdf",
-		Content: sb.String(),
+		Content: content,
 	}, nil
 }

@@ -328,6 +328,10 @@ func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		h.setProgress(jobID, "finalizing")
+		if err := pl.Finalize(bgCtx, false); err != nil {
+			slog.Warn("⚠️ upload finalization failed", "job_id", jobID, "err", err)
+		}
 		slog.Info("✅ upload job complete", "job_id", jobID, "files", len(paths))
 		h.setProgress(jobID, "done")
 	}()
@@ -356,8 +360,8 @@ func (h *handlers) uploadProgress(w http.ResponseWriter, r *http.Request) {
 	}
 	h.uploadMu.Unlock()
 
-	for jobID, msg := range progress {
-		fmt.Fprintf(w, "data: %s: %s\n\n", jobID, msg)
+	for _, msg := range progress {
+		fmt.Fprintf(w, "data: %s\n\n", msg)
 	}
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()

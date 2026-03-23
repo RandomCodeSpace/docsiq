@@ -421,13 +421,13 @@ func (s *Store) AllChunkEmbeddings(ctx context.Context, model string) ([]ChunkWi
 // ── Entity CRUD ───────────────────────────────────────────────────────────────
 
 type Entity struct {
-	ID          string
-	Name        string
-	Type        string
-	Description string
-	Rank        int
-	CommunityID string
-	Vector      []float32
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Type        string    `json:"type,omitempty"`
+	Description string    `json:"description,omitempty"`
+	Rank        int       `json:"rank"`
+	CommunityID string    `json:"community_id,omitempty"`
+	Vector      []float32 `json:"vector,omitempty"`
 }
 
 func (s *Store) UpsertEntity(ctx context.Context, e *Entity) error {
@@ -547,13 +547,13 @@ func scanEntityRow(rows *sql.Rows) (*Entity, error) {
 // ── Relationship CRUD ─────────────────────────────────────────────────────────
 
 type Relationship struct {
-	ID          string
-	SourceID    string
-	TargetID    string
-	Predicate   string
-	Description string
-	Weight      float64
-	DocID       string
+	ID          string  `json:"id"`
+	SourceID    string  `json:"source_id"`
+	TargetID    string  `json:"target_id"`
+	Predicate   string  `json:"predicate"`
+	Description string  `json:"description,omitempty"`
+	Weight      float64 `json:"weight"`
+	DocID       string  `json:"doc_id"`
 }
 
 func (s *Store) InsertRelationship(ctx context.Context, r *Relationship) error {
@@ -685,13 +685,13 @@ func (s *Store) InsertClaim(ctx context.Context, c *Claim) error {
 // ── Community CRUD ────────────────────────────────────────────────────────────
 
 type Community struct {
-	ID       string
-	Level    int
-	ParentID string
-	Title    string
-	Summary  string
-	Rank     int
-	Vector   []float32
+	ID       string    `json:"id"`
+	Level    int       `json:"level"`
+	ParentID string    `json:"parent_id,omitempty"`
+	Title    string    `json:"title,omitempty"`
+	Summary  string    `json:"summary,omitempty"`
+	Rank     int       `json:"rank"`
+	Vector   []float32 `json:"vector,omitempty"`
 }
 
 func (s *Store) UpsertCommunity(ctx context.Context, c *Community) error {
