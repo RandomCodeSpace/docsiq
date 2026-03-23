@@ -107,20 +107,33 @@ func newOllamaProvider(cfg *config.LLMConfig) (Provider, error) {
 }
 
 func newAzureProvider(cfg *config.LLMConfig) (Provider, error) {
+	az := &cfg.Azure
+
 	chatLLM, err := openai.New(
-		openai.WithBaseURL(cfg.Azure.Endpoint),
-		openai.WithToken(cfg.Azure.APIKey),
-		openai.WithAPIVersion(cfg.Azure.APIVersion),
+		openai.WithBaseURL(az.ChatEndpoint()),
+		openai.WithToken(az.ChatAPIKey()),
+		openai.WithAPIVersion(az.ChatAPIVersion()),
 		openai.WithAPIType(openai.APITypeAzure),
-		openai.WithModel(cfg.Azure.ChatModel),
-		openai.WithEmbeddingModel(cfg.Azure.EmbedModel),
+		openai.WithModel(az.ChatModel()),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("azure openai LLM: %w", err)
+		return nil, fmt.Errorf("azure openai chat LLM: %w", err)
 	}
-	emb, err := embeddings.NewEmbedder(chatLLM)
+
+	embedLLM, err := openai.New(
+		openai.WithBaseURL(az.EmbedEndpoint()),
+		openai.WithToken(az.EmbedAPIKey()),
+		openai.WithAPIVersion(az.EmbedAPIVersion()),
+		openai.WithAPIType(openai.APITypeAzure),
+		openai.WithEmbeddingModel(az.EmbedModel()),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("azure openai embed LLM: %w", err)
+	}
+
+	emb, err := embeddings.NewEmbedder(embedLLM)
 	if err != nil {
 		return nil, fmt.Errorf("azure openai embedder: %w", err)
 	}
-	return &lcProvider{llm: chatLLM, emb: emb, name: "azure", modelID: cfg.Azure.EmbedModel}, nil
+	return &lcProvider{llm: chatLLM, emb: emb, name: "azure", modelID: az.EmbedModel()}, nil
 }
