@@ -74,28 +74,70 @@ llm:
     embed_model: nomic-embed-text
 
   azure:
+    # Shared defaults — used when chat/embed-specific values are not set.
     endpoint: https://myresource.openai.azure.com
     api_key: ${AZURE_OPENAI_API_KEY}
-    api_version: "2024-02-01"
-    chat_model: gpt-4o
-    embed_model: text-embedding-3-small
+    api_version: "2024-08-01"
+
+    chat:
+      model: gpt-4o
+      # endpoint: ...   # optional override (falls back to shared)
+      # api_key: ...    # optional override (falls back to shared)
+    embed:
+      model: text-embedding-3-small
+      # endpoint: ...   # optional override for separate deployment
+      # api_key: ...    # optional override
 
 indexing:
   chunk_size: 512
   chunk_overlap: 50
   workers: 4
+  extract_graph: true
+  extract_claims: true
+  max_gleanings: 1
+
+community:
+  min_community_size: 2
+  max_levels: 3
 
 server:
   host: 127.0.0.1
   port: 8080
 ```
 
-Environment variable overrides use the `docscontext_` prefix:
+### Environment Variables
+
+All config keys can be set via environment variables with the `DOCSCONTEXT_` prefix.
+Dots become underscores; the prefix is case-insensitive.
 
 ```bash
-docscontext_LLM_PROVIDER=azure
-docscontext_LLM_AZURE_API_KEY=sk-...
-docscontext_SERVER_PORT=9090
+# Provider
+export DOCSCONTEXT_LLM_PROVIDER=azure
+
+# Azure shared (used by both chat and embed unless overridden)
+export DOCSCONTEXT_LLM_AZURE_ENDPOINT=https://myresource.openai.azure.com
+export DOCSCONTEXT_LLM_AZURE_API_KEY=sk-...
+export DOCSCONTEXT_LLM_AZURE_API_VERSION=2024-08-01
+
+# Azure chat (overrides shared values for chat completions)
+export DOCSCONTEXT_LLM_AZURE_CHAT_ENDPOINT=https://chat-deployment.openai.azure.com
+export DOCSCONTEXT_LLM_AZURE_CHAT_MODEL=gpt-4o
+
+# Azure embed (overrides shared values for embeddings)
+export DOCSCONTEXT_LLM_AZURE_EMBED_ENDPOINT=https://embed-deployment.openai.azure.com
+export DOCSCONTEXT_LLM_AZURE_EMBED_MODEL=text-embedding-3-small
+
+# Ollama
+export DOCSCONTEXT_LLM_OLLAMA_BASE_URL=http://localhost:11434
+export DOCSCONTEXT_LLM_OLLAMA_CHAT_MODEL=llama3.2
+export DOCSCONTEXT_LLM_OLLAMA_EMBED_MODEL=nomic-embed-text
+
+# Indexing
+export DOCSCONTEXT_INDEXING_WORKERS=4
+export DOCSCONTEXT_INDEXING_CHUNK_SIZE=512
+
+# Server
+export DOCSCONTEXT_SERVER_PORT=9090
 ```
 
 ## CLI

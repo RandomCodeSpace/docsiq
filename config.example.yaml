@@ -4,11 +4,22 @@ llm:
   provider: ollama             # azure | ollama
 
   azure:
+    # Shared defaults — used when chat/embed-specific values are not set.
     endpoint: https://myresource.openai.azure.com
     api_key: ${AZURE_OPENAI_API_KEY}
-    api_version: "2024-02-01"
-    chat_model: gpt-4o
-    embed_model: text-embedding-3-small
+    api_version: "2024-08-01"
+
+    chat:
+      model: gpt-4o
+      # endpoint: ...            # optional: override shared endpoint
+      # api_key: ...             # optional: override shared key
+      # api_version: ...         # optional: override shared version
+
+    embed:
+      model: text-embedding-3-small
+      # endpoint: ...            # optional: separate deployment for embeddings
+      # api_key: ...             # optional: separate key for embeddings
+      # api_version: ...         # optional: separate version for embeddings
 
   ollama:
     base_url: http://localhost:11434
@@ -25,10 +36,9 @@ indexing:
   max_gleanings: 1             # gleaning passes for entity extraction (0=single pass)
 
 community:
-  min_community_size: 3
+  min_community_size: 2
   max_levels: 3
 
 server:
   host: 127.0.0.1
   port: 8080
-
