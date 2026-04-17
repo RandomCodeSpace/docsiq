@@ -182,6 +182,17 @@ CREATE INDEX IF NOT EXISTS idx_rel_source         ON relationships(source_id);
 CREATE INDEX IF NOT EXISTS idx_rel_target         ON relationships(target_id);
 CREATE INDEX IF NOT EXISTS idx_claims_entity      ON claims(entity_id);
 CREATE INDEX IF NOT EXISTS idx_comm_level         ON communities(level);
+
+-- Phase-2: notes FTS5 index. Notes on disk are the source of truth;
+-- this table is a derived, rebuildable index. Only title, content, and
+-- tags are tokenized; key is stored UNINDEXED so we can round-trip
+-- row to key on search hits without a JOIN.
+CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
+    key UNINDEXED,
+    title,
+    content,
+    tags
+);
 `
 
 // ── float32 vector encoding ───────────────────────────────────────────────────

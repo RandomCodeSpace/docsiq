@@ -323,3 +323,11 @@ func (c *Config) DBPath() string {
 func (c *Config) ProjectDBPath(slug string) string {
 	return filepath.Join(c.DataDir, "projects", slug, "docscontext.db")
 }
+
+// NotesDir returns the per-project notes directory:
+// $DATA_DIR/projects/<slug>/notes. Callers that actually intend to read
+// or write notes should use os.MkdirAll on this path first — the config
+// helper does not touch the filesystem.
+func (c *Config) NotesDir(slug string) string {
+	return filepath.Join(c.DataDir, "projects", slug, "notes")
+}

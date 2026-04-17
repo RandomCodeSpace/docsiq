@@ -25,8 +25,9 @@ import (
 // attaches the default slug to the context) so tests that only exercise
 // docs handlers don't need to spin up a real registry.
 func NewRouter(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, registry *project.Registry) http.Handler {
-	mcpServer := mcp.New(st, prov, emb, cfg)
+	mcpServer := mcp.New(st, prov, emb, cfg, registry)
 	h := &handlers{store: st, provider: prov, embedder: emb, cfg: cfg}
+	nh := newNotesHandlers(cfg.DataDir, cfg, registry)
 
 	mux := http.NewServeMux()
 
@@ -37,7 +38,7 @@ func NewRouter(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *
 	// MCP Streamable HTTP transport (POST /mcp, GET /mcp for SSE stream)
 	mux.Handle("/mcp", mcpServer.Handler())
 
-	// REST API
+	// REST API — docs pipeline (Phase-0)
 	mux.HandleFunc("GET /api/stats", h.getStats)
 	mux.HandleFunc("GET /api/documents", h.listDocuments)
 	mux.HandleFunc("GET /api/documents/{id}", h.getDocument)
@@ -49,6 +50,20 @@ func NewRouter(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *
 	mux.HandleFunc("GET /api/communities/{id}", h.getCommunity)
 	mux.HandleFunc("POST /api/upload", h.upload)
 	mux.HandleFunc("GET /api/upload/progress", h.uploadProgress)
+
+	// REST API — notes (Phase-2). Every endpoint takes a project slug
+	// in the path. The project middleware still runs and resolves
+	// ?project= / X-Project; these handlers prefer the path value but
+	// fall back to ProjectFromContext when it is empty.
+	mux.HandleFunc("GET /api/projects/{project}/notes", nh.listNotes)
+	mux.HandleFunc("GET /api/projects/{project}/notes/{key...}", nh.readNote)
+	mux.HandleFunc("PUT /api/projects/{project}/notes/{key...}", nh.writeNote)
+	mux.HandleFunc("DELETE /api/projects/{project}/notes/{key...}", nh.deleteNote)
+	mux.HandleFunc("GET /api/projects/{project}/tree", nh.tree)
+	mux.HandleFunc("GET /api/projects/{project}/search", nh.searchNotes)
+	mux.HandleFunc("GET /api/projects/{project}/graph", nh.graph)
+	mux.HandleFunc("GET /api/projects/{project}/export", nh.export)
+	mux.HandleFunc("POST /api/projects/{project}/import", nh.importTar)
 
 	// Embedded UI
 	mux.Handle("/", spaHandler(ui.Assets))
