@@ -81,6 +81,7 @@ func NewRouter(prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, re
 
 	// Prometheus scrape endpoint — public, NOT gated by auth or project
 	// middleware (auth/project explicitly bypass /metrics below).
+	// TODO(docsiq): P2-2 consider optional scrape token via cfg.Server.MetricsKey
 	mux.Handle("GET /metrics", metricsHandler(registry, stores, cfg))
 
 	// MCP Streamable HTTP transport (POST /mcp, GET /mcp for SSE stream)

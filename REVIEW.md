@@ -223,6 +223,8 @@ if query == "" {
 
 **Recommended fix:** Wrap `r.Body` with `http.MaxBytesReader(w, r.Body, maxBytes)` before `ParseMultipartForm`. Make the max configurable via `cfg.Server.MaxUploadBytes`.
 
+**Status:** deferred (P2), TODO planted at internal/api/handlers.go:384
+
 ---
 
 ### [P2-2] `/metrics` endpoint is unauthenticated while exposing operational details — `internal/api/router.go:84`, `internal/api/metrics.go:130`
@@ -230,6 +232,8 @@ if query == "" {
 **What:** Prometheus `/metrics` is mounted outside the auth wrap. It exposes project names, note counts, request paths, and latency distributions to any unauthenticated caller.
 
 **Recommended fix:** Either document this as intentional (Prometheus convention) or add an optional separate scrape token via `cfg.Server.MetricsKey`.
+
+**Status:** deferred (P2), TODO planted at internal/api/router.go:84 and internal/api/metrics.go:130
 
 ---
 
@@ -239,6 +243,8 @@ if query == "" {
 
 **Recommended fix:** Add `slog.WarnContext(ctx, "notes FTS index failed", "key", key, "err", err)` to match the REST handler.
 
+**Status:** deferred (P2), TODO planted at internal/mcp/notes_tools.go:144
+
 ---
 
 ### [P2-4] `buildCommitMessage` does not sanitize author for git trailer injection — `internal/notes/history.go:119-127`
@@ -247,6 +253,8 @@ if query == "" {
 
 **Recommended fix:** Strip `\n` and `\r` from author before embedding. Alternatively, reject author values containing control chars at the handler level.
 
+**Status:** deferred (P2), TODO planted at internal/notes/history.go:142
+
 ---
 
 ### [P2-5] `VectorIndexes.ForProject` builds index outside the mutex without singleflight — duplicate work — `internal/api/vector_indexes.go:46-62`
@@ -254,6 +262,8 @@ if query == "" {
 **What:** Even post-P0-4 fix, absent singleflight two goroutines racing for the first build both complete their builds and the second result is discarded. Wasted CPU/IO for a 60s build.
 
 **Recommended fix:** Use `golang.org/x/sync/singleflight` keyed by slug to deduplicate concurrent builds. (P0-4's fix likely subsumes this — verify.)
+
+**Status:** resolved by P0-4 fix in 9ea058e (singleflight.Group now coalesces concurrent first-touch builds in `ForProject`; no TODO planted).
 
 ---
 

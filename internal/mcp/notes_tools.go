@@ -141,6 +141,7 @@ func registerNotesTools(s *Server) {
 		if err != nil {
 			return toolError(err), nil
 		}
+		// TODO(docsiq): P2-3 slog.WarnContext on IndexNote err, match REST handler
 		_ = st.IndexNote(ctx, n)
 		b, _ := json.Marshal(n)
 		return toolText(string(b)), nil

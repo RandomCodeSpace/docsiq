@@ -127,6 +127,7 @@ func recordRequest(method, path string, status int, durationSeconds float64) {
 // The projects gauge + notes gauge require a registry + per-project
 // store cache; those are resolved lazily via closures captured at
 // NewRouter time.
+// TODO(docsiq): P2-2 consider optional scrape token via cfg.Server.MetricsKey
 func metricsHandler(
 	registry *project.Registry,
 	stores *projectStores,

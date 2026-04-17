@@ -139,6 +139,7 @@ func buildCommitMessage(subject, author string) string {
 	if author == "" {
 		return subject
 	}
+	// TODO(docsiq): P2-4 strip \n/\r from author to prevent git trailer injection
 	author = truncateForCommit(author)
 	// Conventional trailer format used by GitHub & friends.
 	return subject + "\n\nCo-Authored-By: " + author + " <" + author + "@local>"

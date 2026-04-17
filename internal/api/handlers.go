@@ -381,6 +381,7 @@ func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slug := ProjectFromContext(r.Context())
+	// TODO(docsiq): P2-1 wrap r.Body with http.MaxBytesReader before ParseMultipartForm
 	if err := r.ParseMultipartForm(128 << 20); err != nil {
 		writeError(w, r, 400, "parse form: "+err.Error(), nil)
 		return
