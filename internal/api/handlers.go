@@ -19,6 +19,7 @@ import (
 	"github.com/RandomCodeSpace/docscontext/internal/embedder"
 	"github.com/RandomCodeSpace/docscontext/internal/llm"
 	"github.com/RandomCodeSpace/docscontext/internal/pipeline"
+	"github.com/RandomCodeSpace/docscontext/internal/project"
 	"github.com/RandomCodeSpace/docscontext/internal/search"
 	"github.com/RandomCodeSpace/docscontext/internal/store"
 )
@@ -53,6 +54,35 @@ func writeError(w http.ResponseWriter, r *http.Request, status int, msg string, 
 // auth middleware explicitly whitelists /health.
 func (h *handlers) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]string{"status": "ok"})
+}
+
+// projectsHandler is a thin read-only JSON shim around registry.List()
+// so the Phase-4 UI can populate its project-selector dropdown.
+type projectsHandler struct {
+	registry *project.Registry
+}
+
+// listProjects returns registered projects as a JSON array. Falls back
+// to [{"slug":"_default","name":"_default"}] when the registry is nil
+// or empty so the UI always has a usable default selection.
+func (p *projectsHandler) listProjects(w http.ResponseWriter, r *http.Request) {
+	type projInfo struct {
+		Slug string `json:"slug"`
+		Name string `json:"name"`
+	}
+	out := []projInfo{}
+	if p.registry != nil {
+		projs, err := p.registry.List()
+		if err == nil {
+			for _, pr := range projs {
+				out = append(out, projInfo{Slug: pr.Slug, Name: pr.Name})
+			}
+		}
+	}
+	if len(out) == 0 {
+		out = append(out, projInfo{Slug: "_default", Name: "_default"})
+	}
+	writeJSON(w, 200, out)
 }
 
 func (h *handlers) getStats(w http.ResponseWriter, r *http.Request) {

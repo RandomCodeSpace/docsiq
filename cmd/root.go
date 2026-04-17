@@ -4,15 +4,17 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/RandomCodeSpace/docscontext/internal/config"
 	"github.com/spf13/cobra"
 )
 
 var (
-	cfgFile  string
-	cfg      *config.Config
-	logLevel string
+	cfgFile   string
+	cfg       *config.Config
+	logLevel  string
+	logFormat string
 )
 
 var rootCmd = &cobra.Command{
@@ -35,6 +37,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default ~/.docscontext/config.yaml or ~/.DocsContext/config.yaml)")
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "Log level: debug, info, warn, error")
+	rootCmd.PersistentFlags().StringVar(&logFormat, "log-format", "", "Log format: text|json (env DOCSIQ_LOG_FORMAT; default text)")
 }
 
 func initConfig() {
@@ -50,7 +53,20 @@ func initConfig() {
 	default:
 		level = slog.LevelInfo
 	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
+	// Log format: --log-format wins, else DOCSIQ_LOG_FORMAT, else "text".
+	format := strings.ToLower(strings.TrimSpace(logFormat))
+	if format == "" {
+		format = strings.ToLower(strings.TrimSpace(os.Getenv("DOCSIQ_LOG_FORMAT")))
+	}
+	handlerOpts := &slog.HandlerOptions{Level: level}
+	var handler slog.Handler
+	switch format {
+	case "json":
+		handler = slog.NewJSONHandler(os.Stderr, handlerOpts)
+	default:
+		handler = slog.NewTextHandler(os.Stderr, handlerOpts)
+	}
+	slog.SetDefault(slog.New(handler))
 
 	var err error
 	cfg, err = config.Load(cfgFile)

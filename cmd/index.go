@@ -20,6 +20,7 @@ var (
 	indexMaxPages    int
 	indexMaxDepth    int
 	indexSkipSitemap bool
+	indexPrune       bool
 )
 
 var indexCmd = &cobra.Command{
@@ -45,6 +46,21 @@ var indexCmd = &cobra.Command{
 				return err
 			}
 			slog.Info("✅ finalization complete")
+			return nil
+		}
+
+		if indexPrune {
+			// Prune does not need an LLM provider. Opening one here would
+			// force the user to have valid LLM credentials just to remove
+			// dangling rows — explicitly skip NewProvider.
+			pl := pipeline.New(st, nil, cfg)
+			slog.Info("🗑️ pruning documents whose source files are missing")
+			n, err := pl.Prune(cmd.Context())
+			if err != nil {
+				slog.Error("❌ prune failed", "err", err)
+				return err
+			}
+			slog.Info("✅ prune complete", "removed", n)
 			return nil
 		}
 
@@ -98,5 +114,6 @@ func init() {
 	indexCmd.Flags().IntVar(&indexMaxPages, "max-pages", 500, "Maximum pages to crawl (0 = unlimited)")
 	indexCmd.Flags().IntVar(&indexMaxDepth, "max-depth", 0, "Maximum BFS link depth (0 = unlimited)")
 	indexCmd.Flags().BoolVar(&indexSkipSitemap, "skip-sitemap", false, "Force BFS crawl even if sitemap.xml exists")
+	indexCmd.Flags().BoolVar(&indexPrune, "prune", false, "Remove documents whose source files no longer exist on disk")
 }
 

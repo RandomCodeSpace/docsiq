@@ -53,6 +53,15 @@ func NewProvider(cfg *config.LLMConfig) (Provider, error) {
 	}
 }
 
+// ProviderForProject resolves the LLM provider for a given project slug,
+// honoring cfg.LLMOverrides. An unknown / empty slug falls back to
+// cfg.LLM gracefully. Providers are not cached — callers that issue
+// many requests per second should memoize at the call site.
+func ProviderForProject(cfg *config.Config, slug string) (Provider, error) {
+	sub := cfg.LLMConfigForProject(slug)
+	return NewProvider(&sub)
+}
+
 // lcProvider adapts langchaingo to our Provider interface.
 type lcProvider struct {
 	llm     llms.Model

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -28,12 +29,22 @@ func NewRouter(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *
 	mcpServer := mcp.New(st, prov, emb, cfg, registry)
 	h := &handlers{store: st, provider: prov, embedder: emb, cfg: cfg}
 	nh := newNotesHandlers(cfg.DataDir, cfg, registry)
+	ph := &projectsHandler{registry: registry}
+
+	// Per-project store cache used by /metrics (for CountNotes-per-project)
+	// and anywhere else that needs on-demand per-project reads. Opening is
+	// lazy: a slug that is never scraped never gets a DB handle.
+	metricsStores := newProjectStores(cfg.DataDir)
 
 	mux := http.NewServeMux()
 
 	// Public liveness probe — registered on the mux itself. The auth
 	// middleware also explicitly bypasses /health as defense-in-depth.
 	mux.HandleFunc("GET /health", h.health)
+
+	// Prometheus scrape endpoint — public, NOT gated by auth or project
+	// middleware (auth/project explicitly bypass /metrics below).
+	mux.Handle("GET /metrics", metricsHandler(registry, metricsStores, cfg))
 
 	// MCP Streamable HTTP transport (POST /mcp, GET /mcp for SSE stream)
 	mux.Handle("/mcp", mcpServer.Handler())
@@ -48,8 +59,13 @@ func NewRouter(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *
 	mux.HandleFunc("GET /api/entities", h.listEntities)
 	mux.HandleFunc("GET /api/communities", h.listCommunities)
 	mux.HandleFunc("GET /api/communities/{id}", h.getCommunity)
+	mux.HandleFunc("GET /api/entities/{id}/claims", h.claimsForEntity)
+	mux.HandleFunc("GET /api/claims", h.listClaims)
 	mux.HandleFunc("POST /api/upload", h.upload)
 	mux.HandleFunc("GET /api/upload/progress", h.uploadProgress)
+
+	// REST API — project registry (Phase-4). Thin shim for UI dropdown.
+	mux.HandleFunc("GET /api/projects", ph.listProjects)
 
 	// REST API — notes (Phase-2). Every endpoint takes a project slug
 	// in the path. The project middleware still runs and resolves
@@ -128,13 +144,32 @@ func recoveryMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// loggingMiddleware logs method, path, status code, and duration for every request.
+// loggingMiddleware logs method, path, status code, and duration for every
+// request, assigns a request ID (X-Request-ID passthrough or new hex), and
+// feeds the Prometheus collector.
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Request ID: header pass-through, otherwise generate fresh 16-hex
+		// (8 random bytes). Put on ctx + echo back as response header.
+		rid := strings.TrimSpace(r.Header.Get("X-Request-ID"))
+		if rid == "" {
+			rid = newRequestID()
+		}
+		ctx := context.WithValue(r.Context(), ctxRequestIDKey{}, rid)
+		r = r.WithContext(ctx)
+		w.Header().Set("X-Request-ID", rid)
+
 		start := time.Now()
 		rw := &responseWriter{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rw, r)
 		duration := time.Since(start)
+
+		// /metrics itself is noisy and self-referential — skip recording it
+		// as an observed request so a tight Prometheus scrape loop doesn't
+		// dominate the time series.
+		if r.URL.Path != "/metrics" {
+			recordRequest(r.Method, r.URL.Path, rw.status, duration.Seconds())
+		}
 
 		level := slog.LevelInfo
 		if rw.status >= 500 {
@@ -148,6 +183,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 			"path", r.URL.Path,
 			"status", rw.status,
 			"duration_ms", duration.Milliseconds(),
+			"request_id", rid,
 		)
 	})
 }

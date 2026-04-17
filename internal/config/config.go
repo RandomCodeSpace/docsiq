@@ -17,6 +17,28 @@ type Config struct {
 	Indexing       IndexingConfig  `mapstructure:"indexing"`
 	Community      CommunityConfig `mapstructure:"community"`
 	Server         ServerConfig    `mapstructure:"server"`
+
+	// Phase-5: per-project LLM overrides. Keyed by project slug.
+	// When a slug is missing from the map, callers fall back to the
+	// top-level LLM field. Not bound to env vars — configure via
+	// YAML only (env flat-string rewriting doesn't nest well).
+	LLMOverrides map[string]LLMConfig `mapstructure:"llm_overrides"`
+}
+
+// LLMConfigForProject returns the override for slug if present, otherwise
+// the root LLM config. A missing or empty slug yields the root config.
+// The Provider field is treated as the presence sentinel — a YAML block
+// with no `provider:` key leaves Provider empty, so we treat that as
+// "no override declared" and fall back to the root.
+func (c *Config) LLMConfigForProject(slug string) LLMConfig {
+	if slug == "" {
+		return c.LLM
+	}
+	override, ok := c.LLMOverrides[slug]
+	if !ok || override.Provider == "" {
+		return c.LLM
+	}
+	return override
 }
 
 // DefaultProjectSlug is the slug used when no ?project= / X-Project value

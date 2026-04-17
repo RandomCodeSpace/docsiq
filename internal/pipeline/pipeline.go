@@ -187,6 +187,25 @@ func (p *Pipeline) indexFile(ctx context.Context, path string, opts IndexOptions
 	}
 	path = absPath
 
+	// Phase-5 cheap short-circuit: if mtime matches a previously-indexed
+	// snapshot, skip hashing AND reading the whole file. Only useful when
+	// --force is off and the row has a non-null indexed_mtime (pre-Phase-5
+	// rows fall through to the hash compare below).
+	fi, statErr := os.Stat(path)
+	if statErr != nil {
+		return statErr
+	}
+	mtime := fi.ModTime().Unix()
+
+	existing, err := p.store.GetDocumentByPath(ctx, path)
+	if err != nil {
+		return err
+	}
+	if !opts.Force && existing != nil && existing.IndexedMtime != 0 && existing.IndexedMtime == mtime {
+		slog.Info("⏭️ skipping unchanged file (mtime cache hit)", "path", path)
+		return nil
+	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -194,12 +213,17 @@ func (p *Pipeline) indexFile(ctx context.Context, path string, opts IndexOptions
 	h := sha256.Sum256(data)
 	hash := hex.EncodeToString(h[:])
 
-	existing, err := p.store.GetDocumentByPath(ctx, path)
-	if err != nil {
-		return err
-	}
-	if existing != nil && existing.FileHash == hash && !opts.Force {
-		slog.Info("⏭️ skipping unchanged file", "path", path)
+	if !opts.Force && existing != nil && existing.FileHash == hash {
+		// Content identical, mtime diverged (touch, restore, etc.).
+		// Refresh the stored mtime so future scans can use the fast
+		// path, but skip re-ingest.
+		if existing.IndexedMtime != mtime {
+			existing.IndexedMtime = mtime
+			if err := p.store.UpsertDocument(ctx, existing); err != nil {
+				slog.Warn("⚠️ mtime refresh failed", "path", path, "err", err)
+			}
+		}
+		slog.Info("⏭️ skipping unchanged file (hash match)", "path", path)
 		return nil
 	}
 	if existing != nil {
@@ -231,14 +255,15 @@ func (p *Pipeline) indexFile(ctx context.Context, path string, opts IndexOptions
 
 	docID := uuid.New().String()
 	if err := p.store.UpsertDocument(ctx, &store.Document{
-		ID:          docID,
-		Path:        path,
-		Title:       doc.Title,
-		DocType:     doc.DocType,
-		FileHash:    hash,
-		Version:     nextVersion,
-		CanonicalID: canonicalID,
-		IsLatest:    true,
+		ID:           docID,
+		Path:         path,
+		Title:        doc.Title,
+		DocType:      doc.DocType,
+		FileHash:     hash,
+		Version:      nextVersion,
+		CanonicalID:  canonicalID,
+		IsLatest:     true,
+		IndexedMtime: mtime,
 	}); err != nil {
 		return fmt.Errorf("upsert doc: %w", err)
 	}
@@ -785,6 +810,40 @@ func (p *Pipeline) Finalize(ctx context.Context, verbose bool, force ...bool) er
 }
 
 // versionInfo returns the next version number and canonical ID.
+// Prune removes documents whose source file no longer exists on disk.
+// Returns the number of rows deleted. Only "real" file-backed documents
+// (absolute filesystem paths) are considered — web-crawled rows with
+// http(s):// paths are left alone.
+func (p *Pipeline) Prune(ctx context.Context) (int, error) {
+	docs, err := p.store.AllDocuments(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("load documents: %w", err)
+	}
+	removed := 0
+	for _, d := range docs {
+		if d.Path == "" {
+			continue
+		}
+		// Skip URL-scheme paths — remote pages can't be stat()ed locally.
+		if strings.HasPrefix(d.Path, "http://") || strings.HasPrefix(d.Path, "https://") {
+			continue
+		}
+		if _, err := os.Stat(d.Path); err != nil {
+			if !os.IsNotExist(err) {
+				slog.Warn("⚠️ prune stat error", "path", d.Path, "err", err)
+				continue
+			}
+			n, err := p.store.DeleteDocument(ctx, d.ID)
+			if err != nil {
+				return removed, fmt.Errorf("delete %s: %w", d.ID, err)
+			}
+			removed += int(n)
+			slog.Info("🗑️ pruned missing document", "path", d.Path, "id", d.ID)
+		}
+	}
+	return removed, nil
+}
+
 func versionInfo(existing *store.Document) (int, string) {
 	if existing == nil {
 		return 1, uuid.New().String()

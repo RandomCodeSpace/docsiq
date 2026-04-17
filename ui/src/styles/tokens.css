@@ -23,6 +23,8 @@
   --accent-error: #ff4444;
   --color-warn: #fb923c;
   --color-success: #4ade80;
+  --accent-notes: #c084fc;
+  --accent-notes-dim: rgba(192, 132, 252, 0.2);
   --code-bg: #050505;
   --code-text: #ccc;
   --syntax-key: #93c5fd;
@@ -56,6 +58,8 @@
   --accent-error: #cc2222;
   --color-warn: #ea580c;
   --color-success: #16a34a;
+  --accent-notes: #9333ea;
+  --accent-notes-dim: rgba(147, 51, 234, 0.15);
   --code-bg: #0a0a0a;
   --code-text: #ccc;
   --syntax-key: #93c5fd;

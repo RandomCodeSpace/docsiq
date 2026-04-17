@@ -299,5 +299,23 @@ func registerTools(s *Server) {
 		b, _ := json.Marshal(stats)
 		return toolText(string(b)), nil
 	}))
+
+	// 13. get_entity_claims
+	s.mcpServer.AddTool(mcpgo.NewTool("get_entity_claims",
+		mcpgo.WithDescription("List all claims extracted for a given entity"),
+		mcpgo.WithString("entity_id", mcpgo.Required(), mcpgo.Description("Entity ID")),
+	), server.ToolHandlerFunc(func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+		args := req.GetArguments()
+		entityID := stringArg(args, "entity_id", "")
+		if entityID == "" {
+			return toolError(fmt.Errorf("entity_id required")), nil
+		}
+		claims, err := s.store.ClaimsForEntity(ctx, entityID)
+		if err != nil {
+			return toolError(err), nil
+		}
+		b, _ := json.Marshal(claims)
+		return toolText(string(b)), nil
+	}))
 }
 

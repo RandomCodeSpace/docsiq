@@ -86,6 +86,10 @@ func (s *Store) migrate() error {
 		`ALTER TABLE documents ADD COLUMN version      INTEGER NOT NULL DEFAULT 1`,
 		`ALTER TABLE documents ADD COLUMN canonical_id TEXT`,
 		`ALTER TABLE documents ADD COLUMN is_latest    INTEGER NOT NULL DEFAULT 1`,
+		// Phase-5: mtime snapshot for fast re-index short-circuit.
+		// Null on rows written before this column existed — indexing
+		// code falls back to hash compare in that case.
+		`ALTER TABLE documents ADD COLUMN indexed_mtime INTEGER`,
 	}
 	for _, m := range migrations {
 		if _, err := s.db.Exec(m); err != nil {
@@ -99,17 +103,18 @@ func (s *Store) migrate() error {
 
 const schema = `
 CREATE TABLE IF NOT EXISTS documents (
-    id           TEXT PRIMARY KEY,
-    path         TEXT NOT NULL,
-    title        TEXT,
-    doc_type     TEXT,
-    file_hash    TEXT UNIQUE,
-    structured   TEXT,
-    version      INTEGER NOT NULL DEFAULT 1,
-    canonical_id TEXT,              -- NULL on first version; points to v1 ID on all later versions
-    is_latest    INTEGER NOT NULL DEFAULT 1,
-    created_at   INTEGER,
-    updated_at   INTEGER
+    id            TEXT PRIMARY KEY,
+    path          TEXT NOT NULL,
+    title         TEXT,
+    doc_type      TEXT,
+    file_hash     TEXT UNIQUE,
+    structured    TEXT,
+    version       INTEGER NOT NULL DEFAULT 1,
+    canonical_id  TEXT,              -- NULL on first version; points to v1 ID on all later versions
+    is_latest     INTEGER NOT NULL DEFAULT 1,
+    indexed_mtime INTEGER,           -- last-observed file mtime at index time; NULL for pre-Phase-5 rows
+    created_at    INTEGER,
+    updated_at    INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS chunks (
@@ -232,17 +237,18 @@ func CosineSimilarity(a, b []float32) float32 {
 // ── Document CRUD ─────────────────────────────────────────────────────────────
 
 type Document struct {
-	ID          string `json:"id"`
-	Path        string `json:"path"`
-	Title       string `json:"title"`
-	DocType     string `json:"doc_type"`
-	FileHash    string `json:"file_hash,omitempty"`
-	Structured  string `json:"structured,omitempty"`
-	Version     int    `json:"version,omitempty"`
-	CanonicalID string `json:"canonical_id,omitempty"` // empty on v1; ID of first version on v2+
-	IsLatest    bool   `json:"is_latest,omitempty"`
-	CreatedAt   int64  `json:"created_at"`
-	UpdatedAt   int64  `json:"updated_at"`
+	ID           string `json:"id"`
+	Path         string `json:"path"`
+	Title        string `json:"title"`
+	DocType      string `json:"doc_type"`
+	FileHash     string `json:"file_hash,omitempty"`
+	Structured   string `json:"structured,omitempty"`
+	Version      int    `json:"version,omitempty"`
+	CanonicalID  string `json:"canonical_id,omitempty"` // empty on v1; ID of first version on v2+
+	IsLatest     bool   `json:"is_latest,omitempty"`
+	IndexedMtime int64  `json:"indexed_mtime,omitempty"` // Unix seconds mtime observed at index time
+	CreatedAt    int64  `json:"created_at"`
+	UpdatedAt    int64  `json:"updated_at"`
 }
 
 // CanonicalOrID returns CanonicalID if set, otherwise the document's own ID.
@@ -267,16 +273,21 @@ func (s *Store) UpsertDocument(ctx context.Context, doc *Document) error {
 	if doc.IsLatest {
 		isLatest = 1
 	}
+	var indexedMtime any
+	if doc.IndexedMtime != 0 {
+		indexedMtime = doc.IndexedMtime
+	}
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO documents (id, path, title, doc_type, file_hash, structured, version, canonical_id, is_latest, created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?)
+		INSERT INTO documents (id, path, title, doc_type, file_hash, structured, version, canonical_id, is_latest, indexed_mtime, created_at, updated_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			path=excluded.path, title=excluded.title, doc_type=excluded.doc_type,
 			file_hash=excluded.file_hash, structured=excluded.structured,
 			version=excluded.version, canonical_id=excluded.canonical_id,
-			is_latest=excluded.is_latest, updated_at=excluded.updated_at`,
+			is_latest=excluded.is_latest, indexed_mtime=excluded.indexed_mtime,
+			updated_at=excluded.updated_at`,
 		doc.ID, doc.Path, doc.Title, doc.DocType, doc.FileHash, doc.Structured,
-		doc.Version, canonicalID, isLatest, now, now)
+		doc.Version, canonicalID, isLatest, indexedMtime, now, now)
 	return err
 }
 
@@ -308,19 +319,23 @@ func (s *Store) GetDocumentVersions(ctx context.Context, canonicalID string) ([]
 	return docs, rows.Err()
 }
 
-const docSelect = `SELECT id,path,title,doc_type,file_hash,structured,version,canonical_id,is_latest,created_at,updated_at FROM documents`
+const docSelect = `SELECT id,path,title,doc_type,file_hash,structured,version,canonical_id,is_latest,indexed_mtime,created_at,updated_at FROM documents`
 
 func scanDocRow(rows *sql.Rows) (*Document, error) {
 	var d Document
 	var canonicalID sql.NullString
+	var indexedMtime sql.NullInt64
 	var isLatest int
 	err := rows.Scan(&d.ID, &d.Path, &d.Title, &d.DocType, &d.FileHash, &d.Structured,
-		&d.Version, &canonicalID, &isLatest, &d.CreatedAt, &d.UpdatedAt)
+		&d.Version, &canonicalID, &isLatest, &indexedMtime, &d.CreatedAt, &d.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
 	if canonicalID.Valid {
 		d.CanonicalID = canonicalID.String
+	}
+	if indexedMtime.Valid {
+		d.IndexedMtime = indexedMtime.Int64
 	}
 	d.IsLatest = isLatest == 1
 	return &d, nil
@@ -329,9 +344,10 @@ func scanDocRow(rows *sql.Rows) (*Document, error) {
 func scanDocSingleRow(row *sql.Row) (*Document, error) {
 	var d Document
 	var canonicalID sql.NullString
+	var indexedMtime sql.NullInt64
 	var isLatest int
 	err := row.Scan(&d.ID, &d.Path, &d.Title, &d.DocType, &d.FileHash, &d.Structured,
-		&d.Version, &canonicalID, &isLatest, &d.CreatedAt, &d.UpdatedAt)
+		&d.Version, &canonicalID, &isLatest, &indexedMtime, &d.CreatedAt, &d.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -340,6 +356,9 @@ func scanDocSingleRow(row *sql.Row) (*Document, error) {
 	}
 	if canonicalID.Valid {
 		d.CanonicalID = canonicalID.String
+	}
+	if indexedMtime.Valid {
+		d.IndexedMtime = indexedMtime.Int64
 	}
 	d.IsLatest = isLatest == 1
 	return &d, nil
@@ -369,6 +388,38 @@ func (s *Store) ListDocuments(ctx context.Context, docType string, limit, offset
 	q += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`
 	args = append(args, limit, offset)
 	rows, err := s.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var docs []*Document
+	for rows.Next() {
+		d, err := scanDocRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		docs = append(docs, d)
+	}
+	return docs, rows.Err()
+}
+
+// DeleteDocument hard-deletes a document row. ON DELETE CASCADE on
+// chunks/embeddings/relationships takes care of dependent rows.
+// Returns the number of rows removed so callers can distinguish "did
+// nothing" from "did something."
+func (s *Store) DeleteDocument(ctx context.Context, id string) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM documents WHERE id=?`, id)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// AllDocuments returns every row in the documents table regardless of
+// is_latest or doc_type. Used by `docsiq index --prune` to scan for
+// documents whose backing file has disappeared.
+func (s *Store) AllDocuments(ctx context.Context) ([]*Document, error) {
+	rows, err := s.db.QueryContext(ctx, docSelect)
 	if err != nil {
 		return nil, err
 	}
@@ -721,11 +772,11 @@ func (s *Store) FindRelationships(ctx context.Context, fromID, toID, predicate s
 // ── Claim CRUD ────────────────────────────────────────────────────────────────
 
 type Claim struct {
-	ID       string
-	EntityID string
-	Claim    string
-	Status   string
-	DocID    string
+	ID       string `json:"id"`
+	EntityID string `json:"entity_id,omitempty"`
+	Claim    string `json:"claim"`
+	Status   string `json:"status,omitempty"`
+	DocID    string `json:"doc_id,omitempty"`
 }
 
 func (s *Store) InsertClaim(ctx context.Context, c *Claim) error {
@@ -733,6 +784,75 @@ func (s *Store) InsertClaim(ctx context.Context, c *Claim) error {
 		`INSERT OR IGNORE INTO claims (id, entity_id, claim, status, doc_id) VALUES (?,?,?,?,?)`,
 		c.ID, c.EntityID, c.Claim, c.Status, c.DocID)
 	return err
+}
+
+// ClaimsForEntity returns all claims attached to the given entity ID.
+// Returns an empty slice (not nil) on no-match so JSON encoders emit
+// `[]` rather than `null`.
+func (s *Store) ClaimsForEntity(ctx context.Context, entityID string) ([]*Claim, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, entity_id, claim, status, doc_id FROM claims WHERE entity_id=?`, entityID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	claims := []*Claim{}
+	for rows.Next() {
+		c := &Claim{}
+		var entID, docID sql.NullString
+		if err := rows.Scan(&c.ID, &entID, &c.Claim, &c.Status, &docID); err != nil {
+			return nil, err
+		}
+		if entID.Valid {
+			c.EntityID = entID.String
+		}
+		if docID.Valid {
+			c.DocID = docID.String
+		}
+		claims = append(claims, c)
+	}
+	return claims, rows.Err()
+}
+
+// ListClaims returns claims, optionally filtered by status. A non-positive
+// limit is clamped to 100; an upper bound of 1000 is enforced to keep a
+// single request from pulling the whole table.
+func (s *Store) ListClaims(ctx context.Context, status string, limit int) ([]*Claim, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+	q := `SELECT id, entity_id, claim, status, doc_id FROM claims`
+	args := []any{}
+	if status != "" {
+		q += ` WHERE status=?`
+		args = append(args, status)
+	}
+	q += ` ORDER BY id LIMIT ?`
+	args = append(args, limit)
+	rows, err := s.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	claims := []*Claim{}
+	for rows.Next() {
+		c := &Claim{}
+		var entID, docID sql.NullString
+		if err := rows.Scan(&c.ID, &entID, &c.Claim, &c.Status, &docID); err != nil {
+			return nil, err
+		}
+		if entID.Valid {
+			c.EntityID = entID.String
+		}
+		if docID.Valid {
+			c.DocID = docID.String
+		}
+		claims = append(claims, c)
+	}
+	return claims, rows.Err()
 }
 
 // ── Community CRUD ────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Orbit } from 'lucide-react'
-import type { GraphNeighborhood } from '@/types/api'
+import type { GraphNeighborhood, NotesGraph } from '@/types/api'
 import type { GraphStatus } from '@/hooks/useGraph'
 
 interface Props {
@@ -9,6 +9,9 @@ interface Props {
   error: string | null
   status: GraphStatus
   onLoad: (entity: string, depth: number) => void
+  /** Optional notes graph for overlay mode. When present, a toggle button
+   *  lets the user merge notes/wikilink edges into the same SVG. */
+  notesGraph?: NotesGraph | null
 }
 
 const typeColors: Record<string, string> = {
@@ -21,9 +24,10 @@ const typeColors: Record<string, string> = {
   Other: '#64748b',
 }
 
-export default function GraphView({ graph, loading, error, status, onLoad }: Props) {
+export default function GraphView({ graph, loading, error, status, onLoad, notesGraph }: Props) {
   const [entity, setEntity] = useState('')
   const [depth, setDepth] = useState(2)
+  const [showNotes, setShowNotes] = useState(false)
 
   const layout = useMemo(() => {
     if (!graph?.nodes?.length) return []
@@ -44,6 +48,31 @@ export default function GraphView({ graph, loading, error, status, onLoad }: Pro
     return (graph?.edges ?? []).map((edge) => ({ edge, from: byId.get(edge.from), to: byId.get(edge.to) })).filter((item) => item.from && item.to)
   }, [graph, layout])
 
+  // Notes overlay: place note nodes on an outer ring so they visibly
+  // separate from the entity neighborhood. Purely cosmetic — the two
+  // graphs don't share an ID space, so edges only exist within each set.
+  const notesLayout = useMemo(() => {
+    if (!showNotes || !notesGraph?.nodes?.length) return []
+    const radius = 210
+    return notesGraph.nodes.map((node, index) => {
+      const angle = (Math.PI * 2 * index) / notesGraph.nodes.length + Math.PI / 6
+      return {
+        id: node.id,
+        label: node.label ?? node.key ?? node.id,
+        x: 220 + Math.cos(angle) * radius,
+        y: 220 + Math.sin(angle) * radius,
+      }
+    })
+  }, [showNotes, notesGraph])
+
+  const notesEdges = useMemo(() => {
+    if (!showNotes || !notesGraph?.edges?.length) return []
+    const byId = new Map(notesLayout.map((n) => [n.id, n]))
+    return notesGraph.edges
+      .map((e) => ({ edge: e, from: byId.get(e.from), to: byId.get(e.to) }))
+      .filter((x) => x.from && x.to)
+  }, [showNotes, notesGraph, notesLayout])
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '320px minmax(0, 1fr)', gap: '1rem', minHeight: 0, flex: 1 }}>
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
@@ -60,6 +89,23 @@ export default function GraphView({ graph, loading, error, status, onLoad }: Pro
         <button className="mc-send-btn" disabled={loading || !entity.trim()} onClick={() => onLoad(entity, depth)}>
           {loading ? 'Loading…' : 'Load Graph'}
         </button>
+        {notesGraph && (
+          <button
+            type="button"
+            className="nav-link"
+            onClick={() => setShowNotes((s) => !s)}
+            style={{
+              justifyContent: 'center',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              padding: '0.45rem 0.6rem',
+              color: showNotes ? 'var(--accent-notes)' : 'var(--text-secondary)',
+              borderColor: showNotes ? 'var(--accent-notes)' : 'var(--border)',
+            }}
+          >
+            {showNotes ? 'Hide notes graph' : 'Show notes graph'}
+          </button>
+        )}
         {error && <div style={{ color: '#ef4444', fontSize: '0.74rem' }}>{error}</div>}
       </div>
       <div className="card" style={{ minHeight: 0, overflow: 'hidden', display: 'grid', gridTemplateRows: '1fr auto', gap: '0.9rem' }}>
@@ -75,7 +121,7 @@ export default function GraphView({ graph, loading, error, status, onLoad }: Pro
               </div>
             </div>
           )}
-          {graph?.nodes?.length ? (
+          {graph?.nodes?.length || notesLayout.length ? (
             <svg viewBox="0 0 440 440" style={{ width: '100%', height: '100%' }}>
               {edgeMap.map(({ edge, from, to }, index) => (
                 <g key={`${edge.from}-${edge.to}-${index}`}>
@@ -83,10 +129,30 @@ export default function GraphView({ graph, loading, error, status, onLoad }: Pro
                   {edge.label && <text x={(from!.x + to!.x) / 2} y={(from!.y + to!.y) / 2 - 4} fill="var(--text-muted)" fontSize="10" textAnchor="middle">{edge.label}</text>}
                 </g>
               ))}
+              {notesEdges.map(({ edge, from, to }, i) => (
+                <line
+                  key={`n-${edge.from}-${edge.to}-${i}`}
+                  x1={from!.x}
+                  y1={from!.y}
+                  x2={to!.x}
+                  y2={to!.y}
+                  stroke="var(--accent-notes-dim)"
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                />
+              ))}
               {layout.map((node) => (
                 <g key={node.id}>
                   <circle cx={node.x} cy={node.y} r={14} fill={node.color} stroke="var(--bg-base)" strokeWidth={2} />
                   <text x={node.x} y={node.y + 28} fill="var(--text-primary)" fontSize="11" textAnchor="middle">{node.label.slice(0, 16)}</text>
+                </g>
+              ))}
+              {notesLayout.map((node) => (
+                <g key={`n-${node.id}`}>
+                  <circle cx={node.x} cy={node.y} r={10} fill="var(--accent-notes)" stroke="var(--bg-base)" strokeWidth={2} />
+                  <text x={node.x} y={node.y + 22} fill="var(--accent-notes)" fontSize="10" textAnchor="middle">
+                    {node.label.split('/').pop()?.slice(0, 14)}
+                  </text>
                 </g>
               ))}
             </svg>

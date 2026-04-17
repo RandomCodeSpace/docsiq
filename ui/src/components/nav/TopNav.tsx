@@ -1,14 +1,25 @@
-import { BookOpen, Database, GitBranch, Moon, Network, Search, Sun, Upload, Workflow } from 'lucide-react'
-import type { Stats } from '@/types/api'
+import { BookOpen, Database, FileText, GitBranch, Moon, Network, Search, Sun, Upload, Workflow } from 'lucide-react'
+import type { ProjectInfo, Stats } from '@/types/api'
 import { fmt } from '@/lib/utils'
 
-export type DocsView = 'overview' | 'search' | 'documents' | 'graph' | 'communities' | 'upload' | 'mcp'
+export type DocsView =
+  | 'overview'
+  | 'search'
+  | 'documents'
+  | 'graph'
+  | 'communities'
+  | 'upload'
+  | 'mcp'
+  | 'notes'
 
 interface Props {
   currentView: DocsView
   onViewChange: (view: DocsView) => void
   stats: Stats | null
   onThemeToggle: () => void
+  projects?: ProjectInfo[]
+  currentProject?: string
+  onProjectChange?: (slug: string) => void
 }
 
 const items: { view: DocsView; label: string; icon: typeof Search }[] = [
@@ -17,11 +28,20 @@ const items: { view: DocsView; label: string; icon: typeof Search }[] = [
   { view: 'documents', label: 'Documents', icon: BookOpen },
   { view: 'graph', label: 'Graph', icon: GitBranch },
   { view: 'communities', label: 'Communities', icon: Network },
+  { view: 'notes', label: 'Notes', icon: FileText },
   { view: 'upload', label: 'Upload', icon: Upload },
   { view: 'mcp', label: 'MCP Console', icon: Workflow },
 ]
 
-export default function TopNav({ currentView, onViewChange, stats, onThemeToggle }: Props) {
+export default function TopNav({
+  currentView,
+  onViewChange,
+  stats,
+  onThemeToggle,
+  projects,
+  currentProject,
+  onProjectChange,
+}: Props) {
   return (
     <nav className="top-nav">
       <a className="logo" href="/">
@@ -35,6 +55,29 @@ export default function TopNav({ currentView, onViewChange, stats, onThemeToggle
           <Icon size={13} /> {label}
         </button>
       ))}
+
+      {projects && onProjectChange && (
+        <select
+          value={currentProject ?? '_default'}
+          onChange={(e) => onProjectChange(e.target.value)}
+          title="Active project"
+          style={{
+            marginLeft: '0.75rem',
+            background: 'var(--bg-input)',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border)',
+            borderRadius: 6,
+            padding: '0.3rem 0.5rem',
+            fontSize: '0.74rem',
+          }}
+        >
+          {projects.map((p) => (
+            <option key={p.slug} value={p.slug}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      )}
 
       <div className="stats" style={{ marginLeft: 'auto' }}>
         <div className="stat">
