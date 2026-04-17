@@ -30,7 +30,9 @@ func newTestRouter(t *testing.T) (http.Handler, *store.Store) {
 	cfg.Server.Port = 0
 	cfg.DataDir = dir
 
-	h := NewRouter(st, nil, nil, cfg)
+	// Phase-1: NewRouter takes a registry. nil is tolerated — the project
+	// middleware falls back to the default slug and skips auto-register.
+	h := NewRouter(st, nil, nil, cfg, nil)
 	if h == nil {
 		t.Fatal("NewRouter returned nil handler")
 	}
@@ -117,7 +119,7 @@ func TestNewRouter(t *testing.T) {
 		cfg.Server.APIKey = "test-secret"
 		cfg.DataDir = dir
 
-		h := NewRouter(st, nil, nil, cfg)
+		h := NewRouter(st, nil, nil, cfg, nil)
 		if h == nil {
 			t.Fatal("NewRouter returned nil with APIKey set")
 		}

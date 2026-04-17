@@ -312,3 +312,105 @@ func TestOpen(t *testing.T) {
 		_ = s.Close()
 	})
 }
+
+func TestOpenForProject(t *testing.T) {
+	t.Run("happy_path_creates_dir_and_db", func(t *testing.T) {
+		dir := t.TempDir()
+		s, err := OpenForProject(dir, "my-project")
+		if err != nil {
+			t.Fatalf("OpenForProject: %v", err)
+		}
+		defer s.Close()
+
+		want := filepath.Join(dir, "projects", "my-project", "docscontext.db")
+		if _, err := os.Stat(want); err != nil {
+			t.Errorf("db file not created at %s: %v", want, err)
+		}
+		got := listTables(t, s)
+		if !got["documents"] {
+			t.Error("documents table missing after OpenForProject")
+		}
+	})
+
+	t.Run("nested_slug_creation", func(t *testing.T) {
+		// Non-existent parent data dir — OpenForProject must mkdir -p.
+		parent := t.TempDir()
+		dataDir := filepath.Join(parent, "deep", "data")
+		s, err := OpenForProject(dataDir, "proj")
+		if err != nil {
+			t.Fatalf("OpenForProject nested: %v", err)
+		}
+		defer s.Close()
+		if _, err := os.Stat(filepath.Join(dataDir, "projects", "proj")); err != nil {
+			t.Errorf("nested project dir not created: %v", err)
+		}
+	})
+
+	t.Run("empty_slug_rejected", func(t *testing.T) {
+		if _, err := OpenForProject(t.TempDir(), ""); err == nil {
+			t.Fatal("OpenForProject empty slug = nil, want error")
+		}
+	})
+
+	t.Run("invalid_slug_chars_rejected", func(t *testing.T) {
+		cases := []string{
+			"UPPER",
+			"has space",
+			"has/slash",
+			"has\\back",
+			"dots.not.allowed",
+			"..",
+			"../escape",
+			"nul\x00",
+		}
+		for _, slug := range cases {
+			if _, err := OpenForProject(t.TempDir(), slug); err == nil {
+				t.Errorf("OpenForProject(%q) = nil, want error", slug)
+			}
+		}
+	})
+
+	t.Run("empty_data_dir_rejected", func(t *testing.T) {
+		if _, err := OpenForProject("", "ok"); err == nil {
+			t.Fatal("OpenForProject empty dataDir = nil, want error")
+		}
+	})
+
+	t.Run("two_projects_isolated", func(t *testing.T) {
+		dir := t.TempDir()
+		ctx := context.Background()
+
+		a, err := OpenForProject(dir, "alpha")
+		if err != nil {
+			t.Fatalf("open alpha: %v", err)
+		}
+		defer a.Close()
+		b, err := OpenForProject(dir, "beta")
+		if err != nil {
+			t.Fatalf("open beta: %v", err)
+		}
+		defer b.Close()
+
+		doc := &Document{ID: "d-only-in-alpha", Path: "/x.md", Title: "A", DocType: "md", FileHash: "h-a", IsLatest: true}
+		if err := a.UpsertDocument(ctx, doc); err != nil {
+			t.Fatalf("UpsertDocument alpha: %v", err)
+		}
+
+		// Beta must not see alpha's document.
+		var count int
+		if err := b.DB().QueryRow(`SELECT COUNT(*) FROM documents WHERE id=?`, "d-only-in-alpha").Scan(&count); err != nil {
+			t.Fatalf("count in beta: %v", err)
+		}
+		if count != 0 {
+			t.Errorf("beta sees alpha's doc (count=%d); isolation broken", count)
+		}
+
+		// Alpha still has it.
+		if err := a.DB().QueryRow(`SELECT COUNT(*) FROM documents WHERE id=?`, "d-only-in-alpha").Scan(&count); err != nil {
+			t.Fatalf("count in alpha: %v", err)
+		}
+		if count != 1 {
+			t.Errorf("alpha lost its doc (count=%d)", count)
+		}
+	})
+}

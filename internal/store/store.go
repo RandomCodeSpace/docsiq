@@ -6,11 +6,19 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
 )
+
+// slugCharset is the validator used by OpenForProject. Kept local so the
+// store package does not depend on internal/project (which in turn uses
+// the store's DSN pattern).
+var slugCharset = regexp.MustCompile(`^[a-z0-9_-]+$`)
 
 // Store wraps the single SQLite database.
 type Store struct {
@@ -32,6 +40,37 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+// OpenForProject opens (or creates) the SQLite DB for a single project at
+// $dataDir/projects/<slug>/docscontext.db. The directory is created with
+// 0o755 if missing. Validates slug against the canonical charset
+// ([a-z0-9_-]+) so we never open a DB at a path the registry couldn't
+// round-trip.
+//
+// Callers that still need the flat legacy path can keep using Open(path);
+// this function is additive.
+func OpenForProject(dataDir, slug string) (*Store, error) {
+	if strings.TrimSpace(dataDir) == "" {
+		return nil, fmt.Errorf("open for project: data dir is empty")
+	}
+	if slug == "" {
+		return nil, fmt.Errorf("open for project: slug is empty")
+	}
+	if !slugCharset.MatchString(slug) {
+		return nil, fmt.Errorf("open for project: slug %q contains invalid chars (allowed: [a-z0-9_-])", slug)
+	}
+	// Path-traversal defense-in-depth: slug charset already excludes '/'
+	// and '.', but assert once more before we mkdir.
+	if strings.Contains(slug, "..") || strings.ContainsAny(slug, "/\\") {
+		return nil, fmt.Errorf("open for project: slug %q contains path separators", slug)
+	}
+
+	projectDir := filepath.Join(dataDir, "projects", slug)
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		return nil, fmt.Errorf("open for project: mkdir %s: %w", projectDir, err)
+	}
+	return Open(filepath.Join(projectDir, "docscontext.db"))
 }
 
 func (s *Store) Close() error { return s.db.Close() }

@@ -771,6 +771,64 @@ func TestLoad(t *testing.T) {
 	})
 }
 
+func TestProjectDBPath(t *testing.T) {
+	cfg := &Config{DataDir: "/tmp/docsiq-data"}
+	got := cfg.ProjectDBPath("my-slug")
+	want := filepath.Join("/tmp/docsiq-data", "projects", "my-slug", "docscontext.db")
+	if got != want {
+		t.Errorf("ProjectDBPath = %q, want %q", got, want)
+	}
+	// Legacy DBPath stays put — new code switches to ProjectDBPath.
+	legacy := cfg.DBPath()
+	if legacy != filepath.Join("/tmp/docsiq-data", "DocsContext.db") {
+		t.Errorf("DBPath = %q, want legacy flat path", legacy)
+	}
+}
+
+func TestProjectDBPath_EmptySlug(t *testing.T) {
+	// ProjectDBPath does NOT validate the slug — callers should. Assert
+	// current behavior so a future validation-at-ProjectDBPath change is
+	// surfaced as a visible test edit.
+	cfg := &Config{DataDir: "/d"}
+	got := cfg.ProjectDBPath("")
+	want := filepath.Join("/d", "projects", "docscontext.db")
+	if got != want {
+		t.Errorf("ProjectDBPath(\"\") = %q, want %q", got, want)
+	}
+}
+
+func TestDefaultProject_Default(t *testing.T) {
+	home := t.TempDir()
+	isolateEnv(t, home)
+
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.DefaultProject != DefaultProjectSlug {
+		t.Errorf("DefaultProject = %q, want %q", cfg.DefaultProject, DefaultProjectSlug)
+	}
+	if DefaultProjectSlug != "_default" {
+		t.Errorf("DefaultProjectSlug constant = %q, want _default (locked by Phase-1 spec)", DefaultProjectSlug)
+	}
+}
+
+func TestDefaultProject_EnvOverride(t *testing.T) {
+	home := t.TempDir()
+	isolateEnv(t, home)
+	if err := os.Setenv("DOCSIQ_DEFAULT_PROJECT", "custom_default"); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.DefaultProject != "custom_default" {
+		t.Errorf("DefaultProject = %q, want custom_default", cfg.DefaultProject)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // slog capture helper.
 //

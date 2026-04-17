@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/RandomCodeSpace/docscontext/internal/api"
 	"github.com/RandomCodeSpace/docscontext/internal/embedder"
 	"github.com/RandomCodeSpace/docscontext/internal/llm"
+	"github.com/RandomCodeSpace/docscontext/internal/project"
 	"github.com/RandomCodeSpace/docscontext/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -41,6 +43,21 @@ var serveCmd = &cobra.Command{
 		defer st.Close()
 		slog.Info("📂 store opened", "path", cfg.DBPath())
 
+		// Phase-1: open the per-project registry alongside the legacy
+		// single-DB store. Handlers still use `st` until Phase-2 migrates
+		// them to per-project stores; the registry exists today so the
+		// project middleware can resolve ?project=/X-Project.
+		projectsDir := filepath.Join(cfg.DataDir, "projects")
+		if err := os.MkdirAll(projectsDir, 0o755); err != nil {
+			return fmt.Errorf("mkdir projects dir: %w", err)
+		}
+		registry, err := project.OpenRegistry(cfg.DataDir)
+		if err != nil {
+			return fmt.Errorf("open registry: %w", err)
+		}
+		defer registry.Close()
+		slog.Info("📒 project registry opened", "path", filepath.Join(cfg.DataDir, "registry.db"))
+
 		prov, err := llm.NewProvider(&cfg.LLM)
 		if err != nil {
 			return fmt.Errorf("llm provider: %w", err)
@@ -48,7 +65,7 @@ var serveCmd = &cobra.Command{
 		slog.Info("⚙️ LLM provider initialised", "provider", prov.Name(), "model", prov.ModelID())
 
 		emb := embedder.New(prov, cfg.Indexing.BatchSize)
-		router := api.NewRouter(st, prov, emb, cfg)
+		router := api.NewRouter(st, prov, emb, cfg, registry)
 
 		addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 		ln, err := net.Listen("tcp", addr)

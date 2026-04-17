@@ -12,12 +12,19 @@ import (
 	"github.com/RandomCodeSpace/docscontext/internal/embedder"
 	"github.com/RandomCodeSpace/docscontext/internal/llm"
 	"github.com/RandomCodeSpace/docscontext/internal/mcp"
+	"github.com/RandomCodeSpace/docscontext/internal/project"
 	"github.com/RandomCodeSpace/docscontext/internal/store"
 	"github.com/RandomCodeSpace/docscontext/ui"
 )
 
 // NewRouter builds the single http.ServeMux with all routes.
-func NewRouter(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *config.Config) http.Handler {
+//
+// Phase-1 signature change: takes a *project.Registry so the project
+// middleware can resolve ?project= / X-Project on every /api/* and /mcp
+// request. Passing a nil registry is tolerated (the middleware still
+// attaches the default slug to the context) so tests that only exercise
+// docs handlers don't need to spin up a real registry.
+func NewRouter(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, registry *project.Registry) http.Handler {
 	mcpServer := mcp.New(st, prov, emb, cfg)
 	h := &handlers{store: st, provider: prov, embedder: emb, cfg: cfg}
 
@@ -46,7 +53,15 @@ func NewRouter(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *
 	// Embedded UI
 	mux.Handle("/", spaHandler(ui.Assets))
 
-	return loggingMiddleware(recoveryMiddleware(bearerAuthMiddleware(cfg.Server.APIKey, mux)))
+	// Middleware ordering (outermost → innermost):
+	//   logging → recovery → auth → project → mux
+	// project scope sits BELOW auth (an unauthenticated caller never
+	// reaches the registry) and ABOVE the mux (so handlers and the MCP
+	// server see the resolved slug via ProjectFromContext).
+	return loggingMiddleware(
+		recoveryMiddleware(
+			bearerAuthMiddleware(cfg.Server.APIKey,
+				projectMiddleware(cfg, registry, mux))))
 }
 
 func spaHandler(assets fs.FS) http.Handler {

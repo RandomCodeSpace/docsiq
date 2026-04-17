@@ -11,12 +11,18 @@ import (
 )
 
 type Config struct {
-	DataDir   string          `mapstructure:"data_dir"`
-	LLM       LLMConfig       `mapstructure:"llm"`
-	Indexing   IndexingConfig  `mapstructure:"indexing"`
-	Community CommunityConfig `mapstructure:"community"`
-	Server    ServerConfig    `mapstructure:"server"`
+	DataDir        string          `mapstructure:"data_dir"`
+	DefaultProject string          `mapstructure:"default_project"`
+	LLM            LLMConfig       `mapstructure:"llm"`
+	Indexing       IndexingConfig  `mapstructure:"indexing"`
+	Community      CommunityConfig `mapstructure:"community"`
+	Server         ServerConfig    `mapstructure:"server"`
 }
+
+// DefaultProjectSlug is the slug used when no ?project= / X-Project value
+// is supplied on a request, and when `docsiq migrate` has no explicit
+// --into target. Locked by Phase-1 spec.
+const DefaultProjectSlug = "_default"
 
 type LLMConfig struct {
 	Provider string       `mapstructure:"provider"`
@@ -169,6 +175,7 @@ func Load(cfgFile string) (*Config, error) {
 
 	// All keys must have SetDefault for env var binding to work.
 	v.SetDefault("data_dir", defaultDataDir)
+	v.SetDefault("default_project", DefaultProjectSlug)
 
 	// LLM — provider
 	v.SetDefault("llm.provider", "ollama")
@@ -302,6 +309,17 @@ func Load(cfgFile string) (*Config, error) {
 	return &cfg, nil
 }
 
+// DBPath returns the legacy single-DB path ($DATA_DIR/DocsContext.db).
+// Kept for backwards-compatibility with pre-Phase-1 code paths; new
+// per-project code should use ProjectDBPath instead.
 func (c *Config) DBPath() string {
 	return filepath.Join(c.DataDir, "DocsContext.db")
+}
+
+// ProjectDBPath returns the per-project SQLite path for the given slug:
+// $DATA_DIR/projects/<slug>/docscontext.db. Does NOT validate the slug —
+// callers should use project.IsValidSlug or store.OpenForProject (which
+// performs the check) when the slug came from untrusted input.
+func (c *Config) ProjectDBPath(slug string) string {
+	return filepath.Join(c.DataDir, "projects", slug, "docscontext.db")
 }
