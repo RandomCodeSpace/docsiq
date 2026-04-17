@@ -2,6 +2,7 @@
 
 ## Summary
 - **14 findings total: 4 P0 / 5 P1 / 5 P2**
+- **Wave-E remediation: all 4 P0 and all 5 P1 findings fixed (9/9). P2s deferred per Wave-E scope.**
 - Packages audited: `internal/api`, `internal/notes`, `internal/store`, `internal/vectorindex`, `internal/mcp`, `internal/hookinstaller`, `internal/sqlitevec`, `cmd`
 - Lines audited: ~12,000
 
@@ -100,7 +101,7 @@ idx, err := vectorindex.BuildFromStore(buildCtx, st)  // up to 60s, uses the sin
 
 **Recommended fix:** Use `golang.org/x/sync/singleflight` keyed by slug so only one build runs for a given slug at a time; all other callers wait on the same result. Alternative: an in-cache placeholder `*Index` guarded by a sync.WaitGroup so concurrent callers block on the in-flight build.
 
-**Status:** fixed in P0-4-PENDING
+**Status:** fixed in 9ea058e
 
 ---
 
@@ -126,6 +127,8 @@ if msg == "done" || strings.HasPrefix(msg, "error:") {
 
 **Recommended fix:** Add a `?job_id=` query parameter to `uploadProgress`, filter `jobProgress` by that ID, delete the entry from the map when `"done"` or `"error:"` is emitted. Return the `job_id` from the upload response so clients can correlate.
 
+**Status:** fixed in aabb50c
+
 ---
 
 ### [P1-2] SQLite DSN missing `_busy_timeout`; concurrent requests return immediate `SQLITE_BUSY` — `internal/store/store.go:35`
@@ -141,6 +144,8 @@ db, err := sql.Open("sqlite3", path+"?_journal_mode=WAL&_foreign_keys=on")
 ```
 
 **Recommended fix:** Add `&_busy_timeout=5000` (5 seconds) to the DSN in `open()`.
+
+**Status:** fixed in 619243a
 
 ---
 
@@ -159,6 +164,8 @@ case errors.Is(err, notes.ErrInvalidKey):
 Same mapping appears in `writeNote` at line 172 and `deleteNote` at line 233.
 
 **Recommended fix:** Change `http.StatusForbidden` → `http.StatusBadRequest` (400) for `ErrInvalidKey` cases. Reserve 403 for authorization failures.
+
+**Status:** fixed in 619243a
 
 ---
 
@@ -179,6 +186,8 @@ func gitAvailable() bool {
 ```
 
 **Recommended fix:** Cache the result in a `sync.Once` at package level. Git binary location doesn't change during server lifetime.
+
+**Status:** fixed in 619243a
 
 ---
 
@@ -201,6 +210,8 @@ if query == "" {
 ```
 
 **Recommended fix:** Add `if q == "" { return toolError(fmt.Errorf("query required")), nil }` after extracting `q`.
+
+**Status:** fixed in 619243a
 
 ---
 
