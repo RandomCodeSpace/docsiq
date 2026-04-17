@@ -92,13 +92,13 @@ func Louvain(g *Graph, maxIter int) []int {
 
 	// Precompute node degrees
 	degree := make([]float64, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		degree[i] = g.nodeDegree(i)
 	}
 
 	// Community total degree (sigma_tot): sum of degrees of all nodes in community
 	sigmaTot := make(map[int]float64, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		sigmaTot[comm[i]] += degree[i]
 	}
 
@@ -114,7 +114,7 @@ func Louvain(g *Graph, maxIter int) []int {
 
 			// Compute weights from node i to each neighboring community
 			neighborComms := map[int]float64{}
-			for j := 0; j < n; j++ {
+			for j := range n {
 				if g.adjMatrix[i][j] > 0 {
 					neighborComms[comm[j]] += g.adjMatrix[i][j]
 				}

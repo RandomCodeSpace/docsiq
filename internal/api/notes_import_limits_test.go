@@ -53,7 +53,7 @@ func TestImportTar_EntryCountCap(t *testing.T) {
 	// count, not byte totals.
 	n := MaxImportEntries + 5
 	entries := make([]tarEntry, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		entries[i] = tarEntry{
 			name: fmt.Sprintf("note-%06d.md", i),
 			body: []byte("x"),
@@ -95,7 +95,7 @@ func TestImportTar_TotalBytesCap(t *testing.T) {
 	}
 	entriesNeeded := int(MaxImportTotalBytes/int64(perEntry-1)) + 3
 	entries := make([]tarEntry, entriesNeeded)
-	for i := 0; i < entriesNeeded; i++ {
+	for i := range entriesNeeded {
 		entries[i] = tarEntry{
 			name: fmt.Sprintf("big-%03d.md", i),
 			body: body,
