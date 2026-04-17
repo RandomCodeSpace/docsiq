@@ -1,4 +1,4 @@
-.PHONY: build test vet check ui-install ui-build dev-ui dev-go
+.PHONY: build test test-integration vet check ui-install ui-build dev-ui dev-go
 
 VERSION  ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT   ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -22,6 +22,9 @@ GO_PKGS := $(shell CGO_ENABLED=1 go list -tags "sqlite_fts5" ./... 2>/dev/null |
 
 test:
 	CGO_ENABLED=1 go test -tags "sqlite_fts5" -timeout 300s $(GO_PKGS)
+
+test-integration:
+	CGO_ENABLED=1 go test -tags "sqlite_fts5 integration" -timeout 600s $(GO_PKGS)
 
 vet:
 	CGO_ENABLED=1 go vet -tags "sqlite_fts5" $(GO_PKGS)
