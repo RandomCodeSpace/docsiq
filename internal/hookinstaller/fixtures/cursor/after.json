@@ -1,0 +1,7 @@
+{
+  "other": "keep-me",
+  "notes": "unrelated cursor docsiq-hooks.json content",
+  "hooks": {
+    "SessionStart": { "command": "/path/to/hook.sh" }
+  }
+}
