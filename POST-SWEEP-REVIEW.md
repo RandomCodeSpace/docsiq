@@ -43,6 +43,8 @@ Asymmetric contract: same logic, different validation per transport.
 
 **Confidence: 88.**
 
+**Status:** fixed in 3b70cf6
+
 #### NF-P1-2: Git commit author not sanitised — newline injection into commit messages
 
 **File:** `internal/notes/history.go:144-145`
@@ -55,6 +57,8 @@ Injected newline corrupts the commit log. Doesn't execute code (git trailers are
 
 **Confidence: 85.**
 
+**Status:** fixed in 98a2d6e
+
 #### NF-P1-3: `docs/rest-api.md` documents `request_id` in JSON error body — code never emits it
 
 **File:** `docs/rest-api.md:157`
@@ -66,6 +70,8 @@ Clients parsing the JSON body per docs get missing field. Important to fix **bef
 **Fix:** either thread `RequestIDFromContext` into `writeError` and include in JSON, or correct the doc to say the field is header-only.
 
 **Confidence: 95.**
+
+**Status:** fixed in e5c8801
 
 ---
 
