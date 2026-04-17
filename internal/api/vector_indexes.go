@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/singleflight"
+
 	"github.com/RandomCodeSpace/docsiq/internal/store"
 	"github.com/RandomCodeSpace/docsiq/internal/vectorindex"
 )
@@ -22,16 +24,33 @@ import (
 type VectorIndexes struct {
 	mu      sync.Mutex
 	indexes map[string]vectorindex.Index
+	// sf deduplicates concurrent build-from-store calls for the same
+	// slug. Without it two first-search goroutines for the same project
+	// both read the cache miss, both launch BuildFromStore against the
+	// single-writer SQLite store, and block each other for up to 60s
+	// each (P0-4).
+	sf singleflight.Group
+	// build is the function used to build an index from a store.
+	// Overridable in tests so we can assert "called exactly once" per
+	// slug under concurrent ForProject callers.
+	build func(ctx context.Context, st *store.Store) (vectorindex.Index, error)
 }
 
 // NewVectorIndexes constructs an empty cache.
 func NewVectorIndexes() *VectorIndexes {
-	return &VectorIndexes{indexes: map[string]vectorindex.Index{}}
+	return &VectorIndexes{
+		indexes: map[string]vectorindex.Index{},
+		build:   vectorindex.BuildFromStore,
+	}
 }
 
 // ForProject returns the cached index for slug, building one from st
 // if no entry exists yet. A build error is logged and nil returned —
 // LocalSearch falls back to brute-force, which is slow but correct.
+//
+// Concurrent first-touch callers for the same slug are coalesced via
+// singleflight — only one BuildFromStore runs; others wait on the same
+// result.
 func (v *VectorIndexes) ForProject(slug string, st *store.Store) vectorindex.Index {
 	if v == nil {
 		return nil
@@ -43,22 +62,38 @@ func (v *VectorIndexes) ForProject(slug string, st *store.Store) vectorindex.Ind
 	}
 	v.mu.Unlock()
 
-	buildCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	idx, err := vectorindex.BuildFromStore(buildCtx, st)
-	if err != nil {
-		slog.Warn("⚠️ vector index build failed; falling back to brute-force",
-			"project", slug, "err", err)
+	result, _, _ := v.sf.Do(slug, func() (any, error) {
+		// Re-check under the lock in case another goroutine populated
+		// the cache between our miss and entering Do.
+		v.mu.Lock()
+		if idx, ok := v.indexes[slug]; ok {
+			v.mu.Unlock()
+			return idx, nil
+		}
+		v.mu.Unlock()
+
+		buildCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		build := v.build
+		if build == nil {
+			build = vectorindex.BuildFromStore
+		}
+		idx, err := build(buildCtx, st)
+		if err != nil {
+			slog.Warn("⚠️ vector index build failed; falling back to brute-force",
+				"project", slug, "err", err)
+			return nil, err
+		}
+
+		v.mu.Lock()
+		v.indexes[slug] = idx
+		v.mu.Unlock()
+		return idx, nil
+	})
+	if result == nil {
 		return nil
 	}
-
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	// Re-check in case another goroutine won the race.
-	if existing, ok := v.indexes[slug]; ok {
-		return existing
-	}
-	v.indexes[slug] = idx
+	idx, _ := result.(vectorindex.Index)
 	return idx
 }
 
@@ -83,4 +118,7 @@ func (v *VectorIndexes) Invalidate(slug string) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	delete(v.indexes, slug)
+	// Also forget any in-flight single-flight entry so the next
+	// ForProject after Invalidate re-runs the build.
+	v.sf.Forget(slug)
 }

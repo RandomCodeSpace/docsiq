@@ -74,7 +74,7 @@ if len(data) > MaxNoteBytes { ... return }
 
 **Recommended fix:** Add a counter for total bytes decompressed AND a maximum entry count. Suggest `MaxImportEntries = 10_000` and `MaxImportTotalBytes = 500 << 20` (500 MB). Return 413 when either limit trips.
 
-**Status:** fixed in P0-3-PENDING
+**Status:** fixed in 06960fc
 
 ---
 
@@ -99,6 +99,8 @@ idx, err := vectorindex.BuildFromStore(buildCtx, st)  // up to 60s, uses the sin
 ```
 
 **Recommended fix:** Use `golang.org/x/sync/singleflight` keyed by slug so only one build runs for a given slug at a time; all other callers wait on the same result. Alternative: an in-cache placeholder `*Index` guarded by a sync.WaitGroup so concurrent callers block on the in-flight build.
+
+**Status:** fixed in P0-4-PENDING
 
 ---
 

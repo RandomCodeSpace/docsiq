@@ -1,6 +1,6 @@
 module github.com/RandomCodeSpace/docsiq
 
-go 1.24.7
+go 1.25.0
 
 require (
 	github.com/google/uuid v1.6.0
@@ -12,6 +12,7 @@ require (
 	github.com/tmc/langchaingo v0.1.14
 	go.uber.org/goleak v1.3.0
 	golang.org/x/net v0.47.0
+	golang.org/x/sync v0.20.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
