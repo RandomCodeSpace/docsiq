@@ -1,0 +1,6 @@
+{
+  "profile": "default",
+  "hooks": {
+    "Notify": "/usr/local/bin/user-notify.sh"
+  }
+}

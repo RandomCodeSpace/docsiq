@@ -1,0 +1,7 @@
+{
+  "profile": "default",
+  "hooks": {
+    "Notify": "/usr/local/bin/user-notify.sh",
+    "SessionStart": "/path/to/hook.sh"
+  }
+}

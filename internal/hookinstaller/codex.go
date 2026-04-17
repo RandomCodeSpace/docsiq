@@ -2,23 +2,41 @@ package hookinstaller
 
 import (
 	"encoding/json"
+	"log/slog"
 	"path/filepath"
 )
 
-// CodexInstaller targets ~/.codex/hooks.json (per kgraph reference).
+// CodexInstaller targets ~/.codex/hooks.json.
 //
-// Shape — kgraph wrote a flat map:
+// UNVERIFIED — OpenAI Codex CLI does not publicly document a SessionStart
+// hook API as of 2026-04-17. Doc sources checked:
+//   - https://github.com/openai/codex (repo root)
+//   - https://github.com/openai/codex/tree/main/docs
+//   - https://github.com/openai/codex/blob/main/docs/config.md
+//     (documents TOML config at ~/.codex/config.toml; only a "Notify"
+//     post-turn notification hook is documented — no SessionStart)
 //
-//	{"hooks":{"SessionStart":"<cmd>"}}
+// Schema below mirrors kgraph's original guess (wrong config format
+// AND wrong event name relative to real Codex, but preserved for wire
+// compatibility with existing kgraph users until Codex publishes a
+// stable hook API):
 //
-// We keep the same shape for wire compatibility. Codex CLI's hook API
-// is less stable than Claude Code's, so this is also flagged as a
-// best-effort integration.
-type CodexInstaller struct{}
+//	config path: ~/.codex/hooks.json
+//	shape:       {"hooks": {"SessionStart": "<cmd>"}}
+type CodexInstaller struct {
+	testPath string
+}
+
+func newCodexInstallerWithPath(p string) CodexInstaller {
+	return CodexInstaller{testPath: p}
+}
 
 func (CodexInstaller) Name() string { return "codex" }
 
-func (CodexInstaller) ConfigPath() (string, error) {
+func (c CodexInstaller) ConfigPath() (string, error) {
+	if c.testPath != "" {
+		return c.testPath, nil
+	}
 	home, err := homeDir()
 	if err != nil {
 		return "", err
@@ -30,6 +48,8 @@ func (c CodexInstaller) Install(hookPath string) error {
 	if err := validateHookPath(hookPath); err != nil {
 		return err
 	}
+	slog.Warn("⚠️ installing unverified hook for codex",
+		"reason", "no documented SessionStart hook API as of 2026-04-17")
 	path, err := c.ConfigPath()
 	if err != nil {
 		return err
