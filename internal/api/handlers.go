@@ -74,7 +74,15 @@ func writeError(w http.ResponseWriter, r *http.Request, status int, msg string, 
 	if status >= 500 && err != nil {
 		slog.ErrorContext(r.Context(), "❌ handler error", "path", r.URL.Path, "err", err)
 	}
-	writeJSON(w, status, map[string]string{"error": msg})
+	// NF-P1-3: docs/rest-api.md promises error bodies of shape
+	// {"error":"...","request_id":"..."}. Echo the per-request ID into
+	// the body so UI clients can correlate errors without scraping the
+	// X-Request-ID response header.
+	body := map[string]string{"error": msg}
+	if reqID := RequestIDFromContext(r.Context()); reqID != "" {
+		body["request_id"] = reqID
+	}
+	writeJSON(w, status, body)
 }
 
 // health is a trivially-always-200 liveness probe. No store/config
