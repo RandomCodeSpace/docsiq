@@ -503,6 +503,36 @@ func (h *handlers) setProgress(jobID, msg string) {
 	h.jobProgress[jobID] = msg
 }
 
+// progressForJob returns the latest status for jobID. When jobID is
+// empty it falls back to the Wave-A behavior (any job's latest
+// message) so existing clients that don't supply ?job_id= still see
+// something. (P1-1)
+func (h *handlers) progressForJob(jobID string) (msg string, ok bool) {
+	h.uploadMu.Lock()
+	defer h.uploadMu.Unlock()
+	if jobID != "" {
+		m, found := h.jobProgress[jobID]
+		return m, found
+	}
+	for _, v := range h.jobProgress {
+		msg = v
+		ok = true
+	}
+	return
+}
+
+// clearProgress removes jobID from the in-memory progress map. Called
+// when the SSE stream observes a terminal status so the map does not
+// grow unbounded over a server's lifetime. (P1-1)
+func (h *handlers) clearProgress(jobID string) {
+	if jobID == "" {
+		return
+	}
+	h.uploadMu.Lock()
+	defer h.uploadMu.Unlock()
+	delete(h.jobProgress, jobID)
+}
+
 func (h *handlers) uploadProgress(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -514,6 +544,10 @@ func (h *handlers) uploadProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// P1-1: filter by job_id. When present, only emit events for the
+	// specific job and terminate when THAT job reaches done/error.
+	jobID := r.URL.Query().Get("job_id")
+
 	ctx := r.Context()
 	lastMsg := ""
 	ticker := time.NewTicker(500 * time.Millisecond)
@@ -524,19 +558,14 @@ func (h *handlers) uploadProgress(w http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			h.uploadMu.Lock()
-			// Send the latest message from any job.
-			var msg string
-			for _, v := range h.jobProgress {
-				msg = v
-			}
-			h.uploadMu.Unlock()
+			msg, _ := h.progressForJob(jobID)
 
 			if msg != "" && msg != lastMsg {
 				fmt.Fprintf(w, "data: %s\n\n", msg)
 				flusher.Flush()
 				lastMsg = msg
 				if msg == "done" || strings.HasPrefix(msg, "error:") {
+					h.clearProgress(jobID)
 					return
 				}
 			}
