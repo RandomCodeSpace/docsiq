@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/http"
 	"sort"
 	"strconv"
@@ -137,9 +138,7 @@ func metricsHandler(
 		globalMetrics.mu.Lock()
 		// Snapshot under the lock, release before formatting.
 		reqs := make(map[labelKey]uint64, len(globalMetrics.requestsTotal))
-		for k, v := range globalMetrics.requestsTotal {
-			reqs[k] = v
-		}
+		maps.Copy(reqs, globalMetrics.requestsTotal)
 		hists := make(map[histogramKey]histogramCell, len(globalMetrics.requestDuration))
 		for k, v := range globalMetrics.requestDuration {
 			hists[k] = *v

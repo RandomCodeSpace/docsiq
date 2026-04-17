@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -185,9 +186,7 @@ func Write(notesDir string, n *Note) error {
 	n.UpdatedAt = now
 
 	fm := map[string]any{}
-	for k, v := range n.Frontmatter {
-		fm[k] = v
-	}
+	maps.Copy(fm, n.Frontmatter)
 	if n.Author != "" {
 		fm["author"] = n.Author
 	}
