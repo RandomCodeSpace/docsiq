@@ -1,0 +1,7 @@
+{
+  "telemetry": "off",
+  "hooks": {
+    "pre-commit": "/usr/local/bin/user-lint.sh",
+    "session-start": "/path/to/hook.sh"
+  }
+}

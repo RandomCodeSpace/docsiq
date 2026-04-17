@@ -2,24 +2,39 @@ package hookinstaller
 
 import (
 	"encoding/json"
+	"log/slog"
 	"path/filepath"
 )
 
-// CopilotInstaller — GitHub Copilot CLI/VSCode integration.
+// CopilotInstaller — GitHub Copilot CLI integration.
 //
-// NOTE — config path taken from kgraph's install.ts:
+// UNVERIFIED — GitHub Copilot CLI does not publicly document a
+// SessionStart hook API as of 2026-04-17. Doc sources checked:
+//   - https://docs.github.com/en/copilot/how-tos/use-copilot-agents/use-copilot-in-the-cli (404)
+//   - https://docs.github.com/en/copilot/github-copilot-in-the-cli/about-github-copilot-in-the-cli
+//     (general responsible-use docs, no hook schema)
+//   - https://docs.github.com/en/copilot/using-github-copilot/using-github-copilot-in-the-command-line
+//     (notes the legacy `gh copilot` extension was retired and replaced
+//     by the new Copilot CLI; no hook schema is published)
 //
-//	~/.config/github-copilot/hooks.json
+// Schema below mirrors kgraph's original guess:
 //
-// kgraph's shape was a flat {"hooks":{"session-start":"<cmd>"}} map.
-// That's what we mirror. GitHub Copilot does not officially document
-// a SessionStart hook surface area as of this writing — treat this as
-// a best-effort placeholder until Copilot publishes stable hook APIs.
-type CopilotInstaller struct{}
+//	config path: ~/.config/github-copilot/hooks.json
+//	shape:       {"hooks": {"session-start": "<cmd>"}}
+type CopilotInstaller struct {
+	testPath string
+}
+
+func newCopilotInstallerWithPath(p string) CopilotInstaller {
+	return CopilotInstaller{testPath: p}
+}
 
 func (CopilotInstaller) Name() string { return "copilot" }
 
-func (CopilotInstaller) ConfigPath() (string, error) {
+func (c CopilotInstaller) ConfigPath() (string, error) {
+	if c.testPath != "" {
+		return c.testPath, nil
+	}
 	home, err := homeDir()
 	if err != nil {
 		return "", err
@@ -31,6 +46,8 @@ func (c CopilotInstaller) Install(hookPath string) error {
 	if err := validateHookPath(hookPath); err != nil {
 		return err
 	}
+	slog.Warn("⚠️ installing unverified hook for copilot",
+		"reason", "no documented SessionStart hook API as of 2026-04-17")
 	path, err := c.ConfigPath()
 	if err != nil {
 		return err
