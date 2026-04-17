@@ -65,6 +65,11 @@ func NewRouter(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *
 	mux.HandleFunc("GET /api/projects/{project}/export", nh.export)
 	mux.HandleFunc("POST /api/projects/{project}/import", nh.importTar)
 
+	// REST API — hooks (Phase-3). SessionStart is the only handler; it
+	// resolves a git remote to a registered project slug and returns an
+	// "additionalContext" blob the AI client can inject into its prompt.
+	registerHookRoutes(mux, registry)
+
 	// Embedded UI
 	mux.Handle("/", spaHandler(ui.Assets))
 
