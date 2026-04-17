@@ -16,6 +16,7 @@ import (
 	"github.com/RandomCodeSpace/docscontext/internal/embedder"
 	"github.com/RandomCodeSpace/docscontext/internal/llm"
 	"github.com/RandomCodeSpace/docscontext/internal/project"
+	"github.com/RandomCodeSpace/docscontext/internal/sqlitevec"
 	"github.com/RandomCodeSpace/docscontext/internal/store"
 	"github.com/RandomCodeSpace/docscontext/internal/vectorindex"
 	"github.com/spf13/cobra"
@@ -43,6 +44,21 @@ var serveCmd = &cobra.Command{
 		}
 		defer st.Close()
 		slog.Info("📂 store opened", "path", cfg.DBPath())
+
+		// Attempt to load the embedded sqlite-vec extension. On any
+		// failure (placeholder build, unsupported GOOS/GOARCH, dlopen
+		// refused) we log WARN and continue — the HNSW in-memory index
+		// and/or brute-force fallback still answer vector queries.
+		if soPath, extErr := sqlitevec.Extract(cfg.DataDir); extErr != nil {
+			slog.Warn("⚠️ sqlite-vec unavailable; using HNSW / brute-force fallback", "err", extErr)
+			setVecMode(vecModeNone, extErr.Error())
+		} else if loadErr := sqlitevec.LoadInto(st.DB(), soPath); loadErr != nil {
+			slog.Warn("⚠️ sqlite-vec load failed; using HNSW / brute-force fallback", "err", loadErr, "path", soPath)
+			setVecMode(vecModeNone, loadErr.Error())
+		} else {
+			slog.Info("🧮 sqlite-vec loaded", "path", soPath)
+			setVecMode(vecModeSqliteVec, soPath)
+		}
 
 		// Phase-1: open the per-project registry alongside the legacy
 		// single-DB store. Handlers still use `st` until Phase-2 migrates

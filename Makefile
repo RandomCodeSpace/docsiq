@@ -14,17 +14,17 @@ ui-build:
 	cd ui && npm run build
 
 build: ui-build
-	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" ./...
+	CGO_ENABLED=1 go build -tags "sqlite_fts5" -ldflags "$(LDFLAGS)" ./...
 
 # Filter out ui/node_modules — a transitive npm dep (flatted) ships a Go package
 # that would otherwise be walked by `./...`.
-GO_PKGS := $(shell go list ./... 2>/dev/null | grep -v /ui/node_modules/)
+GO_PKGS := $(shell CGO_ENABLED=1 go list -tags "sqlite_fts5" ./... 2>/dev/null | grep -v /ui/node_modules/)
 
 test:
-	CGO_ENABLED=0 go test -timeout 300s $(GO_PKGS)
+	CGO_ENABLED=1 go test -tags "sqlite_fts5" -timeout 300s $(GO_PKGS)
 
 vet:
-	go vet $(GO_PKGS)
+	CGO_ENABLED=1 go vet -tags "sqlite_fts5" $(GO_PKGS)
 
 check: build vet test
 

@@ -90,7 +90,7 @@ func TestOpen(t *testing.T) {
 	})
 
 	t.Run("foreign_keys_pragma_enabled", func(t *testing.T) {
-		// DSN uses modernc's `_pragma=foreign_keys(on)` syntax so FKs are
+		// DSN uses mattn's `?_foreign_keys=on` shorthand so FKs are
 		// actually enforced — required for ON DELETE CASCADE in the schema.
 		dir := t.TempDir()
 		s, err := Open(filepath.Join(dir, "test.db"))
@@ -109,7 +109,7 @@ func TestOpen(t *testing.T) {
 	})
 
 	t.Run("journal_mode_is_wal", func(t *testing.T) {
-		// DSN uses modernc's `_pragma=journal_mode(wal)` syntax so concurrent
+		// DSN uses mattn's `?_journal_mode=WAL` shorthand so concurrent
 		// readers don't block writers.
 		dir := t.TempDir()
 		s, err := Open(filepath.Join(dir, "test.db"))
@@ -128,7 +128,7 @@ func TestOpen(t *testing.T) {
 	})
 
 	t.Run("open_same_path_twice", func(t *testing.T) {
-		// Documents current behavior. modernc.org/sqlite allows concurrent
+		// Documents current behavior. mattn/go-sqlite3 allows concurrent
 		// opens of the same file with WAL, so this typically succeeds.
 		dir := t.TempDir()
 		path := filepath.Join(dir, "test.db")

@@ -8,7 +8,7 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/RandomCodeSpace/docscontext)](https://github.com/RandomCodeSpace/docscontext/blob/main/go.mod)
 [![Frontend Version](https://img.shields.io/badge/frontend-none-lightgrey)](https://github.com/RandomCodeSpace/docscontext)
 
-A pure Go ([CGO_ENABLED=0](https://pkg.go.dev/cmd/cgo)) GraphRAG tool inspired by [Microsoft GraphRAG](https://github.com/microsoft/graphrag).
+A GraphRAG tool inspired by [Microsoft GraphRAG](https://github.com/microsoft/graphrag). Built on CGO-backed SQLite ([`mattn/go-sqlite3`](https://github.com/mattn/go-sqlite3) with FTS5) plus the [`sqlite-vec`](https://github.com/asg017/sqlite-vec) loadable extension for ANN vector search.
 Ingests unstructured documents, builds a hierarchical knowledge graph with community detection, and exposes an **MCP server + embedded Web UI** on a single port.
 
 ## Features
@@ -19,9 +19,20 @@ Ingests unstructured documents, builds a hierarchical knowledge graph with commu
 - **Two LLM providers** — Azure OpenAI, Ollama (local), via langchaingo
 - **12 MCP tools** — local search, global search, graph walk, community reports, and more
 - **Embedded Web UI** — vis-network graph explorer, semantic search, document browser
-- **Single binary** — zero CGO, cross-compiles to Linux / macOS / Windows
+- **Single binary** — ships on Linux / macOS (Windows is not supported)
 
 ## Install
+
+### Prerequisites
+
+A **C toolchain** is required at install time (DocsContext links SQLite
+via CGO and bundles the `sqlite-vec` loadable extension):
+
+- **Linux**: `sudo apt-get install build-essential` (or equivalent)
+- **macOS**: `xcode-select --install`
+- **Windows**: not supported
+
+Go ≥ 1.22 is required.
 
 ```bash
 go install github.com/RandomCodeSpace/docscontext@latest
@@ -32,7 +43,7 @@ Or build from source:
 ```bash
 git clone https://github.com/RandomCodeSpace/docscontext.git
 cd DocsContext
-CGO_ENABLED=0 go build -o docscontext .
+CGO_ENABLED=1 go build -tags sqlite_fts5 -o docscontext .
 ```
 
 ## Quick Start

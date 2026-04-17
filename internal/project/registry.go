@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // ErrNotFound is returned when a registry lookup has no matching row.
@@ -22,7 +22,7 @@ var ErrDuplicateRemote = errors.New("remote already registered to another projec
 // Registry wraps a tiny SQLite database at $DATA_DIR/registry.db that
 // stores the slug → project mapping. It uses the same DSN-pragma pattern
 // as internal/store so WAL and foreign keys are actually enforced under
-// the modernc.org/sqlite driver.
+// the mattn/go-sqlite3 driver.
 type Registry struct {
 	db *sql.DB
 }
@@ -49,11 +49,11 @@ func OpenRegistry(dataDir string) (*Registry, error) {
 	}
 
 	path := filepath.Join(dataDir, "registry.db")
-	// Pragma syntax must match modernc.org/sqlite — the `?_pragma=...(value)`
-	// form. The `?_foreign_keys=on` style from mattn/go-sqlite3 is silently
-	// ignored here; getting this wrong leaves FKs disabled in registry.db.
-	dsn := path + "?_pragma=journal_mode(wal)&_pragma=foreign_keys(on)"
-	db, err := sql.Open("sqlite", dsn)
+	// Pragma syntax matches mattn/go-sqlite3 — the `?_foreign_keys=on`
+	// and `?_journal_mode=WAL` shorthand form. Getting this wrong leaves
+	// FKs disabled in registry.db.
+	dsn := path + "?_journal_mode=WAL&_foreign_keys=on"
+	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open registry: %w", err)
 	}
@@ -104,8 +104,8 @@ func (r *Registry) Register(p Project) error {
 		p.Slug, p.Name, p.Remote, p.CreatedAt)
 	if err != nil {
 		msg := err.Error()
-		// modernc.org/sqlite surfaces UNIQUE violations as "constraint
-		// failed: UNIQUE constraint failed: projects.<col>".
+		// mattn/go-sqlite3 surfaces UNIQUE violations as "UNIQUE constraint
+		// failed: projects.<col>".
 		if strings.Contains(msg, "UNIQUE") && strings.Contains(msg, "remote") {
 			return ErrDuplicateRemote
 		}

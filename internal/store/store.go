@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // slugCharset is the validator used by OpenForProject. Kept local so the
@@ -30,7 +30,7 @@ func Open(path string) (*Store, error) {
 	if path == "" {
 		return nil, fmt.Errorf("open db: path is empty")
 	}
-	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(wal)&_pragma=foreign_keys(on)")
+	db, err := sql.Open("sqlite3", path+"?_journal_mode=WAL&_foreign_keys=on")
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
