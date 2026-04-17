@@ -50,6 +50,24 @@ type LLMConfig struct {
 	Provider string       `mapstructure:"provider"`
 	Azure    AzureConfig  `mapstructure:"azure"`
 	Ollama   OllamaConfig `mapstructure:"ollama"`
+	OpenAI   OpenAIConfig `mapstructure:"openai"`
+}
+
+// OpenAIConfig configures the direct OpenAI (api.openai.com) provider,
+// as opposed to Azure OpenAI which lives on AzureConfig. Env vars:
+//
+//	DOCSIQ_LLM_OPENAI_API_KEY      — API key (required)
+//	DOCSIQ_LLM_OPENAI_BASE_URL     — override for proxies / gateways
+//	DOCSIQ_LLM_OPENAI_CHAT_MODEL   — chat model, default gpt-4o-mini
+//	DOCSIQ_LLM_OPENAI_EMBED_MODEL  — embedding model, default
+//	                                 text-embedding-3-small
+//	DOCSIQ_LLM_OPENAI_ORGANIZATION — optional org header
+type OpenAIConfig struct {
+	APIKey       string `mapstructure:"api_key"`
+	BaseURL      string `mapstructure:"base_url"`
+	ChatModel    string `mapstructure:"chat_model"`
+	EmbedModel   string `mapstructure:"embed_model"`
+	Organization string `mapstructure:"organization"`
 }
 
 // AzureConfig supports shared defaults with per-service overrides.
@@ -223,6 +241,13 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetDefault("llm.azure.embed.api_key", "")
 	v.SetDefault("llm.azure.embed.api_version", "")
 	v.SetDefault("llm.azure.embed.model", "text-embedding-3-small")
+
+	// LLM — OpenAI (direct, as opposed to Azure OpenAI)
+	v.SetDefault("llm.openai.api_key", "")
+	v.SetDefault("llm.openai.base_url", "https://api.openai.com/v1")
+	v.SetDefault("llm.openai.chat_model", "gpt-4o-mini")
+	v.SetDefault("llm.openai.embed_model", "text-embedding-3-small")
+	v.SetDefault("llm.openai.organization", "")
 
 	// Indexing
 	v.SetDefault("indexing.chunk_size", 512)

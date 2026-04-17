@@ -1263,13 +1263,8 @@ func (s *Store) GetEntitiesByNames(ctx context.Context, names []string) (map[str
 	return result, rows.Err()
 }
 
+// joinStrings is a thin alias over strings.Join; retained so the existing
+// call site reads the same. Previously this was an O(n²) `result += s` loop.
 func joinStrings(ss []string, sep string) string {
-	result := ""
-	for i, s := range ss {
-		if i > 0 {
-			result += sep
-		}
-		result += s
-	}
-	return result
+	return strings.Join(ss, sep)
 }

@@ -15,8 +15,24 @@ import (
 	"github.com/RandomCodeSpace/docscontext/internal/mcp"
 	"github.com/RandomCodeSpace/docscontext/internal/project"
 	"github.com/RandomCodeSpace/docscontext/internal/store"
+	"github.com/RandomCodeSpace/docscontext/internal/vectorindex"
 	"github.com/RandomCodeSpace/docscontext/ui"
 )
+
+// RouterOption configures NewRouter. Zero-or-more options are appended to the
+// existing positional arguments without breaking any existing call site.
+type RouterOption func(*routerOptions)
+
+type routerOptions struct {
+	vecIndex vectorindex.Index
+}
+
+// WithVectorIndex wires an HNSW index (typically built by
+// vectorindex.BuildFromStore) into the search handler and MCP server so
+// LocalSearch uses approximate NN instead of O(n) brute-force.
+func WithVectorIndex(idx vectorindex.Index) RouterOption {
+	return func(o *routerOptions) { o.vecIndex = idx }
+}
 
 // NewRouter builds the single http.ServeMux with all routes.
 //
@@ -25,9 +41,16 @@ import (
 // request. Passing a nil registry is tolerated (the middleware still
 // attaches the default slug to the context) so tests that only exercise
 // docs handlers don't need to spin up a real registry.
-func NewRouter(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, registry *project.Registry) http.Handler {
-	mcpServer := mcp.New(st, prov, emb, cfg, registry)
-	h := &handlers{store: st, provider: prov, embedder: emb, cfg: cfg}
+//
+// Phase-2 (vector index): optional RouterOption knobs. Nil index means the
+// search handler falls back to brute-force — the historical behavior.
+func NewRouter(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, registry *project.Registry, opts ...RouterOption) http.Handler {
+	ro := &routerOptions{}
+	for _, opt := range opts {
+		opt(ro)
+	}
+	mcpServer := mcp.New(st, prov, emb, cfg, registry, mcp.WithVectorIndex(ro.vecIndex))
+	h := &handlers{store: st, provider: prov, embedder: emb, cfg: cfg, vecIndex: ro.vecIndex}
 	nh := newNotesHandlers(cfg.DataDir, cfg, registry)
 	ph := &projectsHandler{registry: registry}
 

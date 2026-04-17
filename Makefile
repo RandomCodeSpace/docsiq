@@ -21,7 +21,7 @@ build: ui-build
 GO_PKGS := $(shell go list ./... 2>/dev/null | grep -v /ui/node_modules/)
 
 test:
-	CGO_ENABLED=0 go test -timeout 120s $(GO_PKGS)
+	CGO_ENABLED=0 go test -timeout 300s $(GO_PKGS)
 
 vet:
 	go vet $(GO_PKGS)

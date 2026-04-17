@@ -17,6 +17,7 @@ import (
 	"github.com/RandomCodeSpace/docscontext/internal/llm"
 	"github.com/RandomCodeSpace/docscontext/internal/project"
 	"github.com/RandomCodeSpace/docscontext/internal/store"
+	"github.com/RandomCodeSpace/docscontext/internal/vectorindex"
 	"github.com/spf13/cobra"
 )
 
@@ -65,7 +66,20 @@ var serveCmd = &cobra.Command{
 		slog.Info("⚙️ LLM provider initialised", "provider", prov.Name(), "model", prov.ModelID())
 
 		emb := embedder.New(prov, cfg.Indexing.BatchSize)
-		router := api.NewRouter(st, prov, emb, cfg, registry)
+
+		// Build in-memory HNSW vector index from the store's chunk
+		// embeddings. Rebuilt on every boot; the store remains the
+		// source of truth. Empty index (fresh install) is fine — search
+		// handlers fall back to brute-force when nil/empty.
+		buildCtx, cancelBuild := context.WithTimeout(context.Background(), 60*time.Second)
+		vecIdx, err := vectorindex.BuildFromStore(buildCtx, st)
+		cancelBuild()
+		if err != nil {
+			slog.Warn("⚠️ vector index build failed; using brute-force fallback", "err", err)
+			vecIdx = nil
+		}
+
+		router := api.NewRouter(st, prov, emb, cfg, registry, api.WithVectorIndex(vecIdx))
 
 		addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 		ln, err := net.Listen("tcp", addr)

@@ -24,7 +24,7 @@ func registerTools(s *Server) {
 		if query == "" {
 			return toolError(fmt.Errorf("query required")), nil
 		}
-		result, err := search.LocalSearch(ctx, s.store, s.embedder, query, topK, 0)
+		result, err := search.LocalSearch(ctx, s.store, s.embedder, s.vecIndex, query, topK, 0)
 		if err != nil {
 			return toolError(err), nil
 		}
@@ -46,7 +46,7 @@ func registerTools(s *Server) {
 		if query == "" {
 			return toolError(fmt.Errorf("query required")), nil
 		}
-		result, err := search.LocalSearch(ctx, s.store, s.embedder, query, topK, depth)
+		result, err := search.LocalSearch(ctx, s.store, s.embedder, s.vecIndex, query, topK, depth)
 		if err != nil {
 			return toolError(err), nil
 		}

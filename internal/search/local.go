@@ -6,60 +6,78 @@ import (
 
 	"github.com/RandomCodeSpace/docscontext/internal/embedder"
 	"github.com/RandomCodeSpace/docscontext/internal/store"
+	"github.com/RandomCodeSpace/docscontext/internal/vectorindex"
 )
 
 // ChunkResult is a search result from chunk/vector search.
 type ChunkResult struct {
-	Chunk      store.Chunk
-	Score      float32
-	EntityIDs  []string
+	Chunk     store.Chunk
+	Score     float32
+	EntityIDs []string
 }
 
 // LocalSearchResult combines vector + graph results.
 type LocalSearchResult struct {
-	Chunks     []ChunkResult
-	Entities   []*store.Entity
-	Rels       []*store.Relationship
+	Chunks   []ChunkResult
+	Entities []*store.Entity
+	Rels     []*store.Relationship
 }
 
 // LocalSearch performs vector similarity search + graph walk.
-func LocalSearch(ctx context.Context, st *store.Store, emb *embedder.Embedder, query string, topK, graphDepth int) (*LocalSearchResult, error) {
+//
+// If idx is non-nil and non-empty, the top-K chunk retrieval uses the HNSW
+// index (O(log n)); otherwise LocalSearch falls back to the historical
+// O(n) brute-force scan. This lets tests keep working without wiring an
+// index, while production serve.go always passes one.
+func LocalSearch(ctx context.Context, st *store.Store, emb *embedder.Embedder, idx vectorindex.Index, query string, topK, graphDepth int) (*LocalSearchResult, error) {
 	// Embed query
 	qVec, err := emb.EmbedOne(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 
-	// Load all chunk embeddings
-	all, err := st.AllChunkEmbeddings(ctx, emb.ModelID())
-	if err != nil {
-		return nil, err
-	}
-
-	// Score and rank
-	type scored struct {
-		cwe   store.ChunkWithEmbedding
-		score float32
-	}
-	scores := make([]scored, len(all))
-	for i, cwe := range all {
-		scores[i] = scored{cwe, store.CosineSimilarity(qVec, cwe.Vector)}
-	}
-	sort.Slice(scores, func(i, j int) bool { return scores[i].score > scores[j].score })
-
-	if topK > len(scores) {
-		topK = len(scores)
-	}
-
 	result := &LocalSearchResult{}
-	seenEntities := map[string]bool{}
 
-	for _, s := range scores[:topK] {
-		result.Chunks = append(result.Chunks, ChunkResult{
-			Chunk: s.cwe.Chunk,
-			Score: s.score,
-		})
+	if idx != nil && idx.Size() > 0 {
+		hits, err := idx.Search(qVec, topK)
+		if err != nil {
+			return nil, err
+		}
+		for _, h := range hits {
+			c, err := st.GetChunk(ctx, h.ID)
+			if err != nil || c == nil {
+				continue
+			}
+			result.Chunks = append(result.Chunks, ChunkResult{Chunk: *c, Score: h.Score})
+		}
+	} else {
+		// Brute-force fallback — original behavior preserved for tests /
+		// fresh installs where BuildFromStore hasn't been called yet.
+		all, err := st.AllChunkEmbeddings(ctx, emb.ModelID())
+		if err != nil {
+			return nil, err
+		}
+		type scored struct {
+			cwe   store.ChunkWithEmbedding
+			score float32
+		}
+		scores := make([]scored, len(all))
+		for i, cwe := range all {
+			scores[i] = scored{cwe, store.CosineSimilarity(qVec, cwe.Vector)}
+		}
+		sort.Slice(scores, func(i, j int) bool { return scores[i].score > scores[j].score })
+		if topK > len(scores) {
+			topK = len(scores)
+		}
+		for _, s := range scores[:topK] {
+			result.Chunks = append(result.Chunks, ChunkResult{
+				Chunk: s.cwe.Chunk,
+				Score: s.score,
+			})
+		}
 	}
+
+	seenEntities := map[string]bool{}
 
 	// Graph walk: find entities related to top chunks via their doc
 	if graphDepth > 0 && len(result.Chunks) > 0 {
@@ -123,4 +141,3 @@ func LocalSearch(ctx context.Context, st *store.Store, emb *embedder.Embedder, q
 
 	return result, nil
 }
-

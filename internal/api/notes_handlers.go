@@ -119,7 +119,15 @@ func projectErr(w http.ResponseWriter, r *http.Request, err error) bool {
 }
 
 // GET /api/projects/{project}/notes/{key...}
+//
+// This handler also serves the /history sub-resource — Go's ServeMux
+// doesn't allow a literal segment after a `...` wildcard, so we
+// dispatch on suffix here instead of registering a separate pattern.
 func (h *notesHandlers) readNote(w http.ResponseWriter, r *http.Request) {
+	if strings.HasSuffix(r.URL.Path, "/history") {
+		h.noteHistory(w, r)
+		return
+	}
 	slug, notesDir, err := h.resolveProject(r)
 	if projectErr(w, r, err) {
 		return
@@ -221,6 +229,42 @@ func (h *notesHandlers) deleteNote(w http.ResponseWriter, r *http.Request) {
 		_ = st.DeleteNote(r.Context(), key)
 	}
 	writeJSON(w, 200, map[string]any{"ok": true, "key": key})
+}
+
+// GET /api/projects/{project}/notes/{key...}/history?limit=<n>
+//
+// Returns the auto-commit history for a single note, newest first.
+// `limit` is optional and capped to 500. If git is unavailable or the
+// project has never been written to, this returns `{"entries": []}`
+// with HTTP 200 — history is informational, not a precondition.
+func (h *notesHandlers) noteHistory(w http.ResponseWriter, r *http.Request) {
+	_, notesDir, err := h.resolveProject(r)
+	if projectErr(w, r, err) {
+		return
+	}
+	// Strip the trailing `/history` from the path wildcard before
+	// treating the rest as a note key.
+	raw := extractKey(r, "/notes/")
+	key := strings.TrimSuffix(raw, "/history")
+	if err := notes.ValidateKey(key); err != nil {
+		writeError(w, r, http.StatusForbidden, "invalid key: "+err.Error(), err)
+		return
+	}
+	limit := 50
+	if ls := r.URL.Query().Get("limit"); ls != "" {
+		if n, err := strconv.Atoi(ls); err == nil && n > 0 && n <= 500 {
+			limit = n
+		}
+	}
+	entries, err := notes.History(notesDir, key, limit)
+	if err != nil {
+		notesError(w, r, err)
+		return
+	}
+	if entries == nil {
+		entries = []notes.HistoryEntry{}
+	}
+	writeJSON(w, 200, map[string]any{"entries": entries})
 }
 
 // GET /api/projects/{project}/notes

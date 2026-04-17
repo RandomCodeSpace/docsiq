@@ -14,6 +14,7 @@ import NoteView from '@/components/notes/NoteView'
 import NoteEditor from '@/components/notes/NoteEditor'
 import LinkPanel from '@/components/notes/LinkPanel'
 import NotesGraphView from '@/components/notes/NotesGraphView'
+import NotesSearchPanel from '@/components/notes/NotesSearchPanel'
 import { useTheme } from '@/hooks/useTheme'
 import { useStats } from '@/hooks/useStats'
 import { useSearch } from '@/hooks/useSearch'
@@ -52,6 +53,22 @@ function writeTabToUrl(view: DocsView) {
   window.history.replaceState({}, '', url.toString())
 }
 
+type NotesView = 'tree' | 'search'
+
+const VALID_NOTES_VIEWS: NotesView[] = ['tree', 'search']
+
+function readNotesViewFromUrl(): NotesView {
+  if (typeof window === 'undefined') return 'tree'
+  const v = new URLSearchParams(window.location.search).get('view')
+  return v && (VALID_NOTES_VIEWS as string[]).includes(v) ? (v as NotesView) : 'tree'
+}
+
+function writeNotesViewToUrl(v: NotesView) {
+  const url = new URL(window.location.href)
+  url.searchParams.set('view', v)
+  window.history.replaceState({}, '', url.toString())
+}
+
 export default function App() {
   const { toggle } = useTheme()
   const { stats, loading: statsLoading, error: statsError } = useStats()
@@ -85,6 +102,11 @@ export default function App() {
   const { graph: notesGraph, reload: reloadNotesGraph } = useNotesGraph(currentProject)
   const [activeNoteKey, setActiveNoteKey] = useState<string | null>(null)
   const [editMode, setEditMode] = useState(false)
+  const [notesView, setNotesView] = useState<NotesView>(readNotesViewFromUrl)
+  const changeNotesView = useCallback((next: NotesView) => {
+    setNotesView(next)
+    writeNotesViewToUrl(next)
+  }, [])
   const { data: activeNote, isLoading: noteLoading, error: noteError, load: loadNote } = useNote(
     currentProject,
     activeNoteKey,
@@ -102,8 +124,24 @@ export default function App() {
       setEditMode(false)
       void loadNote(key)
       if (view !== 'notes') changeView('notes')
+      if (notesView !== 'tree') changeNotesView('tree')
     },
-    [loadNote, view, changeView],
+    [loadNote, view, changeView, notesView, changeNotesView],
+  )
+
+  const createNote = useCallback(
+    async (key: string, title: string, tags: string[]) => {
+      const heading = title && title !== '.keep' ? title : key.split('/').pop() || key
+      const body = `# ${heading}\n\n`
+      await writeNote(currentProject, key, body, undefined, tags)
+      reloadTree()
+      reloadNotesGraph()
+      setActiveNoteKey(key)
+      setEditMode(false)
+      void loadNote(key)
+      if (notesView !== 'tree') changeNotesView('tree')
+    },
+    [currentProject, reloadTree, reloadNotesGraph, loadNote, notesView, changeNotesView],
   )
 
   const saveActiveNote = useCallback(
@@ -238,42 +276,63 @@ export default function App() {
         {view === 'mcp' && <MCPConsole />}
 
         {view === 'notes' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '240px minmax(0, 1fr) 240px', gap: '1rem', minHeight: 0, flex: 1 }}>
-            <FolderTree
-              tree={tree}
-              activeKey={activeNoteKey}
-              loading={treeLoading}
-              onSelect={openNote}
-              onReload={reloadTree}
-            />
-            <div style={{ display: 'grid', gridTemplateRows: '1fr auto', gap: '1rem', minHeight: 0 }}>
-              {editMode && activeNoteKey ? (
-                <NoteEditor
-                  noteKey={activeNoteKey}
-                  initialContent={activeNote?.note.content ?? ''}
-                  initialAuthor={activeNote?.note.author ?? ''}
-                  initialTags={activeNote?.note.tags ?? []}
-                  onSave={saveActiveNote}
-                  onCancel={() => setEditMode(false)}
-                />
-              ) : (
-                <NoteView
-                  note={activeNote}
-                  loading={noteLoading}
-                  error={noteError}
-                  onNavigate={openNote}
-                  onEdit={() => setEditMode(true)}
-                  onDelete={() => void deleteActiveNote()}
-                />
-              )}
-              <NotesGraphView
-                graph={notesGraph}
-                loading={false}
-                error={null}
-                onSelect={openNote}
-              />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', minHeight: 0, flex: 1 }}>
+            <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+              {(['tree', 'search'] as NotesView[]).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  className={`nav-link${notesView === v ? ' active' : ''}`}
+                  onClick={() => changeNotesView(v)}
+                  style={{ fontSize: '0.72rem', padding: '0.3rem 0.7rem' }}
+                >
+                  {v === 'tree' ? 'Tree view' : 'Search'}
+                </button>
+              ))}
             </div>
-            <LinkPanel activeKey={activeNoteKey} graph={notesGraph} onNavigate={openNote} />
+            {notesView === 'tree' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '240px minmax(0, 1fr) 240px', gap: '1rem', minHeight: 0, flex: 1 }}>
+                <FolderTree
+                  tree={tree}
+                  activeKey={activeNoteKey}
+                  loading={treeLoading}
+                  onSelect={openNote}
+                  onReload={reloadTree}
+                  onCreate={createNote}
+                />
+                <div style={{ display: 'grid', gridTemplateRows: '1fr auto', gap: '1rem', minHeight: 0 }}>
+                  {editMode && activeNoteKey ? (
+                    <NoteEditor
+                      noteKey={activeNoteKey}
+                      initialContent={activeNote?.note.content ?? ''}
+                      initialAuthor={activeNote?.note.author ?? ''}
+                      initialTags={activeNote?.note.tags ?? []}
+                      onSave={saveActiveNote}
+                      onCancel={() => setEditMode(false)}
+                    />
+                  ) : (
+                    <NoteView
+                      note={activeNote}
+                      loading={noteLoading}
+                      error={noteError}
+                      onNavigate={openNote}
+                      onEdit={() => setEditMode(true)}
+                      onDelete={() => void deleteActiveNote()}
+                    />
+                  )}
+                  <NotesGraphView
+                    graph={notesGraph}
+                    loading={false}
+                    error={null}
+                    onSelect={openNote}
+                  />
+                </div>
+                <LinkPanel activeKey={activeNoteKey} graph={notesGraph} onNavigate={openNote} />
+              </div>
+            )}
+            {notesView === 'search' && (
+              <NotesSearchPanel project={currentProject} onOpenNote={openNote} />
+            )}
           </div>
         )}
       </main>

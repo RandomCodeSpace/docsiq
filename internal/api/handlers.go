@@ -22,6 +22,7 @@ import (
 	"github.com/RandomCodeSpace/docscontext/internal/project"
 	"github.com/RandomCodeSpace/docscontext/internal/search"
 	"github.com/RandomCodeSpace/docscontext/internal/store"
+	"github.com/RandomCodeSpace/docscontext/internal/vectorindex"
 )
 
 type handlers struct {
@@ -29,6 +30,10 @@ type handlers struct {
 	provider llm.Provider
 	embedder *embedder.Embedder
 	cfg      *config.Config
+	// vecIndex is the in-memory HNSW index built at boot by
+	// vectorindex.BuildFromStore. May be nil (tests / fresh installs);
+	// LocalSearch falls back to brute-force in that case.
+	vecIndex vectorindex.Index
 
 	// Upload progress tracking
 	uploadMu    sync.Mutex
@@ -169,16 +174,25 @@ func (h *handlers) search(w http.ResponseWriter, r *http.Request) {
 	slog.InfoContext(r.Context(), "🔍 search request", "mode", req.Mode, "query", req.Query, "top_k", req.TopK)
 
 	ctx := r.Context()
+	// Resolve per-project LLM provider. Falls back to h.provider (root
+	// config) when no override is configured for the slug or when the
+	// slug is empty.
+	prov := h.provider
+	if h.cfg != nil {
+		if p, err := llm.ProviderForProject(h.cfg, ProjectFromContext(ctx)); err == nil && p != nil {
+			prov = p
+		}
+	}
 	switch req.Mode {
 	case "global":
-		result, err := search.GlobalSearch(ctx, h.store, h.embedder, h.provider, req.Query, req.CommunityLevel)
+		result, err := search.GlobalSearch(ctx, h.store, h.embedder, prov, req.Query, req.CommunityLevel)
 		if err != nil {
 			writeError(w, r, 500, err.Error(), err)
 			return
 		}
 		writeJSON(w, 200, result)
 	default: // local
-		result, err := search.LocalSearch(ctx, h.store, h.embedder, req.Query, req.TopK, req.GraphDepth)
+		result, err := search.LocalSearch(ctx, h.store, h.embedder, h.vecIndex, req.Query, req.TopK, req.GraphDepth)
 		if err != nil {
 			writeError(w, r, 500, err.Error(), err)
 			return

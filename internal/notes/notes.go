@@ -157,6 +157,11 @@ func Read(notesDir, key string) (*Note, error) {
 // directories are created as needed. The frontmatter embedded in the
 // file is built from n.Frontmatter, then overlaid with Author, Tags,
 // CreatedAt, UpdatedAt so the struct fields win over stale map entries.
+//
+// Acquires the per-project mutex for the whole write+auto-commit
+// sequence so concurrent writes to the same notesDir are serialized —
+// without this, write N's bytes could land on disk before write N-1's
+// commit runs, causing the earlier commit to record the later content.
 func Write(notesDir string, n *Note) error {
 	if n == nil {
 		return fmt.Errorf("write note: nil note")
@@ -168,6 +173,10 @@ func Write(notesDir string, n *Note) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("mkdir note parent: %w", err)
 	}
+
+	mu := lockFor(notesDir)
+	mu.Lock()
+	defer mu.Unlock()
 
 	now := time.Now().UTC()
 	if n.CreatedAt.IsZero() {
@@ -186,7 +195,11 @@ func Write(notesDir string, n *Note) error {
 		fm["tags"] = append([]string(nil), n.Tags...)
 	}
 	fm["created_at"] = n.CreatedAt.Format(time.RFC3339)
-	fm["updated_at"] = n.UpdatedAt.Format(time.RFC3339)
+	// RFC3339Nano on updated_at — avoids identical file content when a
+	// note is rewritten within the same wall-clock second, which would
+	// otherwise cause git auto-commit to see no diff and drop the
+	// entry from `git log -- <path>`.
+	fm["updated_at"] = n.UpdatedAt.Format(time.RFC3339Nano)
 
 	out, err := EncodeFrontmatter(fm, []byte(n.Content))
 	if err != nil {
@@ -216,21 +229,30 @@ func Write(notesDir string, n *Note) error {
 		_ = os.Remove(tmpName)
 		return fmt.Errorf("rename note: %w", err)
 	}
+
+	// Best-effort git auto-commit — never fails the write.
+	autoCommit(notesDir, n.Key, n.Author, fmt.Sprintf("note: %s", n.Key), false)
 	return nil
 }
 
 // Delete removes the note file. Returns ErrNotFound if missing.
+// Serialized via the per-project mutex (see Write).
 func Delete(notesDir, key string) error {
 	path, err := resolvePath(notesDir, key)
 	if err != nil {
 		return err
 	}
+	mu := lockFor(notesDir)
+	mu.Lock()
+	defer mu.Unlock()
 	if err := os.Remove(path); err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return ErrNotFound
 		}
 		return fmt.Errorf("delete note: %w", err)
 	}
+	// Best-effort git auto-commit on delete.
+	autoCommit(notesDir, key, "", fmt.Sprintf("remove: %s", key), true)
 	return nil
 }
 

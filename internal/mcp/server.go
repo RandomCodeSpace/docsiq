@@ -9,9 +9,20 @@ import (
 	"github.com/RandomCodeSpace/docscontext/internal/llm"
 	"github.com/RandomCodeSpace/docscontext/internal/project"
 	"github.com/RandomCodeSpace/docscontext/internal/store"
+	"github.com/RandomCodeSpace/docscontext/internal/vectorindex"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
+
+// Option configures an MCP Server at construction time.
+type Option func(*Server)
+
+// WithVectorIndex wires an HNSW index into the MCP search tools so that
+// search_documents / local_search use approximate NN lookup. Nil falls back
+// to brute-force inside search.LocalSearch.
+func WithVectorIndex(idx vectorindex.Index) Option {
+	return func(s *Server) { s.vecIndex = idx }
+}
 
 // Server wraps the MCP server.
 type Server struct {
@@ -22,6 +33,7 @@ type Server struct {
 	embedder   *embedder.Embedder
 	cfg        *config.Config
 	registry   *project.Registry
+	vecIndex   vectorindex.Index
 
 	// Per-project note stores; lazy-opened, closed by Close().
 	storesMu   sync.Mutex
@@ -33,7 +45,10 @@ type Server struct {
 // Phase-2 signature change: takes *project.Registry so notes tools can
 // resolve per-project DB handles. A nil registry is tolerated; notes
 // tools that need one return a clear error at call time.
-func New(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, registry *project.Registry) *Server {
+//
+// Phase-3 (vector index): accepts variadic Options. WithVectorIndex is the
+// primary knob — left unset, LocalSearch brute-forces as before.
+func New(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, registry *project.Registry, opts ...Option) *Server {
 	s := &Server{
 		store:      st,
 		provider:   prov,
@@ -41,6 +56,9 @@ func New(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *config
 		cfg:        cfg,
 		registry:   registry,
 		noteStores: map[string]*store.Store{},
+	}
+	for _, opt := range opts {
+		opt(s)
 	}
 	s.mcpServer = server.NewMCPServer(
 		"DocsContext",

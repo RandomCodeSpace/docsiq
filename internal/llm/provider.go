@@ -48,8 +48,10 @@ func NewProvider(cfg *config.LLMConfig) (Provider, error) {
 		return newAzureProvider(cfg)
 	case "ollama":
 		return newOllamaProvider(cfg)
+	case "openai":
+		return newOpenAIProvider(cfg)
 	default:
-		return nil, fmt.Errorf("unknown LLM provider: %s (supported: azure, ollama)", cfg.Provider)
+		return nil, fmt.Errorf("unknown LLM provider: %s (supported: azure, ollama, openai)", cfg.Provider)
 	}
 }
 
