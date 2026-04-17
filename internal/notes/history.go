@@ -139,7 +139,16 @@ func buildCommitMessage(subject, author string) string {
 	if author == "" {
 		return subject
 	}
-	// TODO(docsiq): P2-4 strip \n/\r from author to prevent git trailer injection
+	// NF-P1-2: strip \n/\r from the caller-supplied author before it
+	// lands in the Co-Authored-By trailer. Git trailers are line-based,
+	// so an embedded newline forges an extra trailer (e.g. an attacker-
+	// chosen Signed-off-by) that confuses anything parsing git log.
+	author = strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\r' {
+			return -1
+		}
+		return r
+	}, author)
 	author = truncateForCommit(author)
 	// Conventional trailer format used by GitHub & friends.
 	return subject + "\n\nCo-Authored-By: " + author + " <" + author + "@local>"

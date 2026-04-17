@@ -265,3 +265,88 @@ func TestHistory_CoAuthorTrailer(t *testing.T) {
 		t.Fatalf("missing co-author trailer in:\n%s", out)
 	}
 }
+
+// TestBuildCommitMessage_AuthorNewlineStripped covers the pure string
+// contract (NF-P1-2). No git dependency — buildCommitMessage is the
+// unit of change, so assert directly that \n and \r are stripped from
+// the author before it lands in the Co-Authored-By trailer.
+func TestBuildCommitMessage_AuthorNewlineStripped(t *testing.T) {
+	cases := []struct {
+		name    string
+		author  string
+		wantSub string // must appear in the message body
+		banned  []string
+	}{
+		{
+			name:    "unix_newline",
+			author:  "alice\n\nExec: rm -rf /",
+			wantSub: "Co-Authored-By: aliceExec: rm -rf / <aliceExec: rm -rf /@local>",
+			banned:  []string{"\nExec:", "\rExec:"},
+		},
+		{
+			name:    "carriage_return",
+			author:  "bob\rInjected-Trailer: yes",
+			wantSub: "Co-Authored-By: bobInjected-Trailer: yes",
+			banned:  []string{"\rInjected", "\nInjected"},
+		},
+		{
+			name:    "crlf_mix",
+			author:  "carol\r\nSigned-off-by: attacker",
+			wantSub: "Co-Authored-By: carolSigned-off-by: attacker",
+			banned:  []string{"\r", "\ncarol", "\nSigned"},
+		},
+		{
+			name:    "plain_author_still_works",
+			author:  "dave",
+			wantSub: "Co-Authored-By: dave <dave@local>",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := buildCommitMessage("note: k", tc.author)
+			if !strings.Contains(got, tc.wantSub) {
+				t.Errorf("missing %q in:\n%s", tc.wantSub, got)
+			}
+			// The subject line ("note: k\n\n") contains an intentional
+			// newline, so scan only the trailer portion.
+			idx := strings.Index(got, "Co-Authored-By:")
+			if idx < 0 {
+				t.Fatalf("no trailer in %q", got)
+			}
+			trailer := got[idx:]
+			if strings.ContainsAny(trailer, "\n\r") {
+				t.Errorf("trailer contains newline/CR: %q", trailer)
+			}
+			for _, b := range tc.banned {
+				if strings.Contains(got, b) {
+					t.Errorf("banned sequence %q survived in:\n%s", b, got)
+				}
+			}
+		})
+	}
+}
+
+// TestWrite_AuthorNewlineStripped is the end-to-end regression: drive a
+// newline-bearing author through Write() and inspect the real git log
+// body to confirm the trailer is single-line.
+func TestWrite_AuthorNewlineStripped(t *testing.T) {
+	skipIfNoGit(t)
+	dir := t.TempDir()
+	poison := "alice\n\nExec: rm -rf"
+	mustWrite(t, dir, "poison", "body", poison)
+	out, err := runGit(dir, "log", "-1", "--pretty=format:%B", "--", "poison.md")
+	if err != nil {
+		t.Fatalf("raw log: %v (%s)", err, out)
+	}
+	idx := strings.Index(out, "Co-Authored-By:")
+	if idx < 0 {
+		t.Fatalf("no Co-Authored-By trailer in:\n%s", out)
+	}
+	trailer := strings.TrimRight(out[idx:], "\n\r \t")
+	if strings.ContainsAny(trailer, "\n\r") {
+		t.Fatalf("trailer is multi-line — newline injection survived:\n%q", trailer)
+	}
+	if !strings.Contains(trailer, "Co-Authored-By: aliceExec: rm -rf") {
+		t.Fatalf("trailer does not contain flattened author:\n%q", trailer)
+	}
+}
