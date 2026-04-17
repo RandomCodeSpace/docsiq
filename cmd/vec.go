@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/RandomCodeSpace/docscontext/internal/sqlitevec"
+	"github.com/RandomCodeSpace/docsiq/internal/sqlitevec"
 	"github.com/spf13/cobra"
 )
 

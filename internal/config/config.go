@@ -42,8 +42,7 @@ func (c *Config) LLMConfigForProject(slug string) LLMConfig {
 }
 
 // DefaultProjectSlug is the slug used when no ?project= / X-Project value
-// is supplied on a request, and when `docsiq migrate` has no explicit
-// --into target. Locked by Phase-1 spec.
+// is supplied on a request. Locked by Phase-1 spec.
 const DefaultProjectSlug = "_default"
 
 type LLMConfig struct {
@@ -74,8 +73,7 @@ type OpenAIConfig struct {
 // Top-level fields (endpoint, api_key, api_version) are shared defaults.
 // Chat/Embed sub-configs override specific fields when set.
 //
-// Env vars (prefix DOCSIQ — legacy DOCSCONTEXT_* is still accepted as a
-// deprecated alias and rewritten to DOCSIQ_* at Load() time):
+// Env vars (prefix DOCSIQ):
 //
 //	DOCSIQ_LLM_AZURE_ENDPOINT       — shared endpoint
 //	DOCSIQ_LLM_AZURE_API_KEY        — shared API key
@@ -105,7 +103,7 @@ type AzureServiceConfig struct {
 
 // Resolved accessors — per-service value with shared fallback.
 
-func (a *AzureConfig) ChatEndpoint() string   { return firstNonEmpty(a.Chat.Endpoint, a.Endpoint) }
+func (a *AzureConfig) ChatEndpoint() string    { return firstNonEmpty(a.Chat.Endpoint, a.Endpoint) }
 func (a *AzureConfig) ChatAPIKey() string      { return firstNonEmpty(a.Chat.APIKey, a.APIKey) }
 func (a *AzureConfig) ChatAPIVersion() string  { return firstNonEmpty(a.Chat.APIVersion, a.APIVersion) }
 func (a *AzureConfig) ChatModel() string       { return a.Chat.Model }
@@ -150,68 +148,12 @@ type ServerConfig struct {
 	APIKey string `mapstructure:"api_key"`
 }
 
-// migrateDeprecatedEnv scans os.Environ() for the legacy DOCSCONTEXT_ prefix
-// and, for each such variable, mirrors it into the corresponding DOCSIQ_ name
-// unless the DOCSIQ_ name is already set. A deprecation warning is emitted
-// per variable plus one summary warning if any were found.
-//
-// Behavior decisions worth documenting:
-//   - Empty-value deprecated var (DOCSCONTEXT_FOO=""): still warn and mirror
-//     the empty string. The user still needs to migrate the variable name
-//     even if it's empty today.
-//   - Same value under both prefixes: DOCSIQ_ wins (no overwrite) but we
-//     still warn about the deprecated one so the user knows to drop it.
-//   - Oddly-named variables like DOCSCONTEXT__FOO (double underscore) are
-//     mirrored verbatim to DOCSIQ__FOO; viper will simply ignore them if
-//     they don't match any key. Harmless.
-func migrateDeprecatedEnv() {
-	const oldPrefix = "DOCSCONTEXT_"
-	const newPrefix = "DOCSIQ_"
-
-	var found int
-	for _, e := range os.Environ() {
-		if !strings.HasPrefix(e, oldPrefix) {
-			continue
-		}
-		name, value, ok := strings.Cut(e, "=")
-		if !ok {
-			continue
-		}
-		newName := newPrefix + strings.TrimPrefix(name, oldPrefix)
-
-		slog.Warn("⚠️ deprecated env var",
-			"deprecated", name,
-			"replacement", newName)
-		found++
-
-		// Only mirror if the new name is not already set (DOCSIQ wins).
-		if _, set := os.LookupEnv(newName); set {
-			continue
-		}
-		// Note: os.Setenv on empty-string values is a no-op on some platforms;
-		// we accept that — a user with DOCSCONTEXT_FOO="" and no DOCSIQ_FOO
-		// effectively means "unset", which is the intended outcome.
-		_ = os.Setenv(newName, value)
-	}
-
-	if found > 0 {
-		slog.Warn("⚠️ using deprecated DOCSCONTEXT_* env vars; support will be removed in v2.0")
-	}
-}
-
 func Load(cfgFile string) (*Config, error) {
-	// Step 1 — migrate deprecated env vars BEFORE viper reads env.
-	// This is Option (c) from the Phase-0 design doc: instead of binding
-	// each key under two prefixes, we rewrite the environment in-process
-	// so viper only has to know about DOCSIQ_*.
-	migrateDeprecatedEnv()
-
 	v := viper.New()
 
 	// Defaults
 	home, _ := os.UserHomeDir()
 	defaultDataDir := filepath.Join(home, ".docsiq", "data")
-	legacyDataDir := filepath.Join(home, ".docscontext", "data")
 
 	// All keys must have SetDefault for env var binding to work.
 	v.SetDefault("data_dir", defaultDataDir)
@@ -267,16 +209,12 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetDefault("server.port", 8080)
 	v.SetDefault("server.api_key", "")
 
-	// Config file search paths. Order matters — viper uses the first hit.
-	newCfgDir := filepath.Join(home, ".docsiq")              // NEW — wins
-	oldCfgDirLower := filepath.Join(home, ".docscontext")    // legacy lower
-	oldCfgDirMixed := filepath.Join(home, ".DocsContext")    // legacy mixed
+	// Config file search paths. Only ~/.docsiq and CWD are consulted.
+	newCfgDir := filepath.Join(home, ".docsiq")
 	if cfgFile != "" {
 		v.SetConfigFile(cfgFile)
 	} else {
 		v.AddConfigPath(newCfgDir)
-		v.AddConfigPath(oldCfgDirLower)
-		v.AddConfigPath(oldCfgDirMixed)
 		v.AddConfigPath(".")
 		v.SetConfigName("config")
 	}
@@ -296,37 +234,13 @@ func Load(cfgFile string) (*Config, error) {
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			slog.Warn("⚠️ no config file found, using defaults",
-				"searched_paths", []string{newCfgDir, oldCfgDirLower, oldCfgDirMixed, "."},
+				"searched_paths", []string{newCfgDir, "."},
 				"expected_names", "config.yaml or config.yml")
 		} else {
 			return nil, fmt.Errorf("reading config: %w", err)
 		}
 	} else {
-		used := v.ConfigFileUsed()
-		slog.Info("⚙️ loaded config file", "path", used)
-		// If the winning config file sits under a legacy directory, nag the user.
-		if cfgFile == "" {
-			usedDir := filepath.Dir(used)
-			if usedDir == oldCfgDirLower || usedDir == oldCfgDirMixed {
-				slog.Warn("⚠️ deprecated config path",
-					"path", used,
-					"move_to", filepath.Join(newCfgDir, "config.yaml"))
-			}
-			// If a file is present in the new dir AND an old dir, warn that
-			// the old one is shadowed.
-			if usedDir == newCfgDir {
-				for _, legacy := range []string{oldCfgDirLower, oldCfgDirMixed} {
-					for _, ext := range []string{"yaml", "yml"} {
-						shadowed := filepath.Join(legacy, "config."+ext)
-						if _, err := os.Stat(shadowed); err == nil {
-							slog.Warn("⚠️ shadowed legacy config file — remove to silence",
-								"shadowed", shadowed,
-								"winner", used)
-						}
-					}
-				}
-			}
-		}
+		slog.Info("⚙️ loaded config file", "path", v.ConfigFileUsed())
 	}
 
 	var cfg Config
@@ -341,34 +255,15 @@ func Load(cfgFile string) (*Config, error) {
 		cfg.DataDir = filepath.Join(home, cfg.DataDir[2:])
 	}
 
-	// Data-dir migration nudge — do NOT auto-move. Only warn when the new
-	// path is missing but the legacy path exists.
-	if cfg.DataDir == defaultDataDir {
-		if _, err := os.Stat(defaultDataDir); os.IsNotExist(err) {
-			if _, err := os.Stat(legacyDataDir); err == nil {
-				slog.Warn("⚠️ legacy data dir detected — please move it",
-					"legacy", legacyDataDir,
-					"move_to", defaultDataDir)
-			}
-		}
-	}
-
 	return &cfg, nil
 }
 
-// DBPath returns the legacy single-DB path ($DATA_DIR/DocsContext.db).
-// Kept for backwards-compatibility with pre-Phase-1 code paths; new
-// per-project code should use ProjectDBPath instead.
-func (c *Config) DBPath() string {
-	return filepath.Join(c.DataDir, "DocsContext.db")
-}
-
 // ProjectDBPath returns the per-project SQLite path for the given slug:
-// $DATA_DIR/projects/<slug>/docscontext.db. Does NOT validate the slug —
+// $DATA_DIR/projects/<slug>/docsiq.db. Does NOT validate the slug —
 // callers should use project.IsValidSlug or store.OpenForProject (which
 // performs the check) when the slug came from untrusted input.
 func (c *Config) ProjectDBPath(slug string) string {
-	return filepath.Join(c.DataDir, "projects", slug, "docscontext.db")
+	return filepath.Join(c.DataDir, "projects", slug, "docsiq.db")
 }
 
 // NotesDir returns the per-project notes directory:

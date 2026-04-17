@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"text/tabwriter"
 
-	"github.com/RandomCodeSpace/docscontext/internal/project"
+	"github.com/RandomCodeSpace/docsiq/internal/project"
 	"github.com/spf13/cobra"
 )
 
@@ -127,7 +127,7 @@ var projectsShowCmd = &cobra.Command{
 			return err
 		}
 
-		dbPath := filepath.Join(cfg.DataDir, "projects", slug, "docscontext.db")
+		dbPath := filepath.Join(cfg.DataDir, "projects", slug, "docsiq.db")
 		size, sizeErr := fileSize(dbPath)
 
 		fmt.Printf("slug:       %s\n", p.Slug)

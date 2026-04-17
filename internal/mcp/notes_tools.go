@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/RandomCodeSpace/docscontext/internal/notes"
-	"github.com/RandomCodeSpace/docscontext/internal/project"
+	"github.com/RandomCodeSpace/docsiq/internal/notes"
+	"github.com/RandomCodeSpace/docsiq/internal/project"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )

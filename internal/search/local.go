@@ -4,9 +4,9 @@ import (
 	"context"
 	"sort"
 
-	"github.com/RandomCodeSpace/docscontext/internal/embedder"
-	"github.com/RandomCodeSpace/docscontext/internal/store"
-	"github.com/RandomCodeSpace/docscontext/internal/vectorindex"
+	"github.com/RandomCodeSpace/docsiq/internal/embedder"
+	"github.com/RandomCodeSpace/docsiq/internal/store"
+	"github.com/RandomCodeSpace/docsiq/internal/vectorindex"
 )
 
 // ChunkResult is a search result from chunk/vector search.

@@ -3,13 +3,12 @@ package api
 import (
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 
-	"github.com/RandomCodeSpace/docscontext/internal/config"
-	"github.com/RandomCodeSpace/docscontext/internal/store"
+	"github.com/RandomCodeSpace/docsiq/internal/config"
+	"github.com/RandomCodeSpace/docsiq/internal/store"
 )
 
 // metricsTestLock serializes tests that mutate the package-level
@@ -31,7 +30,7 @@ func resetMetrics() {
 func newMetricsRouter(t *testing.T) http.Handler {
 	t.Helper()
 	dir := t.TempDir()
-	st, err := store.Open(filepath.Join(dir, "metrics_router.db"))
+	st, err := store.OpenForProject(dir, "testproj")
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/RandomCodeSpace/docscontext/internal/notes"
+	"github.com/RandomCodeSpace/docsiq/internal/notes"
 )
 
 // NoteHit is a single result from SearchNotes.

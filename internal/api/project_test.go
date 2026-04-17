@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/RandomCodeSpace/docscontext/internal/config"
-	"github.com/RandomCodeSpace/docscontext/internal/project"
+	"github.com/RandomCodeSpace/docsiq/internal/config"
+	"github.com/RandomCodeSpace/docsiq/internal/project"
 )
 
 func newTestRegistry(t *testing.T) *project.Registry {

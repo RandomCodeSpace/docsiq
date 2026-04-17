@@ -2,14 +2,13 @@ package store
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 )
 
 func newClaimsStore(t *testing.T) *Store {
 	t.Helper()
 	dir := t.TempDir()
-	s, err := Open(filepath.Join(dir, "claims.db"))
+	s, err := OpenForProject(dir, "testproj")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

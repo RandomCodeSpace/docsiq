@@ -5,11 +5,10 @@ import (
 	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 
-	"github.com/RandomCodeSpace/docscontext/internal/config"
-	"github.com/RandomCodeSpace/docscontext/internal/store"
+	"github.com/RandomCodeSpace/docsiq/internal/config"
+	"github.com/RandomCodeSpace/docsiq/internal/store"
 )
 
 func TestRequestIDFromContext(t *testing.T) {
@@ -47,7 +46,7 @@ func TestNewRequestID(t *testing.T) {
 func newRequestIDRouter(t *testing.T, testHandler http.HandlerFunc) http.Handler {
 	t.Helper()
 	dir := t.TempDir()
-	st, err := store.Open(filepath.Join(dir, "rid.db"))
+	st, err := store.OpenForProject(dir, "testproj")
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}

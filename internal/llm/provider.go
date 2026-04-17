@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/RandomCodeSpace/docscontext/internal/config"
+	"github.com/RandomCodeSpace/docsiq/internal/config"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"

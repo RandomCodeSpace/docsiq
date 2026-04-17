@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/RandomCodeSpace/docscontext/internal/llm"
+	"github.com/RandomCodeSpace/docsiq/internal/llm"
 )
 
 // Embedder batches text → []float32 vectors using an LLM provider.

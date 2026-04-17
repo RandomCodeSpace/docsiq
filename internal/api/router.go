@@ -9,14 +9,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/RandomCodeSpace/docscontext/internal/config"
-	"github.com/RandomCodeSpace/docscontext/internal/embedder"
-	"github.com/RandomCodeSpace/docscontext/internal/llm"
-	"github.com/RandomCodeSpace/docscontext/internal/mcp"
-	"github.com/RandomCodeSpace/docscontext/internal/project"
-	"github.com/RandomCodeSpace/docscontext/internal/store"
-	"github.com/RandomCodeSpace/docscontext/internal/vectorindex"
-	"github.com/RandomCodeSpace/docscontext/ui"
+	"github.com/RandomCodeSpace/docsiq/internal/config"
+	"github.com/RandomCodeSpace/docsiq/internal/embedder"
+	"github.com/RandomCodeSpace/docsiq/internal/llm"
+	"github.com/RandomCodeSpace/docsiq/internal/mcp"
+	"github.com/RandomCodeSpace/docsiq/internal/project"
+	"github.com/RandomCodeSpace/docsiq/internal/store"
+	"github.com/RandomCodeSpace/docsiq/internal/vectorindex"
+	"github.com/RandomCodeSpace/docsiq/ui"
 )
 
 // RouterOption configures NewRouter. Zero-or-more options are appended to the

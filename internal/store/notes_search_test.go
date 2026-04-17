@@ -2,17 +2,16 @@ package store
 
 import (
 	"context"
-	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/RandomCodeSpace/docscontext/internal/notes"
+	"github.com/RandomCodeSpace/docsiq/internal/notes"
 )
 
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
 	dir := t.TempDir()
-	s, err := Open(filepath.Join(dir, "test.db"))
+	s, err := OpenForProject(dir, "testproj")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

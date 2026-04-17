@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/RandomCodeSpace/docscontext/internal/config"
+	"github.com/RandomCodeSpace/docsiq/internal/config"
 )
 
 // withFakeHome points DOCSIQ_FAKE_HOME at a tempdir for the test's life.

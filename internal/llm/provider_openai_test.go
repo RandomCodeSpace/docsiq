@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/RandomCodeSpace/docscontext/internal/config"
+	"github.com/RandomCodeSpace/docsiq/internal/config"
 )
 
 func TestOpenAIProvider_MissingAPIKeyRejected(t *testing.T) {

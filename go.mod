@@ -1,4 +1,4 @@
-module github.com/RandomCodeSpace/docscontext
+module github.com/RandomCodeSpace/docsiq
 
 go 1.24.7
 

@@ -3,9 +3,9 @@
 VERSION  ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT   ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 DATE     ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
-LDFLAGS  := -X github.com/RandomCodeSpace/docscontext/cmd.Version=$(VERSION) \
-            -X github.com/RandomCodeSpace/docscontext/cmd.Commit=$(COMMIT) \
-            -X github.com/RandomCodeSpace/docscontext/cmd.Date=$(DATE)
+LDFLAGS  := -X github.com/RandomCodeSpace/docsiq/cmd.Version=$(VERSION) \
+            -X github.com/RandomCodeSpace/docsiq/cmd.Commit=$(COMMIT) \
+            -X github.com/RandomCodeSpace/docsiq/cmd.Date=$(DATE)
 
 ui-install:
 	cd ui && npm install
@@ -14,7 +14,7 @@ ui-build:
 	cd ui && npm run build
 
 build: ui-build
-	CGO_ENABLED=1 go build -tags "sqlite_fts5" -ldflags "$(LDFLAGS)" ./...
+	CGO_ENABLED=1 go build -tags "sqlite_fts5" -ldflags "$(LDFLAGS)" -o docsiq .
 
 # Filter out ui/node_modules — a transitive npm dep (flatted) ships a Go package
 # that would otherwise be walked by `./...`.

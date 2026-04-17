@@ -2,13 +2,12 @@ package search
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
-	"github.com/RandomCodeSpace/docscontext/internal/embedder"
-	"github.com/RandomCodeSpace/docscontext/internal/llm"
-	"github.com/RandomCodeSpace/docscontext/internal/store"
-	"github.com/RandomCodeSpace/docscontext/internal/vectorindex"
+	"github.com/RandomCodeSpace/docsiq/internal/embedder"
+	"github.com/RandomCodeSpace/docsiq/internal/llm"
+	"github.com/RandomCodeSpace/docsiq/internal/store"
+	"github.com/RandomCodeSpace/docsiq/internal/vectorindex"
 )
 
 // mockProvider is a deterministic stand-in for llm.Provider. Embed returns
@@ -55,7 +54,7 @@ func min(a, b int) int {
 func seedCorpus(t *testing.T) (*store.Store, *embedder.Embedder, *mockProvider) {
 	t.Helper()
 	dir := t.TempDir()
-	st, err := store.Open(filepath.Join(dir, "s.db"))
+	st, err := store.OpenForProject(dir, "testproj")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

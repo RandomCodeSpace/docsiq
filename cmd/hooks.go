@@ -9,7 +9,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/RandomCodeSpace/docscontext/internal/hookinstaller"
+	"github.com/RandomCodeSpace/docsiq/internal/hookinstaller"
 	"github.com/spf13/cobra"
 )
 

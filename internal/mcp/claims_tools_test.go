@@ -3,11 +3,10 @@ package mcp
 import (
 	"context"
 	"encoding/json"
-	"path/filepath"
 	"testing"
 
-	"github.com/RandomCodeSpace/docscontext/internal/config"
-	"github.com/RandomCodeSpace/docscontext/internal/store"
+	"github.com/RandomCodeSpace/docsiq/internal/config"
+	"github.com/RandomCodeSpace/docsiq/internal/store"
 )
 
 // buildDocsTestServer wires a real docs store into a *Server so the
@@ -16,7 +15,7 @@ import (
 func buildDocsTestServer(t *testing.T) (*Server, *store.Store) {
 	t.Helper()
 	dir := t.TempDir()
-	st, err := store.Open(filepath.Join(dir, "mcp_claims.db"))
+	st, err := store.OpenForProject(dir, "testproj")
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}

@@ -111,14 +111,14 @@ func versionInfo() VersionInfo {
 
 var versionCmd = &cobra.Command{
 	Use:   "version",
-	Short: "Print the version of DocsContext",
+	Short: "Print the version of docsiq",
 	Run: func(cmd *cobra.Command, args []string) {
 		vi := versionInfo()
 		dirtySuffix := ""
 		if vi.Dirty == "true" {
 			dirtySuffix = " (dirty)"
 		}
-		fmt.Printf("DocsContext %s (commit: %s, built: %s)%s\n",
+		fmt.Printf("docsiq %s (commit: %s, built: %s)%s\n",
 			vi.Version, vi.Commit, vi.Date, dirtySuffix)
 	},
 }

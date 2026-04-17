@@ -1,4 +1,4 @@
-data_dir: ~/.DocsContext/data   # stores DocsContext.db
+data_dir: ~/.docsiq/data   # per-project DBs live at $data_dir/projects/<slug>/docsiq.db
 
 llm:
   provider: ollama             # azure | ollama

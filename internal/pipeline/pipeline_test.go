@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/RandomCodeSpace/docscontext/internal/config"
-	"github.com/RandomCodeSpace/docscontext/internal/llm"
-	"github.com/RandomCodeSpace/docscontext/internal/store"
+	"github.com/RandomCodeSpace/docsiq/internal/config"
+	"github.com/RandomCodeSpace/docsiq/internal/llm"
+	"github.com/RandomCodeSpace/docsiq/internal/store"
 )
 
 // nopProvider is a zero-behavior LLM stub used to build a Pipeline for
@@ -39,7 +39,7 @@ func (nopProvider) EmbedBatch(_ context.Context, texts []string) ([][]float32, e
 func buildTestPipeline(t *testing.T) (*Pipeline, *store.Store, *config.Config, string) {
 	t.Helper()
 	dir := t.TempDir()
-	st, err := store.Open(filepath.Join(dir, "pipeline.db"))
+	st, err := store.OpenForProject(dir, "testproj")
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}

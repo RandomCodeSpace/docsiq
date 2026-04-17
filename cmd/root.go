@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/RandomCodeSpace/docscontext/internal/config"
+	"github.com/RandomCodeSpace/docsiq/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -18,9 +18,9 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "DocsContext",
-	Short: "DocsContext — Pure Go GraphRAG MCP server",
-	Long: `DocsContext ingests unstructured documents, builds a knowledge graph
+	Use:   "docsiq",
+	Short: "docsiq — Pure Go GraphRAG MCP server",
+	Long: `docsiq ingests unstructured documents, builds a knowledge graph
 with community detection, and exposes an MCP server + embedded Web UI.`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -35,7 +35,7 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default ~/.docscontext/config.yaml or ~/.DocsContext/config.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default ~/.docsiq/config.yaml)")
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "Log level: debug, info, warn, error")
 	rootCmd.PersistentFlags().StringVar(&logFormat, "log-format", "", "Log format: text|json (env DOCSIQ_LOG_FORMAT; default text)")
 }

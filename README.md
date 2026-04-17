@@ -1,12 +1,18 @@
-# DocsContext
+# docsiq
 
-[![Security Scan](https://github.com/RandomCodeSpace/docscontext/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/RandomCodeSpace/docscontext/actions/workflows/ci.yml)
-[![OpenSSF Scan](https://github.com/RandomCodeSpace/docscontext/actions/workflows/ci.yml/badge.svg?branch=main&label=OpenSSF%20scan)](https://github.com/RandomCodeSpace/docscontext/actions/workflows/ci.yml)
-[![OpenSSF Score](https://api.scorecard.dev/projects/github.com/RandomCodeSpace/docscontext/badge)](https://scorecard.dev/viewer/?uri=github.com/RandomCodeSpace/docscontext)
-[![Release](https://img.shields.io/github/v/release/RandomCodeSpace/docscontext)](https://github.com/RandomCodeSpace/docscontext/releases)
-[![Beta](https://img.shields.io/github/v/release/RandomCodeSpace/docscontext?include_prereleases&label=beta)](https://github.com/RandomCodeSpace/docscontext/releases)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/RandomCodeSpace/docscontext)](https://github.com/RandomCodeSpace/docscontext/blob/main/go.mod)
-[![Frontend Version](https://img.shields.io/badge/frontend-none-lightgrey)](https://github.com/RandomCodeSpace/docscontext)
+[![Security Scan](https://github.com/RandomCodeSpace/docsiq/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/RandomCodeSpace/docsiq/actions/workflows/ci.yml)
+[![OpenSSF Scan](https://github.com/RandomCodeSpace/docsiq/actions/workflows/ci.yml/badge.svg?branch=main&label=OpenSSF%20scan)](https://github.com/RandomCodeSpace/docsiq/actions/workflows/ci.yml)
+[![OpenSSF Score](https://api.scorecard.dev/projects/github.com/RandomCodeSpace/docsiq/badge)](https://scorecard.dev/viewer/?uri=github.com/RandomCodeSpace/docsiq)
+[![Release](https://img.shields.io/github/v/release/RandomCodeSpace/docsiq)](https://github.com/RandomCodeSpace/docsiq/releases)
+[![Beta](https://img.shields.io/github/v/release/RandomCodeSpace/docsiq?include_prereleases&label=beta)](https://github.com/RandomCodeSpace/docsiq/releases)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/RandomCodeSpace/docsiq)](https://github.com/RandomCodeSpace/docsiq/blob/main/go.mod)
+[![Frontend Version](https://img.shields.io/badge/frontend-none-lightgrey)](https://github.com/RandomCodeSpace/docsiq)
+
+> **Repo rename:** the project was previously named `docscontext`. The local
+> checkout directory may still be `docscontext/`, but the Go module and
+> binary are now `docsiq`. The GitHub repo rename from `docscontext` to
+> `docsiq` is a manual step on github.com — badge/clone URLs above assume
+> it has been done.
 
 A GraphRAG tool inspired by [Microsoft GraphRAG](https://github.com/microsoft/graphrag). Built on CGO-backed SQLite ([`mattn/go-sqlite3`](https://github.com/mattn/go-sqlite3) with FTS5) plus the [`sqlite-vec`](https://github.com/asg017/sqlite-vec) loadable extension for ANN vector search.
 Ingests unstructured documents, builds a hierarchical knowledge graph with community detection, and exposes an **MCP server + embedded Web UI** on a single port.
@@ -25,7 +31,7 @@ Ingests unstructured documents, builds a hierarchical knowledge graph with commu
 
 ### Prerequisites
 
-A **C toolchain** is required at install time (DocsContext links SQLite
+A **C toolchain** is required at install time (docsiq links SQLite
 via CGO and bundles the `sqlite-vec` loadable extension):
 
 - **Linux**: `sudo apt-get install build-essential` (or equivalent)
@@ -35,46 +41,46 @@ via CGO and bundles the `sqlite-vec` loadable extension):
 Go ≥ 1.22 is required.
 
 ```bash
-go install github.com/RandomCodeSpace/docscontext@latest
+go install github.com/RandomCodeSpace/docsiq@latest
 ```
 
 Or build from source:
 
 ```bash
-git clone https://github.com/RandomCodeSpace/docscontext.git
-cd DocsContext
-CGO_ENABLED=1 go build -tags sqlite_fts5 -o docscontext .
+git clone https://github.com/RandomCodeSpace/docsiq.git
+cd docsiq
+CGO_ENABLED=1 go build -tags sqlite_fts5 -o docsiq .
 ```
 
 ## Quick Start
 
 ```bash
 # 1. Create config
-mkdir -p ~/.docscontext
-cp config.example.yaml ~/.docscontext/config.yaml
-# Edit ~/.docscontext/config.yaml — set your LLM provider
+mkdir -p ~/.docsiq
+cp config.example.yaml ~/.docsiq/config.yaml
+# Edit ~/.docsiq/config.yaml — set your LLM provider
 
 # 2. Index documents (Phases 1-2: load, chunk, embed, extract entities)
-docscontext index ./your-docs/ --workers 4
+docsiq index ./your-docs/ --workers 4
 
 # 3. Build knowledge graph (Phases 3-4: community detection + summaries)
-docscontext index --finalize
+docsiq index --finalize
 
 # 4. Check stats
-docscontext stats
+docsiq stats
 
 # 5. Start server
-docscontext serve --port 8080
+docsiq serve --port 8080
 ```
 
 Open **http://localhost:8080** for the Web UI.
 
 ## Configuration
 
-Copy `config.example.yaml` to `~/.docscontext/config.yaml` and edit:
+Copy `config.example.yaml` to `~/.docsiq/config.yaml` and edit:
 
 ```yaml
-data_dir: ~/.docscontext/data
+data_dir: ~/.docsiq/data
 
 llm:
   provider: ollama          # azure | ollama
@@ -118,54 +124,54 @@ server:
 
 ### Environment Variables
 
-All config keys can be set via environment variables with the `DOCSCONTEXT_` prefix.
-Dots become underscores; the prefix is case-insensitive.
+All config keys can be set via environment variables with the `DOCSIQ_` prefix.
+Dots become underscores; the prefix is case-sensitive (upper-case).
 
 ```bash
 # Provider
-export DOCSCONTEXT_LLM_PROVIDER=azure
+export DOCSIQ_LLM_PROVIDER=azure
 
 # Azure shared (used by both chat and embed unless overridden)
-export DOCSCONTEXT_LLM_AZURE_ENDPOINT=https://myresource.openai.azure.com
-export DOCSCONTEXT_LLM_AZURE_API_KEY=sk-...
-export DOCSCONTEXT_LLM_AZURE_API_VERSION=2024-08-01
+export DOCSIQ_LLM_AZURE_ENDPOINT=https://myresource.openai.azure.com
+export DOCSIQ_LLM_AZURE_API_KEY=sk-...
+export DOCSIQ_LLM_AZURE_API_VERSION=2024-08-01
 
 # Azure chat (overrides shared values for chat completions)
-export DOCSCONTEXT_LLM_AZURE_CHAT_ENDPOINT=https://chat-deployment.openai.azure.com
-export DOCSCONTEXT_LLM_AZURE_CHAT_MODEL=gpt-4o
+export DOCSIQ_LLM_AZURE_CHAT_ENDPOINT=https://chat-deployment.openai.azure.com
+export DOCSIQ_LLM_AZURE_CHAT_MODEL=gpt-4o
 
 # Azure embed (overrides shared values for embeddings)
-export DOCSCONTEXT_LLM_AZURE_EMBED_ENDPOINT=https://embed-deployment.openai.azure.com
-export DOCSCONTEXT_LLM_AZURE_EMBED_MODEL=text-embedding-3-small
+export DOCSIQ_LLM_AZURE_EMBED_ENDPOINT=https://embed-deployment.openai.azure.com
+export DOCSIQ_LLM_AZURE_EMBED_MODEL=text-embedding-3-small
 
 # Ollama
-export DOCSCONTEXT_LLM_OLLAMA_BASE_URL=http://localhost:11434
-export DOCSCONTEXT_LLM_OLLAMA_CHAT_MODEL=llama3.2
-export DOCSCONTEXT_LLM_OLLAMA_EMBED_MODEL=nomic-embed-text
+export DOCSIQ_LLM_OLLAMA_BASE_URL=http://localhost:11434
+export DOCSIQ_LLM_OLLAMA_CHAT_MODEL=llama3.2
+export DOCSIQ_LLM_OLLAMA_EMBED_MODEL=nomic-embed-text
 
 # Indexing
-export DOCSCONTEXT_INDEXING_WORKERS=4
-export DOCSCONTEXT_INDEXING_CHUNK_SIZE=512
+export DOCSIQ_INDEXING_WORKERS=4
+export DOCSIQ_INDEXING_CHUNK_SIZE=512
 
 # Server
-export DOCSCONTEXT_SERVER_PORT=9090
+export DOCSIQ_SERVER_PORT=9090
 ```
 
 ## CLI
 
 ```bash
 # Index a file or directory
-docscontext index ./docs/ [--force] [--workers 4] [--verbose]
+docsiq index ./docs/ [--force] [--workers 4] [--verbose]
 
 # Run community detection + LLM summaries
-docscontext index --finalize
+docsiq index --finalize
 
 # Show statistics
-docscontext stats
-docscontext stats --json
+docsiq stats
+docsiq stats --json
 
 # Start MCP + Web UI server
-docscontext serve [--port 8080] [--host 127.0.0.1]
+docsiq serve [--port 8080] [--host 127.0.0.1]
 ```
 
 ## MCP Tools
@@ -222,7 +228,9 @@ Document In
   LLM → JSON summary → SQLite
 ```
 
-All data lives in a single SQLite file at `$DATA_DIR/docscontext.db`.
+Per-project SQLite databases live at
+`$DATA_DIR/projects/<slug>/docsiq.db`, with a tiny registry at
+`$DATA_DIR/registry.db` mapping slugs to project metadata.
 
 ## Supported File Types
 

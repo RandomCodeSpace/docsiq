@@ -12,13 +12,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/RandomCodeSpace/docscontext/internal/api"
-	"github.com/RandomCodeSpace/docscontext/internal/embedder"
-	"github.com/RandomCodeSpace/docscontext/internal/llm"
-	"github.com/RandomCodeSpace/docscontext/internal/project"
-	"github.com/RandomCodeSpace/docscontext/internal/sqlitevec"
-	"github.com/RandomCodeSpace/docscontext/internal/store"
-	"github.com/RandomCodeSpace/docscontext/internal/vectorindex"
+	"github.com/RandomCodeSpace/docsiq/internal/api"
+	"github.com/RandomCodeSpace/docsiq/internal/embedder"
+	"github.com/RandomCodeSpace/docsiq/internal/llm"
+	"github.com/RandomCodeSpace/docsiq/internal/project"
+	"github.com/RandomCodeSpace/docsiq/internal/sqlitevec"
+	"github.com/RandomCodeSpace/docsiq/internal/store"
+	"github.com/RandomCodeSpace/docsiq/internal/vectorindex"
 	"github.com/spf13/cobra"
 )
 
@@ -38,12 +38,23 @@ var serveCmd = &cobra.Command{
 			cfg.Server.Port = servePort
 		}
 
-		st, err := store.Open(cfg.DBPath())
+		// Wave 1: the root store now lives at the _default project's
+		// per-project DB path ($DATA_DIR/projects/_default/docsiq.db) so
+		// Wave 2 only has to migrate handlers off the `st` reference —
+		// the file itself is already in the right place.
+		// TODO(wave-2): migrate doc handlers to per-project stores via
+		// the registry + project middleware, then drop the root `st`.
+		rootSlug := cfg.DefaultProject
+		if rootSlug == "" {
+			rootSlug = "_default"
+		}
+		st, err := store.OpenForProject(cfg.DataDir, rootSlug)
 		if err != nil {
 			return fmt.Errorf("open store: %w", err)
 		}
 		defer st.Close()
-		slog.Info("📂 store opened", "path", cfg.DBPath())
+		rootDBPath := cfg.ProjectDBPath(rootSlug)
+		slog.Info("📂 store opened", "path", rootDBPath)
 
 		// Attempt to load the embedded sqlite-vec extension. On any
 		// failure (placeholder build, unsupported GOOS/GOARCH, dlopen

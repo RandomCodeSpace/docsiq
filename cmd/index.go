@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/RandomCodeSpace/docscontext/internal/llm"
-	"github.com/RandomCodeSpace/docscontext/internal/pipeline"
-	"github.com/RandomCodeSpace/docscontext/internal/store"
+	"github.com/RandomCodeSpace/docsiq/internal/llm"
+	"github.com/RandomCodeSpace/docsiq/internal/pipeline"
+	"github.com/RandomCodeSpace/docsiq/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -28,7 +28,11 @@ var indexCmd = &cobra.Command{
 	Short: "Index documents or a documentation website (Phases 1-2)",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		st, err := store.Open(cfg.DBPath())
+		slug := cfg.DefaultProject
+		if slug == "" {
+			slug = "_default"
+		}
+		st, err := store.OpenForProject(cfg.DataDir, slug)
 		if err != nil {
 			return fmt.Errorf("open store: %w", err)
 		}

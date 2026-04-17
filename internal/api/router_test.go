@@ -3,12 +3,11 @@ package api
 import (
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/RandomCodeSpace/docscontext/internal/config"
-	"github.com/RandomCodeSpace/docscontext/internal/store"
+	"github.com/RandomCodeSpace/docsiq/internal/config"
+	"github.com/RandomCodeSpace/docsiq/internal/store"
 )
 
 // newTestRouter builds a router with a real store and config and nil
@@ -19,7 +18,7 @@ func newTestRouter(t *testing.T) (http.Handler, *store.Store) {
 	t.Helper()
 
 	dir := t.TempDir()
-	st, err := store.Open(filepath.Join(dir, "router_test.db"))
+	st, err := store.OpenForProject(dir, "testproj")
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
@@ -107,7 +106,7 @@ func TestNewRouter(t *testing.T) {
 		// cfg.Server.APIKey is non-empty, and a protected route must 401
 		// when no Authorization header is supplied.
 		dir := t.TempDir()
-		st, err := store.Open(filepath.Join(dir, "router_auth_test.db"))
+		st, err := store.OpenForProject(dir, "testproj")
 		if err != nil {
 			t.Fatalf("store.Open: %v", err)
 		}

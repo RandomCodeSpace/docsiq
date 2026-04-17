@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/RandomCodeSpace/docscontext/internal/config"
-	"github.com/RandomCodeSpace/docscontext/internal/project"
+	"github.com/RandomCodeSpace/docsiq/internal/config"
+	"github.com/RandomCodeSpace/docsiq/internal/project"
 )
 
 // ctxProjectKey is the typed context key under which the resolved project

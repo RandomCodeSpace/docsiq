@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/RandomCodeSpace/docscontext/internal/search"
+	"github.com/RandomCodeSpace/docsiq/internal/search"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )

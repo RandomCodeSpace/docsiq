@@ -15,14 +15,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/RandomCodeSpace/docscontext/internal/config"
-	"github.com/RandomCodeSpace/docscontext/internal/embedder"
-	"github.com/RandomCodeSpace/docscontext/internal/llm"
-	"github.com/RandomCodeSpace/docscontext/internal/pipeline"
-	"github.com/RandomCodeSpace/docscontext/internal/project"
-	"github.com/RandomCodeSpace/docscontext/internal/search"
-	"github.com/RandomCodeSpace/docscontext/internal/store"
-	"github.com/RandomCodeSpace/docscontext/internal/vectorindex"
+	"github.com/RandomCodeSpace/docsiq/internal/config"
+	"github.com/RandomCodeSpace/docsiq/internal/embedder"
+	"github.com/RandomCodeSpace/docsiq/internal/llm"
+	"github.com/RandomCodeSpace/docsiq/internal/pipeline"
+	"github.com/RandomCodeSpace/docsiq/internal/project"
+	"github.com/RandomCodeSpace/docsiq/internal/search"
+	"github.com/RandomCodeSpace/docsiq/internal/store"
+	"github.com/RandomCodeSpace/docsiq/internal/vectorindex"
 )
 
 type handlers struct {
@@ -322,7 +322,7 @@ func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tmpDir, err := os.MkdirTemp("", "DocsContext-upload-*")
+	tmpDir, err := os.MkdirTemp("", "docsiq-upload-*")
 	if err != nil {
 		writeError(w, r, 500, err.Error(), err)
 		return

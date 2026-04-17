@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/RandomCodeSpace/docscontext/internal/project"
+	"github.com/RandomCodeSpace/docsiq/internal/project"
 )
 
 // hookBody is the JSON body accepted by POST /api/hook/SessionStart.

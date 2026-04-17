@@ -36,7 +36,7 @@ jobs:
             echo "ERROR: ui/dist/ is stale."
             echo ""
             echo "The committed contents of ui/dist/ do not match the output of"
-            echo "'npm --prefix ui run build'. Because DocsContext is distributed"
+            echo "'npm --prefix ui run build'. Because docsiq is distributed"
             echo "via 'go install' (which cannot run npm/vite), the built UI assets"
             echo "MUST be committed to git and kept in sync with the UI sources."
             echo ""

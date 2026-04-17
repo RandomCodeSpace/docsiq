@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/RandomCodeSpace/docscontext/internal/store"
+	"github.com/RandomCodeSpace/docsiq/internal/store"
 )
 
 // BuildFromStore scans every (chunk, embedding) row in st and loads it into a

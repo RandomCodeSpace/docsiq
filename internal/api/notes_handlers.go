@@ -14,9 +14,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/RandomCodeSpace/docscontext/internal/notes"
-	"github.com/RandomCodeSpace/docscontext/internal/project"
-	"github.com/RandomCodeSpace/docscontext/internal/store"
+	"github.com/RandomCodeSpace/docsiq/internal/notes"
+	"github.com/RandomCodeSpace/docsiq/internal/project"
+	"github.com/RandomCodeSpace/docsiq/internal/store"
 )
 
 // MaxNoteBytes caps the size of a single note body. Decision: 10 MB.

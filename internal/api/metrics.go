@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/RandomCodeSpace/docscontext/internal/config"
-	"github.com/RandomCodeSpace/docscontext/internal/project"
+	"github.com/RandomCodeSpace/docsiq/internal/config"
+	"github.com/RandomCodeSpace/docsiq/internal/project"
 )
 
 // numHistogramBuckets is the fixed number of finite upper-bound buckets

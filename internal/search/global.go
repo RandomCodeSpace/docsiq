@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/RandomCodeSpace/docscontext/internal/embedder"
-	"github.com/RandomCodeSpace/docscontext/internal/llm"
-	"github.com/RandomCodeSpace/docscontext/internal/store"
+	"github.com/RandomCodeSpace/docsiq/internal/embedder"
+	"github.com/RandomCodeSpace/docsiq/internal/llm"
+	"github.com/RandomCodeSpace/docsiq/internal/store"
 )
 
 // GlobalSearchResult aggregates community summaries.
@@ -81,7 +81,7 @@ func GlobalSearch(ctx context.Context, st *store.Store, emb *embedder.Embedder, 
 
 	if len(summaryParts) == 0 {
 		return &GlobalSearchResult{
-			Answer:      "No community summaries available. Run `DocsContext index --finalize` first.",
+			Answer:      "No community summaries available. Run `docsiq index --finalize` first.",
 			Communities: nil,
 		}, nil
 	}

@@ -2,17 +2,16 @@ package vectorindex
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
-	"github.com/RandomCodeSpace/docscontext/internal/store"
+	"github.com/RandomCodeSpace/docsiq/internal/store"
 )
 
 // openTempStore spins up a fresh SQLite store in a temp dir.
 func openTempStore(t *testing.T) *store.Store {
 	t.Helper()
 	dir := t.TempDir()
-	st, err := store.Open(filepath.Join(dir, "test.db"))
+	st, err := store.OpenForProject(dir, "testproj")
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}

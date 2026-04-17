@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/RandomCodeSpace/docscontext/internal/store"
+	"github.com/RandomCodeSpace/docsiq/internal/store"
 )
 
 // projectStores is a lazy, mutex-guarded cache of per-project *store.Store

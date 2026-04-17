@@ -25,8 +25,10 @@ type Store struct {
 	db *sql.DB
 }
 
-// Open opens (or creates) the SQLite database at path and runs migrations.
-func Open(path string) (*Store, error) {
+// open is the low-level SQLite opener. It is unexported — the only public
+// factory is OpenForProject. Kept as a helper because the project registry
+// and the per-project store both use the same DSN+migrate recipe.
+func open(path string) (*Store, error) {
 	if path == "" {
 		return nil, fmt.Errorf("open db: path is empty")
 	}
@@ -43,13 +45,13 @@ func Open(path string) (*Store, error) {
 }
 
 // OpenForProject opens (or creates) the SQLite DB for a single project at
-// $dataDir/projects/<slug>/docscontext.db. The directory is created with
+// $dataDir/projects/<slug>/docsiq.db. The directory is created with
 // 0o755 if missing. Validates slug against the canonical charset
 // ([a-z0-9_-]+) so we never open a DB at a path the registry couldn't
 // round-trip.
 //
-// Callers that still need the flat legacy path can keep using Open(path);
-// this function is additive.
+// OpenForProject is the only public store factory — there is no flat-path
+// Open; all stores are per-project.
 func OpenForProject(dataDir, slug string) (*Store, error) {
 	if strings.TrimSpace(dataDir) == "" {
 		return nil, fmt.Errorf("open for project: data dir is empty")
@@ -70,7 +72,7 @@ func OpenForProject(dataDir, slug string) (*Store, error) {
 	if err := os.MkdirAll(projectDir, 0o755); err != nil {
 		return nil, fmt.Errorf("open for project: mkdir %s: %w", projectDir, err)
 	}
-	return Open(filepath.Join(projectDir, "docscontext.db"))
+	return open(filepath.Join(projectDir, "docsiq.db"))
 }
 
 func (s *Store) Close() error { return s.db.Close() }

@@ -2,13 +2,12 @@ package store
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 )
 
 func TestDocumentIndexedMtimeRoundTrip(t *testing.T) {
 	dir := t.TempDir()
-	s, err := Open(filepath.Join(dir, "docs_mtime.db"))
+	s, err := OpenForProject(dir, "testproj")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -37,7 +36,7 @@ func TestDocumentIndexedMtimeRoundTrip(t *testing.T) {
 
 func TestDeleteDocument(t *testing.T) {
 	dir := t.TempDir()
-	s, err := Open(filepath.Join(dir, "docs_del.db"))
+	s, err := OpenForProject(dir, "testproj")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -67,7 +66,7 @@ func TestDeleteDocument(t *testing.T) {
 
 func TestAllDocuments(t *testing.T) {
 	dir := t.TempDir()
-	s, err := Open(filepath.Join(dir, "docs_all.db"))
+	s, err := OpenForProject(dir, "testproj")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

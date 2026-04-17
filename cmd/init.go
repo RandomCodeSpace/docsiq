@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/RandomCodeSpace/docscontext/internal/project"
-	"github.com/RandomCodeSpace/docscontext/internal/store"
+	"github.com/RandomCodeSpace/docsiq/internal/project"
+	"github.com/RandomCodeSpace/docsiq/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -46,7 +46,7 @@ var initCmd = &cobra.Command{
 	Short: "Initialise a docsiq project for the current git repo",
 	Long: `Detects the current directory's git remote, derives a slug, and
 registers the project in $DATA_DIR/registry.db. Creates the per-project
-SQLite database at $DATA_DIR/projects/<slug>/docscontext.db.
+SQLite database at $DATA_DIR/projects/<slug>/docsiq.db.
 
 Runs ` + "`git -C <cwd> remote get-url origin`" + ` so it only works inside a
 git repository with an origin remote configured.`,
@@ -108,7 +108,7 @@ git repository with an origin remote configured.`,
 		}
 		defer st.Close()
 
-		dbPath := filepath.Join(cfg.DataDir, "projects", slug, "docscontext.db")
+		dbPath := filepath.Join(cfg.DataDir, "projects", slug, "docsiq.db")
 		fmt.Printf("✅ project registered\n  slug:   %s\n  name:   %s\n  remote: %s\n  db:     %s\n",
 			slug, name, remote, dbPath)
 		return nil

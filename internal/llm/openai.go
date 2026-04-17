@@ -3,7 +3,7 @@ package llm
 import (
 	"fmt"
 
-	"github.com/RandomCodeSpace/docscontext/internal/config"
+	"github.com/RandomCodeSpace/docsiq/internal/config"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/llms/openai"
 )

@@ -1,8 +1,8 @@
-# Contributing to DocsContext
+# Contributing to docsiq
 
 ## Prerequisites
 
-DocsContext requires a **C toolchain at build time** because it uses the
+docsiq requires a **C toolchain at build time** because it uses the
 CGO-backed `github.com/mattn/go-sqlite3` driver (with FTS5) and ships the
 `sqlite-vec` extension as a loadable `.so` / `.dylib`. Pure-Go builds
 (`CGO_ENABLED=0`) are no longer supported.
@@ -22,7 +22,7 @@ make build      # CGO_ENABLED=1 go build -tags sqlite_fts5 ./...
 make vet test   # same tags, CGO on
 ```
 
-`go install github.com/RandomCodeSpace/docscontext@latest` continues to
+`go install github.com/RandomCodeSpace/docsiq@latest` continues to
 work for end users provided they have the C toolchain listed above.
 
 ## sqlite-vec prebuilt binaries
@@ -37,7 +37,7 @@ procedure.
 
 ## Committing `ui/dist/` (built UI assets)
 
-DocsContext is distributed via `go install`, which cannot run `npm` or `vite`.
+docsiq is distributed via `go install`, which cannot run `npm` or `vite`.
 The Go binary therefore embeds the pre-built UI from `ui/dist/` via
 `ui/embed.go` (`//go:embed dist`), and those build outputs **must be committed
 to git**. The root `.gitignore` explicitly un-ignores `ui/dist/` for this
