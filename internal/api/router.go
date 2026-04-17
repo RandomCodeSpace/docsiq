@@ -14,8 +14,6 @@ import (
 	"github.com/RandomCodeSpace/docsiq/internal/llm"
 	"github.com/RandomCodeSpace/docsiq/internal/mcp"
 	"github.com/RandomCodeSpace/docsiq/internal/project"
-	"github.com/RandomCodeSpace/docsiq/internal/store"
-	"github.com/RandomCodeSpace/docsiq/internal/vectorindex"
 	"github.com/RandomCodeSpace/docsiq/ui"
 )
 
@@ -24,40 +22,56 @@ import (
 type RouterOption func(*routerOptions)
 
 type routerOptions struct {
-	vecIndex vectorindex.Index
+	vecIndexes *VectorIndexes
+	stores     *projectStores
 }
 
-// WithVectorIndex wires an HNSW index (typically built by
-// vectorindex.BuildFromStore) into the search handler and MCP server so
-// LocalSearch uses approximate NN instead of O(n) brute-force.
-func WithVectorIndex(idx vectorindex.Index) RouterOption {
-	return func(o *routerOptions) { o.vecIndex = idx }
+// WithVectorIndexes wires a per-project HNSW index cache into the
+// search handlers and MCP server. Nil (default) makes LocalSearch fall
+// back to brute-force per request.
+func WithVectorIndexes(vi *VectorIndexes) RouterOption {
+	return func(o *routerOptions) { o.vecIndexes = vi }
+}
+
+// WithProjectStores lets callers inject a pre-built ProjectStores
+// cache so they can close it at shutdown. Nil (default) causes
+// NewRouter to allocate its own — fine for tests, but real servers
+// should supply one for controlled teardown.
+func WithProjectStores(p *ProjectStores) RouterOption {
+	return func(o *routerOptions) {
+		if p != nil {
+			o.stores = p.inner()
+		}
+	}
 }
 
 // NewRouter builds the single http.ServeMux with all routes.
 //
-// Phase-1 signature change: takes a *project.Registry so the project
-// middleware can resolve ?project= / X-Project on every /api/* and /mcp
-// request. Passing a nil registry is tolerated (the middleware still
-// attaches the default slug to the context) so tests that only exercise
-// docs handlers don't need to spin up a real registry.
-//
-// Phase-2 (vector index): optional RouterOption knobs. Nil index means the
-// search handler falls back to brute-force — the historical behavior.
-func NewRouter(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, registry *project.Registry, opts ...RouterOption) http.Handler {
+// Wave-2 signature change: the long-lived *store.Store positional
+// argument is gone. Handlers resolve per-project stores via a shared
+// Storer (the projectStores cache). Callers that want lifecycle control
+// over that cache can inject it with WithProjectStores; otherwise one
+// is created internally (leaked for process lifetime — fine for tests).
+func NewRouter(prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, registry *project.Registry, opts ...RouterOption) http.Handler {
 	ro := &routerOptions{}
 	for _, opt := range opts {
 		opt(ro)
 	}
-	mcpServer := mcp.New(st, prov, emb, cfg, registry, mcp.WithVectorIndex(ro.vecIndex))
-	h := &handlers{store: st, provider: prov, embedder: emb, cfg: cfg, vecIndex: ro.vecIndex}
-	nh := newNotesHandlers(cfg.DataDir, cfg, registry)
-	ph := &projectsHandler{registry: registry}
+	stores := ro.stores
+	if stores == nil {
+		stores = newProjectStores(cfg.DataDir)
+	}
 
-	// Per-project store cache used by /metrics (for CountNotes-per-project)
-	// and anywhere else that needs on-demand per-project reads. Opening is
-	// lazy: a slug that is never scraped never gets a DB handle.
-	metricsStores := newProjectStores(cfg.DataDir)
+	mcpServer := mcp.New(stores, prov, emb, cfg, registry, mcp.WithVectorIndexes(ro.vecIndexes))
+	h := &handlers{
+		stores:     stores,
+		provider:   prov,
+		embedder:   emb,
+		cfg:        cfg,
+		vecIndexes: ro.vecIndexes,
+	}
+	nh := newNotesHandlersWithStores(stores, cfg, registry)
+	ph := &projectsHandler{registry: registry}
 
 	mux := http.NewServeMux()
 
@@ -67,7 +81,7 @@ func NewRouter(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *
 
 	// Prometheus scrape endpoint — public, NOT gated by auth or project
 	// middleware (auth/project explicitly bypass /metrics below).
-	mux.Handle("GET /metrics", metricsHandler(registry, metricsStores, cfg))
+	mux.Handle("GET /metrics", metricsHandler(registry, stores, cfg))
 
 	// MCP Streamable HTTP transport (POST /mcp, GET /mcp for SSE stream)
 	mux.Handle("/mcp", mcpServer.Handler())

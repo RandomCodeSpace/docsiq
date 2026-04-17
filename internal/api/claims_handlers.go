@@ -8,12 +8,16 @@ import (
 // Unknown entity → 200 with empty array; the client can treat that the
 // same way whether the entity truly has no claims or was never indexed.
 func (h *handlers) claimsForEntity(w http.ResponseWriter, r *http.Request) {
+	st, ok := h.resolveStore(w, r)
+	if !ok {
+		return
+	}
 	id := r.PathValue("id")
 	if id == "" {
 		writeError(w, r, 400, "id required", nil)
 		return
 	}
-	claims, err := h.store.ClaimsForEntity(r.Context(), id)
+	claims, err := st.ClaimsForEntity(r.Context(), id)
 	if err != nil {
 		writeError(w, r, 500, err.Error(), err)
 		return
@@ -23,10 +27,14 @@ func (h *handlers) claimsForEntity(w http.ResponseWriter, r *http.Request) {
 
 // listClaims returns claims with optional ?status= and ?limit= filters.
 func (h *handlers) listClaims(w http.ResponseWriter, r *http.Request) {
+	st, ok := h.resolveStore(w, r)
+	if !ok {
+		return
+	}
 	q := r.URL.Query()
 	status := q.Get("status")
 	limit := intQuery(q.Get("limit"), 100)
-	claims, err := h.store.ListClaims(r.Context(), status, limit)
+	claims, err := st.ListClaims(r.Context(), status, limit)
 	if err != nil {
 		writeError(w, r, 500, err.Error(), err)
 		return

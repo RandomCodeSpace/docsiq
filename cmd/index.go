@@ -21,6 +21,7 @@ var (
 	indexMaxDepth    int
 	indexSkipSitemap bool
 	indexPrune       bool
+	indexProject     string
 )
 
 var indexCmd = &cobra.Command{
@@ -28,15 +29,23 @@ var indexCmd = &cobra.Command{
 	Short: "Index documents or a documentation website (Phases 1-2)",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		slug := cfg.DefaultProject
+		// Wave-2: --project selects which per-project store to open.
+		// An empty flag falls back to cfg.DefaultProject and then the
+		// hard default "_default" — the same precedence REST and MCP
+		// use so the three entry points stay consistent.
+		slug := indexProject
+		if slug == "" {
+			slug = cfg.DefaultProject
+		}
 		if slug == "" {
 			slug = "_default"
 		}
 		st, err := store.OpenForProject(cfg.DataDir, slug)
 		if err != nil {
-			return fmt.Errorf("open store: %w", err)
+			return fmt.Errorf("open store for project %q: %w", slug, err)
 		}
 		defer st.Close()
+		slog.Info("📂 index scope", "project", slug, "db", cfg.ProjectDBPath(slug))
 
 		if indexFinalize {
 			prov, err := llm.NewProvider(&cfg.LLM)
@@ -119,5 +128,5 @@ func init() {
 	indexCmd.Flags().IntVar(&indexMaxDepth, "max-depth", 0, "Maximum BFS link depth (0 = unlimited)")
 	indexCmd.Flags().BoolVar(&indexSkipSitemap, "skip-sitemap", false, "Force BFS crawl even if sitemap.xml exists")
 	indexCmd.Flags().BoolVar(&indexPrune, "prune", false, "Remove documents whose source files no longer exist on disk")
+	indexCmd.Flags().StringVar(&indexProject, "project", "", "Project slug to index into (default: config default_project, then _default)")
 }
-

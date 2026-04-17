@@ -10,19 +10,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var statsJSON bool
+var (
+	statsJSON    bool
+	statsProject string
+)
 
 var statsCmd = &cobra.Command{
 	Use:   "stats",
 	Short: "Show index statistics",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		slug := cfg.DefaultProject
+		slug := statsProject
+		if slug == "" {
+			slug = cfg.DefaultProject
+		}
 		if slug == "" {
 			slug = "_default"
 		}
 		st, err := store.OpenForProject(cfg.DataDir, slug)
 		if err != nil {
-			return fmt.Errorf("open store: %w", err)
+			return fmt.Errorf("open store for project %q: %w", slug, err)
 		}
 		defer st.Close()
 
@@ -36,6 +42,7 @@ var statsCmd = &cobra.Command{
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintf(w, "Project\t%s\n", slug)
 		fmt.Fprintln(w, "Metric\tCount")
 		fmt.Fprintln(w, "------\t-----")
 		fmt.Fprintf(w, "Documents\t%d\n", s.Documents)
@@ -52,5 +59,5 @@ var statsCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(statsCmd)
 	statsCmd.Flags().BoolVar(&statsJSON, "json", false, "Output as JSON")
+	statsCmd.Flags().StringVar(&statsProject, "project", "", "Project slug (default: config default_project, then _default)")
 }
-

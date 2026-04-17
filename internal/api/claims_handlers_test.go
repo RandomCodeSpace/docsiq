@@ -41,7 +41,8 @@ func newClaimsRouter(t *testing.T) http.Handler {
 
 	cfg := &config.Config{}
 	cfg.DataDir = dir
-	return NewRouter(st, nil, nil, cfg, nil)
+	return NewRouter(nil, nil, cfg, nil,
+		WithProjectStores(testSingleStore(dir, st, "_default", "testproj")))
 }
 
 func TestClaimsHandlers(t *testing.T) {

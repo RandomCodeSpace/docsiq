@@ -1,8 +1,8 @@
 package mcp
 
 import (
+	"fmt"
 	"net/http"
-	"sync"
 
 	"github.com/RandomCodeSpace/docsiq/internal/config"
 	"github.com/RandomCodeSpace/docsiq/internal/embedder"
@@ -14,48 +14,57 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
+// Storer is the narrow contract the MCP server uses to obtain a
+// per-project *store.Store on every tool invocation. It mirrors the
+// REST-side api.Storer so the same cache can be injected into both.
+type Storer interface {
+	ForProject(slug string) (*store.Store, error)
+}
+
+// VectorIndexResolver returns the per-project HNSW index (or nil if
+// unavailable / brute-force). Implementations must be safe for
+// concurrent use. *api.VectorIndexes satisfies this — but the mcp
+// package can't import api, so the resolver is declared as an
+// interface here.
+type VectorIndexResolver interface {
+	ForProject(slug string, st *store.Store) vectorindex.Index
+}
+
 // Option configures an MCP Server at construction time.
 type Option func(*Server)
 
-// WithVectorIndex wires an HNSW index into the MCP search tools so that
-// search_documents / local_search use approximate NN lookup. Nil falls back
-// to brute-force inside search.LocalSearch.
-func WithVectorIndex(idx vectorindex.Index) Option {
-	return func(s *Server) { s.vecIndex = idx }
+// WithVectorIndexes wires a per-project HNSW index cache into the MCP
+// search tools. Nil (the default) makes LocalSearch fall back to
+// brute-force inside the search package.
+func WithVectorIndexes(vi VectorIndexResolver) Option {
+	return func(s *Server) { s.vecIndexes = vi }
 }
 
 // Server wraps the MCP server.
 type Server struct {
 	mcpServer  *server.MCPServer
 	httpServer *server.StreamableHTTPServer
-	store      *store.Store
+	stores     Storer
 	provider   llm.Provider
 	embedder   *embedder.Embedder
 	cfg        *config.Config
 	registry   *project.Registry
-	vecIndex   vectorindex.Index
-
-	// Per-project note stores; lazy-opened, closed by Close().
-	storesMu   sync.Mutex
-	noteStores map[string]*store.Store
+	vecIndexes VectorIndexResolver
 }
 
 // New creates and registers all docs + notes MCP tools.
 //
-// Phase-2 signature change: takes *project.Registry so notes tools can
-// resolve per-project DB handles. A nil registry is tolerated; notes
-// tools that need one return a clear error at call time.
-//
-// Phase-3 (vector index): accepts variadic Options. WithVectorIndex is the
-// primary knob — left unset, LocalSearch brute-forces as before.
-func New(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, registry *project.Registry, opts ...Option) *Server {
+// Wave-2 signature change: drops the long-lived *store.Store — the MCP
+// layer now resolves a per-project store on every tool invocation via
+// Storer.ForProject(slug). Passing nil for stores yields an error on
+// any doc-tool call (notes tools still work if they only need cfg).
+func New(stores Storer, prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, registry *project.Registry, opts ...Option) *Server {
 	s := &Server{
-		store:      st,
-		provider:   prov,
-		embedder:   emb,
-		cfg:        cfg,
-		registry:   registry,
-		noteStores: map[string]*store.Store{},
+		stores:   stores,
+		provider: prov,
+		embedder: emb,
+		cfg:      cfg,
+		registry: registry,
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -71,31 +80,35 @@ func New(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *config
 	return s
 }
 
-// storeForProject opens (and caches) a per-project *store.Store.
+// storeForProject resolves a per-project *store.Store. An empty slug
+// resolves to config.DefaultProjectSlug per the Wave-2 policy: absent
+// `project` argument on any doc MCP tool defaults to the root project.
 func (s *Server) storeForProject(slug string) (*store.Store, error) {
-	s.storesMu.Lock()
-	defer s.storesMu.Unlock()
-	if st, ok := s.noteStores[slug]; ok {
-		return st, nil
+	if slug == "" {
+		slug = config.DefaultProjectSlug
 	}
-	st, err := store.OpenForProject(s.cfg.DataDir, slug)
-	if err != nil {
-		return nil, err
+	if s.stores == nil {
+		return nil, fmt.Errorf("mcp server: no store resolver configured")
 	}
-	s.noteStores[slug] = st
-	return st, nil
+	return s.stores.ForProject(slug)
 }
 
-// Close releases all per-project note store handles.
-func (s *Server) Close() error {
-	s.storesMu.Lock()
-	defer s.storesMu.Unlock()
-	for k, st := range s.noteStores {
-		_ = st.Close()
-		delete(s.noteStores, k)
+// projectArg is the standard "project" string argument used by every
+// doc MCP tool. Empty → "_default" per Wave-2 policy.
+func projectArg(args map[string]any) string {
+	if v, ok := args["project"]; ok {
+		if s, ok := v.(string); ok && s != "" {
+			return s
+		}
 	}
-	return nil
+	return config.DefaultProjectSlug
 }
+
+// Close is a no-op after Wave-2 — the per-project store cache is owned
+// by the caller (typically cmd/serve), not by the MCP server. Retained
+// for symmetry with the REST server shutdown path and to keep existing
+// test teardown hooks (`_ = s.Close()`) compiling.
+func (s *Server) Close() error { return nil }
 
 // Handler returns an http.Handler for the Streamable HTTP MCP transport.
 func (s *Server) Handler() http.Handler {
@@ -133,6 +146,3 @@ func stringArg(args map[string]any, key string, def string) string {
 	}
 	return def
 }
-
-
-

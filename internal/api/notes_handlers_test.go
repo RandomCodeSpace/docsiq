@@ -35,7 +35,7 @@ func setupNotesRouter(t *testing.T) (http.Handler, string, string) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	h := NewRouter(nil, nil, nil, cfg, reg)
+	h := NewRouter(nil, nil, cfg, reg)
 	return h, slug, dataDir
 }
 

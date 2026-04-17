@@ -36,3 +36,5 @@ ui/*.tsbuildinfo
 # OS
 .DS_Store
 Thumbs.db
+# Compiled binary
+docsiq

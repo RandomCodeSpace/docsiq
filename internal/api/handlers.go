@@ -25,20 +25,43 @@ import (
 	"github.com/RandomCodeSpace/docsiq/internal/vectorindex"
 )
 
+// handlers is the REST-side doc router state. Wave-2 drop: the
+// long-lived *store.Store was removed — every method now resolves a
+// per-project handle via h.stores.ForProject(ProjectFromContext(...)).
 type handlers struct {
-	store    *store.Store
+	stores   Storer
 	provider llm.Provider
 	embedder *embedder.Embedder
 	cfg      *config.Config
-	// vecIndex is the in-memory HNSW index built at boot by
-	// vectorindex.BuildFromStore. May be nil (tests / fresh installs);
-	// LocalSearch falls back to brute-force in that case.
-	vecIndex vectorindex.Index
+	// vecIndexes is the per-project HNSW cache. Built lazily on first
+	// local search (or eagerly at boot for registered projects). May
+	// return nil for a slug with no embeddings; LocalSearch falls back
+	// to brute-force in that case.
+	vecIndexes *VectorIndexes
 
 	// Upload progress tracking
 	uploadMu    sync.Mutex
 	jobProgress map[string]string
 	jobCounter  atomic.Int64
+}
+
+// resolveStore is the single entry point for every doc handler. It
+// pulls the slug off ctx and returns the matching per-project store.
+// A missing/empty slug or open failure becomes a 500 — the project
+// middleware has already ensured the slug is registered, so an error
+// here is an infra problem (disk, permissions) not a user mistake.
+func (h *handlers) resolveStore(w http.ResponseWriter, r *http.Request) (*store.Store, bool) {
+	slug := ProjectFromContext(r.Context())
+	if slug == "" {
+		writeError(w, r, http.StatusInternalServerError, "project scope missing", nil)
+		return nil, false
+	}
+	st, err := h.stores.ForProject(slug)
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "open project store: "+err.Error(), err)
+		return nil, false
+	}
+	return st, true
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -91,7 +114,11 @@ func (p *projectsHandler) listProjects(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) getStats(w http.ResponseWriter, r *http.Request) {
-	stats, err := h.store.GetStats(r.Context())
+	st, ok := h.resolveStore(w, r)
+	if !ok {
+		return
+	}
+	stats, err := st.GetStats(r.Context())
 	if err != nil {
 		writeError(w, r, 500, err.Error(), err)
 		return
@@ -100,12 +127,16 @@ func (h *handlers) getStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) listDocuments(w http.ResponseWriter, r *http.Request) {
+	st, ok := h.resolveStore(w, r)
+	if !ok {
+		return
+	}
 	q := r.URL.Query()
 	docType := q.Get("doc_type")
 	limit := intQuery(q.Get("limit"), 20)
 	offset := intQuery(q.Get("offset"), 0)
 
-	docs, err := h.store.ListDocuments(r.Context(), docType, limit, offset)
+	docs, err := st.ListDocuments(r.Context(), docType, limit, offset)
 	if err != nil {
 		writeError(w, r, 500, err.Error(), err)
 		return
@@ -114,8 +145,12 @@ func (h *handlers) listDocuments(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) getDocumentVersions(w http.ResponseWriter, r *http.Request) {
+	st, ok := h.resolveStore(w, r)
+	if !ok {
+		return
+	}
 	id := r.PathValue("id")
-	doc, err := h.store.GetDocument(r.Context(), id)
+	doc, err := st.GetDocument(r.Context(), id)
 	if err != nil {
 		writeError(w, r, 500, err.Error(), err)
 		return
@@ -124,7 +159,7 @@ func (h *handlers) getDocumentVersions(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, 404, "document not found", nil)
 		return
 	}
-	versions, err := h.store.GetDocumentVersions(r.Context(), doc.CanonicalOrID())
+	versions, err := st.GetDocumentVersions(r.Context(), doc.CanonicalOrID())
 	if err != nil {
 		writeError(w, r, 500, err.Error(), err)
 		return
@@ -133,8 +168,12 @@ func (h *handlers) getDocumentVersions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) getDocument(w http.ResponseWriter, r *http.Request) {
+	st, ok := h.resolveStore(w, r)
+	if !ok {
+		return
+	}
 	id := r.PathValue("id")
-	doc, err := h.store.GetDocument(r.Context(), id)
+	doc, err := st.GetDocument(r.Context(), id)
 	if err != nil {
 		writeError(w, r, 500, err.Error(), err)
 		return
@@ -155,6 +194,10 @@ type searchRequest struct {
 }
 
 func (h *handlers) search(w http.ResponseWriter, r *http.Request) {
+	st, ok := h.resolveStore(w, r)
+	if !ok {
+		return
+	}
 	var req searchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, r, 400, "invalid JSON", nil)
@@ -174,25 +217,30 @@ func (h *handlers) search(w http.ResponseWriter, r *http.Request) {
 	slog.InfoContext(r.Context(), "🔍 search request", "mode", req.Mode, "query", req.Query, "top_k", req.TopK)
 
 	ctx := r.Context()
+	slug := ProjectFromContext(ctx)
 	// Resolve per-project LLM provider. Falls back to h.provider (root
 	// config) when no override is configured for the slug or when the
 	// slug is empty.
 	prov := h.provider
 	if h.cfg != nil {
-		if p, err := llm.ProviderForProject(h.cfg, ProjectFromContext(ctx)); err == nil && p != nil {
+		if p, err := llm.ProviderForProject(h.cfg, slug); err == nil && p != nil {
 			prov = p
 		}
 	}
+	var idx vectorindex.Index
+	if h.vecIndexes != nil {
+		idx = h.vecIndexes.ForProject(slug, st)
+	}
 	switch req.Mode {
 	case "global":
-		result, err := search.GlobalSearch(ctx, h.store, h.embedder, prov, req.Query, req.CommunityLevel)
+		result, err := search.GlobalSearch(ctx, st, h.embedder, prov, req.Query, req.CommunityLevel)
 		if err != nil {
 			writeError(w, r, 500, err.Error(), err)
 			return
 		}
 		writeJSON(w, 200, result)
 	default: // local
-		result, err := search.LocalSearch(ctx, h.store, h.embedder, h.vecIndex, req.Query, req.TopK, req.GraphDepth)
+		result, err := search.LocalSearch(ctx, st, h.embedder, idx, req.Query, req.TopK, req.GraphDepth)
 		if err != nil {
 			writeError(w, r, 500, err.Error(), err)
 			return
@@ -202,6 +250,10 @@ func (h *handlers) search(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) graphNeighborhood(w http.ResponseWriter, r *http.Request) {
+	st, ok := h.resolveStore(w, r)
+	if !ok {
+		return
+	}
 	q := r.URL.Query()
 	name := q.Get("entity")
 	depth := intQuery(q.Get("depth"), 2)
@@ -215,7 +267,7 @@ func (h *handlers) graphNeighborhood(w http.ResponseWriter, r *http.Request) {
 	slog.DebugContext(r.Context(), "🔗 graph neighborhood request", "entity", name, "depth", depth)
 
 	ctx := r.Context()
-	entity, err := h.store.GetEntityByName(ctx, name)
+	entity, err := st.GetEntityByName(ctx, name)
 	if err != nil {
 		writeError(w, r, 500, err.Error(), err)
 		return
@@ -225,7 +277,7 @@ func (h *handlers) graphNeighborhood(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rels, err := h.store.RelationshipsForEntity(ctx, entity.ID, depth)
+	rels, err := st.RelationshipsForEntity(ctx, entity.ID, depth)
 	if err != nil {
 		writeError(w, r, 500, err.Error(), err)
 		return
@@ -243,7 +295,7 @@ func (h *handlers) graphNeighborhood(w http.ResponseWriter, r *http.Request) {
 		if count >= maxNodes {
 			break
 		}
-		e, err := h.store.GetEntity(ctx, nid)
+		e, err := st.GetEntity(ctx, nid)
 		if err != nil || e == nil {
 			continue
 		}
@@ -267,12 +319,16 @@ func (h *handlers) graphNeighborhood(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) listEntities(w http.ResponseWriter, r *http.Request) {
+	st, ok := h.resolveStore(w, r)
+	if !ok {
+		return
+	}
 	q := r.URL.Query()
 	typ := q.Get("type")
 	limit := intQuery(q.Get("limit"), 20)
 	offset := intQuery(q.Get("offset"), 0)
 
-	entities, err := h.store.ListEntities(r.Context(), typ, limit, offset)
+	entities, err := st.ListEntities(r.Context(), typ, limit, offset)
 	if err != nil {
 		writeError(w, r, 500, err.Error(), err)
 		return
@@ -281,10 +337,14 @@ func (h *handlers) listEntities(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) listCommunities(w http.ResponseWriter, r *http.Request) {
+	st, ok := h.resolveStore(w, r)
+	if !ok {
+		return
+	}
 	q := r.URL.Query()
 	level := intQuery(q.Get("level"), -1)
 
-	communities, err := h.store.ListCommunities(r.Context(), level)
+	communities, err := st.ListCommunities(r.Context(), level)
 	if err != nil {
 		writeError(w, r, 500, err.Error(), err)
 		return
@@ -293,8 +353,12 @@ func (h *handlers) listCommunities(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) getCommunity(w http.ResponseWriter, r *http.Request) {
+	st, ok := h.resolveStore(w, r)
+	if !ok {
+		return
+	}
 	id := r.PathValue("id")
-	comm, err := h.store.GetCommunity(r.Context(), id)
+	comm, err := st.GetCommunity(r.Context(), id)
 	if err != nil {
 		writeError(w, r, 500, err.Error(), err)
 		return
@@ -303,7 +367,7 @@ func (h *handlers) getCommunity(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, 404, "community not found", nil)
 		return
 	}
-	members, err := h.store.CommunityMembers(r.Context(), id)
+	members, err := st.CommunityMembers(r.Context(), id)
 	if err != nil {
 		writeError(w, r, 500, err.Error(), err)
 		return
@@ -312,6 +376,11 @@ func (h *handlers) getCommunity(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
+	st, ok := h.resolveStore(w, r)
+	if !ok {
+		return
+	}
+	slug := ProjectFromContext(r.Context())
 	if err := r.ParseMultipartForm(128 << 20); err != nil {
 		writeError(w, r, 400, "parse form: "+err.Error(), nil)
 		return
@@ -360,7 +429,7 @@ func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jobID := fmt.Sprintf("job-%d", h.jobCounter.Add(1))
-	slog.Info("📦 upload job queued", "job_id", jobID, "files", len(paths))
+	slog.Info("📦 upload job queued", "job_id", jobID, "files", len(paths), "project", slug)
 
 	h.setProgress(jobID, fmt.Sprintf("queued: %d files", len(paths)))
 
@@ -371,7 +440,7 @@ func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		defer os.RemoveAll(tmpDir)
-		pl := pipeline.New(h.store, h.provider, h.cfg)
+		pl := pipeline.New(st, h.provider, h.cfg)
 		for _, p := range paths {
 			slog.Info("📦 upload indexing file", "job_id", jobID, "file", filepath.Base(p))
 			h.setProgress(jobID, fmt.Sprintf("indexing: %s", filepath.Base(p)))
@@ -385,7 +454,12 @@ func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
 		if err := pl.Finalize(bgCtx, false, true); err != nil {
 			slog.Warn("⚠️ upload finalization failed", "job_id", jobID, "err", err)
 		}
-		slog.Info("✅ upload job complete", "job_id", jobID, "files", len(paths))
+		// Invalidate the vector index for this project so the next
+		// search rebuild picks up the newly-indexed chunks.
+		if h.vecIndexes != nil {
+			h.vecIndexes.Invalidate(slug)
+		}
+		slog.Info("✅ upload job complete", "job_id", jobID, "files", len(paths), "project", slug)
 		h.setProgress(jobID, "done")
 	}()
 
@@ -452,5 +526,3 @@ func intQuery(s string, def int) int {
 	}
 	return n
 }
-
-

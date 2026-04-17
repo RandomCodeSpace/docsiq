@@ -22,7 +22,7 @@ func buildDocsTestServer(t *testing.T) (*Server, *store.Store) {
 	t.Cleanup(func() { _ = st.Close() })
 
 	cfg := &config.Config{DataDir: dir}
-	s := New(st, nil, nil, cfg, nil)
+	s := New(newFakeStorer(st), nil, nil, cfg, nil)
 	t.Cleanup(func() { _ = s.Close() })
 	return s, st
 }

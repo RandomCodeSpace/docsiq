@@ -37,7 +37,8 @@ func newMetricsRouter(t *testing.T) http.Handler {
 	t.Cleanup(func() { _ = st.Close() })
 	cfg := &config.Config{}
 	cfg.DataDir = dir
-	return NewRouter(st, nil, nil, cfg, nil)
+	return NewRouter(nil, nil, cfg, nil,
+		WithProjectStores(testSingleStore(dir, st, "_default", "testproj")))
 }
 
 func TestMetricsEndpoint(t *testing.T) {

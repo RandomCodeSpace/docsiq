@@ -17,7 +17,6 @@ import (
 	"github.com/RandomCodeSpace/docsiq/internal/llm"
 	"github.com/RandomCodeSpace/docsiq/internal/project"
 	"github.com/RandomCodeSpace/docsiq/internal/sqlitevec"
-	"github.com/RandomCodeSpace/docsiq/internal/store"
 	"github.com/RandomCodeSpace/docsiq/internal/vectorindex"
 	"github.com/spf13/cobra"
 )
@@ -38,43 +37,11 @@ var serveCmd = &cobra.Command{
 			cfg.Server.Port = servePort
 		}
 
-		// Wave 1: the root store now lives at the _default project's
-		// per-project DB path ($DATA_DIR/projects/_default/docsiq.db) so
-		// Wave 2 only has to migrate handlers off the `st` reference —
-		// the file itself is already in the right place.
-		// TODO(wave-2): migrate doc handlers to per-project stores via
-		// the registry + project middleware, then drop the root `st`.
-		rootSlug := cfg.DefaultProject
-		if rootSlug == "" {
-			rootSlug = "_default"
-		}
-		st, err := store.OpenForProject(cfg.DataDir, rootSlug)
-		if err != nil {
-			return fmt.Errorf("open store: %w", err)
-		}
-		defer st.Close()
-		rootDBPath := cfg.ProjectDBPath(rootSlug)
-		slog.Info("📂 store opened", "path", rootDBPath)
-
-		// Attempt to load the embedded sqlite-vec extension. On any
-		// failure (placeholder build, unsupported GOOS/GOARCH, dlopen
-		// refused) we log WARN and continue — the HNSW in-memory index
-		// and/or brute-force fallback still answer vector queries.
-		if soPath, extErr := sqlitevec.Extract(cfg.DataDir); extErr != nil {
-			slog.Warn("⚠️ sqlite-vec unavailable; using HNSW / brute-force fallback", "err", extErr)
-			setVecMode(vecModeNone, extErr.Error())
-		} else if loadErr := sqlitevec.LoadInto(st.DB(), soPath); loadErr != nil {
-			slog.Warn("⚠️ sqlite-vec load failed; using HNSW / brute-force fallback", "err", loadErr, "path", soPath)
-			setVecMode(vecModeNone, loadErr.Error())
-		} else {
-			slog.Info("🧮 sqlite-vec loaded", "path", soPath)
-			setVecMode(vecModeSqliteVec, soPath)
-		}
-
-		// Phase-1: open the per-project registry alongside the legacy
-		// single-DB store. Handlers still use `st` until Phase-2 migrates
-		// them to per-project stores; the registry exists today so the
-		// project middleware can resolve ?project=/X-Project.
+		// Wave 2: no more root store. Every handler and MCP tool
+		// resolves a per-project *store.Store through the shared
+		// projectStores cache. The default slug is opened eagerly so
+		// vector-index pre-warming and sqlite-vec loading have a
+		// concrete DB to work against.
 		projectsDir := filepath.Join(cfg.DataDir, "projects")
 		if err := os.MkdirAll(projectsDir, 0o755); err != nil {
 			return fmt.Errorf("mkdir projects dir: %w", err)
@@ -86,6 +53,54 @@ var serveCmd = &cobra.Command{
 		defer registry.Close()
 		slog.Info("📒 project registry opened", "path", filepath.Join(cfg.DataDir, "registry.db"))
 
+		// Ensure the default project is registered so doc handlers
+		// targeted at _default don't 404 on a fresh install. Duplicate
+		// registrations are a no-op.
+		defaultSlug := cfg.DefaultProject
+		if defaultSlug == "" {
+			defaultSlug = "_default"
+		}
+		if _, getErr := registry.Get(defaultSlug); getErr != nil {
+			_ = registry.Register(project.Project{
+				Slug:      defaultSlug,
+				Name:      defaultSlug,
+				Remote:    "_default",
+				CreatedAt: time.Now().Unix(),
+			})
+			_ = os.MkdirAll(filepath.Join(cfg.DataDir, "projects", defaultSlug), 0o755)
+		}
+
+		stores := api.NewProjectStores(cfg.DataDir)
+		defer func() {
+			if err := stores.Close(); err != nil {
+				slog.Warn("⚠️ project stores shutdown error", "err", err)
+			}
+		}()
+
+		// Eagerly open the default store so sqlite-vec extension
+		// loading has a concrete DB handle to target. Other projects
+		// open lazily when they first receive a request.
+		defaultStore, err := stores.ForProject(defaultSlug)
+		if err != nil {
+			return fmt.Errorf("open default store: %w", err)
+		}
+		slog.Info("📂 default store opened", "path", cfg.ProjectDBPath(defaultSlug))
+
+		// Attempt to load the embedded sqlite-vec extension. On any
+		// failure (placeholder build, unsupported GOOS/GOARCH, dlopen
+		// refused) we log WARN and continue — the HNSW in-memory index
+		// and/or brute-force fallback still answer vector queries.
+		if soPath, extErr := sqlitevec.Extract(cfg.DataDir); extErr != nil {
+			slog.Warn("⚠️ sqlite-vec unavailable; using HNSW / brute-force fallback", "err", extErr)
+			setVecMode(vecModeNone, extErr.Error())
+		} else if loadErr := sqlitevec.LoadInto(defaultStore.DB(), soPath); loadErr != nil {
+			slog.Warn("⚠️ sqlite-vec load failed; using HNSW / brute-force fallback", "err", loadErr, "path", soPath)
+			setVecMode(vecModeNone, loadErr.Error())
+		} else {
+			slog.Info("🧮 sqlite-vec loaded", "path", soPath)
+			setVecMode(vecModeSqliteVec, soPath)
+		}
+
 		prov, err := llm.NewProvider(&cfg.LLM)
 		if err != nil {
 			return fmt.Errorf("llm provider: %w", err)
@@ -94,19 +109,37 @@ var serveCmd = &cobra.Command{
 
 		emb := embedder.New(prov, cfg.Indexing.BatchSize)
 
-		// Build in-memory HNSW vector index from the store's chunk
-		// embeddings. Rebuilt on every boot; the store remains the
-		// source of truth. Empty index (fresh install) is fine — search
-		// handlers fall back to brute-force when nil/empty.
-		buildCtx, cancelBuild := context.WithTimeout(context.Background(), 60*time.Second)
-		vecIdx, err := vectorindex.BuildFromStore(buildCtx, st)
-		cancelBuild()
-		if err != nil {
-			slog.Warn("⚠️ vector index build failed; using brute-force fallback", "err", err)
-			vecIdx = nil
+		// Per-project vector index cache. Eagerly build one index per
+		// registered project so the first search doesn't pay the build
+		// cost. Unknown projects (registered later at runtime) build
+		// lazily inside api.VectorIndexes.ForProject.
+		vecIndexes := api.NewVectorIndexes()
+		projs, listErr := registry.List()
+		if listErr != nil {
+			slog.Warn("⚠️ registry list failed; skipping eager index build", "err", listErr)
+		} else {
+			for _, p := range projs {
+				st, err := stores.ForProject(p.Slug)
+				if err != nil {
+					slog.Warn("⚠️ skipping index for project", "slug", p.Slug, "err", err)
+					continue
+				}
+				buildCtx, cancelBuild := context.WithTimeout(context.Background(), 60*time.Second)
+				idx, err := vectorindex.BuildFromStore(buildCtx, st)
+				cancelBuild()
+				if err != nil {
+					slog.Warn("⚠️ vector index build failed", "slug", p.Slug, "err", err)
+					continue
+				}
+				vecIndexes.Set(p.Slug, idx)
+				slog.Info("🧭 vector index ready", "slug", p.Slug, "size", idx.Size())
+			}
 		}
 
-		router := api.NewRouter(st, prov, emb, cfg, registry, api.WithVectorIndex(vecIdx))
+		router := api.NewRouter(prov, emb, cfg, registry,
+			api.WithProjectStores(stores),
+			api.WithVectorIndexes(vecIndexes),
+		)
 
 		addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 		ln, err := net.Listen("tcp", addr)
@@ -150,4 +183,3 @@ func init() {
 	serveCmd.Flags().StringVar(&serveHost, "host", "", "Server host (overrides config)")
 	serveCmd.Flags().IntVar(&servePort, "port", 0, "Server port (overrides config)")
 }
-

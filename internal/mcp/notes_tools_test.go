@@ -29,7 +29,11 @@ func buildTestServer(t *testing.T) (*Server, string) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	s := New(nil, nil, nil, cfg, reg)
+	// Notes tools open per-project stores via s.stores.ForProject so
+	// use a lazy-store test helper rooted at dataDir.
+	ls := newLazyStorer(dataDir)
+	t.Cleanup(ls.Close)
+	s := New(ls, nil, nil, cfg, reg)
 	t.Cleanup(func() { _ = s.Close() })
 	return s, slug
 }

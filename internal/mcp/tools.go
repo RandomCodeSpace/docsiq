@@ -6,9 +6,34 @@ import (
 	"fmt"
 
 	"github.com/RandomCodeSpace/docsiq/internal/search"
+	"github.com/RandomCodeSpace/docsiq/internal/store"
+	"github.com/RandomCodeSpace/docsiq/internal/vectorindex"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
+
+// docProjectOpt is the standard "project" argument declaration shared
+// by every docs MCP tool. Absent / empty slug defaults to "_default"
+// inside the handler (see projectArg in server.go).
+func docProjectOpt() mcpgo.ToolOption {
+	return mcpgo.WithString("project", mcpgo.Description("Project slug (defaults to _default)"))
+}
+
+// resolveDocsScope is the common preamble for every docs tool: pull
+// the project arg, open the store via the cache, and fetch the vector
+// index for the slug (nil → brute-force). Returned errors should be
+// wrapped by the caller in toolError.
+func (s *Server) resolveDocsScope(args map[string]any) (slug string, st *store.Store, idx vectorindex.Index, err error) {
+	slug = projectArg(args)
+	st, err = s.storeForProject(slug)
+	if err != nil {
+		return slug, nil, nil, err
+	}
+	if s.vecIndexes != nil {
+		idx = s.vecIndexes.ForProject(slug, st)
+	}
+	return slug, st, idx, nil
+}
 
 func registerTools(s *Server) {
 	// 1. search_documents
@@ -17,6 +42,7 @@ func registerTools(s *Server) {
 		mcpgo.WithString("query", mcpgo.Required(), mcpgo.Description("Search query")),
 		mcpgo.WithNumber("top_k", mcpgo.Description("Number of results (default 5)")),
 		mcpgo.WithString("doc_type", mcpgo.Description("Filter by doc type: pdf|docx|txt|md")),
+		docProjectOpt(),
 	), server.ToolHandlerFunc(func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 		args := req.GetArguments()
 		query := stringArg(args, "query", "")
@@ -24,7 +50,11 @@ func registerTools(s *Server) {
 		if query == "" {
 			return toolError(fmt.Errorf("query required")), nil
 		}
-		result, err := search.LocalSearch(ctx, s.store, s.embedder, s.vecIndex, query, topK, 0)
+		_, st, idx, err := s.resolveDocsScope(args)
+		if err != nil {
+			return toolError(err), nil
+		}
+		result, err := search.LocalSearch(ctx, st, s.embedder, idx, query, topK, 0)
 		if err != nil {
 			return toolError(err), nil
 		}
@@ -38,6 +68,7 @@ func registerTools(s *Server) {
 		mcpgo.WithString("query", mcpgo.Required(), mcpgo.Description("Search query")),
 		mcpgo.WithNumber("top_k", mcpgo.Description("Number of chunk results (default 5)")),
 		mcpgo.WithNumber("graph_depth", mcpgo.Description("Graph walk depth (default 2)")),
+		docProjectOpt(),
 	), server.ToolHandlerFunc(func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 		args := req.GetArguments()
 		query := stringArg(args, "query", "")
@@ -46,7 +77,11 @@ func registerTools(s *Server) {
 		if query == "" {
 			return toolError(fmt.Errorf("query required")), nil
 		}
-		result, err := search.LocalSearch(ctx, s.store, s.embedder, s.vecIndex, query, topK, depth)
+		_, st, idx, err := s.resolveDocsScope(args)
+		if err != nil {
+			return toolError(err), nil
+		}
+		result, err := search.LocalSearch(ctx, st, s.embedder, idx, query, topK, depth)
 		if err != nil {
 			return toolError(err), nil
 		}
@@ -59,6 +94,7 @@ func registerTools(s *Server) {
 		mcpgo.WithDescription("GraphRAG global search: community summary aggregation with LLM synthesis"),
 		mcpgo.WithString("query", mcpgo.Required(), mcpgo.Description("Search query")),
 		mcpgo.WithNumber("community_level", mcpgo.Description("Community hierarchy level (default 0)")),
+		docProjectOpt(),
 	), server.ToolHandlerFunc(func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 		args := req.GetArguments()
 		query := stringArg(args, "query", "")
@@ -66,7 +102,11 @@ func registerTools(s *Server) {
 		if query == "" {
 			return toolError(fmt.Errorf("query required")), nil
 		}
-		result, err := search.GlobalSearch(ctx, s.store, s.embedder, s.provider, query, level)
+		_, st, _, err := s.resolveDocsScope(args)
+		if err != nil {
+			return toolError(err), nil
+		}
+		result, err := search.GlobalSearch(ctx, st, s.embedder, s.provider, query, level)
 		if err != nil {
 			return toolError(err), nil
 		}
@@ -79,6 +119,7 @@ func registerTools(s *Server) {
 		mcpgo.WithDescription("Get entity details and relationships by name"),
 		mcpgo.WithString("entity_name", mcpgo.Required(), mcpgo.Description("Entity name")),
 		mcpgo.WithNumber("depth", mcpgo.Description("Relationship depth (default 1)")),
+		docProjectOpt(),
 	), server.ToolHandlerFunc(func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 		args := req.GetArguments()
 		name := stringArg(args, "entity_name", "")
@@ -86,14 +127,18 @@ func registerTools(s *Server) {
 		if name == "" {
 			return toolError(fmt.Errorf("entity_name required")), nil
 		}
-		entity, err := s.store.GetEntityByName(ctx, name)
+		_, st, _, err := s.resolveDocsScope(args)
+		if err != nil {
+			return toolError(err), nil
+		}
+		entity, err := st.GetEntityByName(ctx, name)
 		if err != nil {
 			return toolError(err), nil
 		}
 		if entity == nil {
 			return toolText(fmt.Sprintf(`{"error":"entity not found: %s"}`, name)), nil
 		}
-		rels, err := s.store.RelationshipsForEntity(ctx, entity.ID, depth)
+		rels, err := st.RelationshipsForEntity(ctx, entity.ID, depth)
 		if err != nil {
 			return toolError(err), nil
 		}
@@ -108,12 +153,17 @@ func registerTools(s *Server) {
 		mcpgo.WithString("from", mcpgo.Description("Source entity ID")),
 		mcpgo.WithString("to", mcpgo.Description("Target entity ID")),
 		mcpgo.WithString("predicate", mcpgo.Description("Relationship predicate filter")),
+		docProjectOpt(),
 	), server.ToolHandlerFunc(func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 		args := req.GetArguments()
 		from := stringArg(args, "from", "")
 		to := stringArg(args, "to", "")
 		pred := stringArg(args, "predicate", "")
-		rels, err := s.store.FindRelationships(ctx, from, to, pred)
+		_, st, _, err := s.resolveDocsScope(args)
+		if err != nil {
+			return toolError(err), nil
+		}
+		rels, err := st.FindRelationships(ctx, from, to, pred)
 		if err != nil {
 			return toolError(err), nil
 		}
@@ -127,6 +177,7 @@ func registerTools(s *Server) {
 		mcpgo.WithString("entity_name", mcpgo.Required(), mcpgo.Description("Center entity name")),
 		mcpgo.WithNumber("depth", mcpgo.Description("BFS depth (default 2)")),
 		mcpgo.WithNumber("max_nodes", mcpgo.Description("Max nodes to return (default 50)")),
+		docProjectOpt(),
 	), server.ToolHandlerFunc(func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 		args := req.GetArguments()
 		name := stringArg(args, "entity_name", "")
@@ -135,14 +186,18 @@ func registerTools(s *Server) {
 		if name == "" {
 			return toolError(fmt.Errorf("entity_name required")), nil
 		}
-		entity, err := s.store.GetEntityByName(ctx, name)
+		_, st, _, err := s.resolveDocsScope(args)
+		if err != nil {
+			return toolError(err), nil
+		}
+		entity, err := st.GetEntityByName(ctx, name)
 		if err != nil {
 			return toolError(err), nil
 		}
 		if entity == nil {
 			return toolText(`{"nodes":[],"edges":[]}`), nil
 		}
-		rels, err := s.store.RelationshipsForEntity(ctx, entity.ID, depth)
+		rels, err := st.RelationshipsForEntity(ctx, entity.ID, depth)
 		if err != nil {
 			return toolError(err), nil
 		}
@@ -158,7 +213,7 @@ func registerTools(s *Server) {
 			if count >= maxNodes {
 				break
 			}
-			e, err := s.store.GetEntity(ctx, nid)
+			e, err := st.GetEntity(ctx, nid)
 			if err != nil || e == nil {
 				continue
 			}
@@ -184,13 +239,18 @@ func registerTools(s *Server) {
 	s.mcpServer.AddTool(mcpgo.NewTool("get_document_structure",
 		mcpgo.WithDescription("Get LLM-generated structured summary of a document"),
 		mcpgo.WithString("doc_id", mcpgo.Description("Document ID")),
+		docProjectOpt(),
 	), server.ToolHandlerFunc(func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 		args := req.GetArguments()
 		docID := stringArg(args, "doc_id", "")
 		if docID == "" {
 			return toolError(fmt.Errorf("doc_id required")), nil
 		}
-		doc, err := s.store.GetDocument(ctx, docID)
+		_, st, _, err := s.resolveDocsScope(args)
+		if err != nil {
+			return toolError(err), nil
+		}
+		doc, err := st.GetDocument(ctx, docID)
 		if err != nil {
 			return toolError(err), nil
 		}
@@ -209,12 +269,17 @@ func registerTools(s *Server) {
 		mcpgo.WithString("type", mcpgo.Description("Entity type filter")),
 		mcpgo.WithNumber("limit", mcpgo.Description("Max results (default 20)")),
 		mcpgo.WithNumber("offset", mcpgo.Description("Pagination offset")),
+		docProjectOpt(),
 	), server.ToolHandlerFunc(func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 		args := req.GetArguments()
 		typ := stringArg(args, "type", "")
 		limit := intArg(args, "limit", 20)
 		offset := intArg(args, "offset", 0)
-		entities, err := s.store.ListEntities(ctx, typ, limit, offset)
+		_, st, _, err := s.resolveDocsScope(args)
+		if err != nil {
+			return toolError(err), nil
+		}
+		entities, err := st.ListEntities(ctx, typ, limit, offset)
 		if err != nil {
 			return toolError(err), nil
 		}
@@ -228,12 +293,17 @@ func registerTools(s *Server) {
 		mcpgo.WithString("doc_type", mcpgo.Description("Filter by type: pdf|docx|txt|md")),
 		mcpgo.WithNumber("limit", mcpgo.Description("Max results (default 20)")),
 		mcpgo.WithNumber("offset", mcpgo.Description("Pagination offset")),
+		docProjectOpt(),
 	), server.ToolHandlerFunc(func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 		args := req.GetArguments()
 		docType := stringArg(args, "doc_type", "")
 		limit := intArg(args, "limit", 20)
 		offset := intArg(args, "offset", 0)
-		docs, err := s.store.ListDocuments(ctx, docType, limit, offset)
+		_, st, _, err := s.resolveDocsScope(args)
+		if err != nil {
+			return toolError(err), nil
+		}
+		docs, err := st.ListDocuments(ctx, docType, limit, offset)
 		if err != nil {
 			return toolError(err), nil
 		}
@@ -245,20 +315,25 @@ func registerTools(s *Server) {
 	s.mcpServer.AddTool(mcpgo.NewTool("get_community_report",
 		mcpgo.WithDescription("Get community summary and member entities"),
 		mcpgo.WithString("community_id", mcpgo.Required(), mcpgo.Description("Community ID")),
+		docProjectOpt(),
 	), server.ToolHandlerFunc(func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 		args := req.GetArguments()
 		commID := stringArg(args, "community_id", "")
 		if commID == "" {
 			return toolError(fmt.Errorf("community_id required")), nil
 		}
-		comm, err := s.store.GetCommunity(ctx, commID)
+		_, st, _, err := s.resolveDocsScope(args)
+		if err != nil {
+			return toolError(err), nil
+		}
+		comm, err := st.GetCommunity(ctx, commID)
 		if err != nil {
 			return toolError(err), nil
 		}
 		if comm == nil {
 			return toolText(`{"error":"community not found"}`), nil
 		}
-		members, err := s.store.CommunityMembers(ctx, commID)
+		members, err := st.CommunityMembers(ctx, commID)
 		if err != nil {
 			return toolError(err), nil
 		}
@@ -271,13 +346,18 @@ func registerTools(s *Server) {
 	s.mcpServer.AddTool(mcpgo.NewTool("get_chunk",
 		mcpgo.WithDescription("Retrieve a specific chunk by ID"),
 		mcpgo.WithString("chunk_id", mcpgo.Required(), mcpgo.Description("Chunk ID")),
+		docProjectOpt(),
 	), server.ToolHandlerFunc(func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 		args := req.GetArguments()
 		chunkID := stringArg(args, "chunk_id", "")
 		if chunkID == "" {
 			return toolError(fmt.Errorf("chunk_id required")), nil
 		}
-		chunk, err := s.store.GetChunk(ctx, chunkID)
+		_, st, _, err := s.resolveDocsScope(args)
+		if err != nil {
+			return toolError(err), nil
+		}
+		chunk, err := st.GetChunk(ctx, chunkID)
 		if err != nil {
 			return toolError(err), nil
 		}
@@ -291,8 +371,14 @@ func registerTools(s *Server) {
 	// 12. stats
 	s.mcpServer.AddTool(mcpgo.NewTool("stats",
 		mcpgo.WithDescription("Get full index statistics"),
+		docProjectOpt(),
 	), server.ToolHandlerFunc(func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-		stats, err := s.store.GetStats(ctx)
+		args := req.GetArguments()
+		_, st, _, err := s.resolveDocsScope(args)
+		if err != nil {
+			return toolError(err), nil
+		}
+		stats, err := st.GetStats(ctx)
 		if err != nil {
 			return toolError(err), nil
 		}
@@ -304,13 +390,18 @@ func registerTools(s *Server) {
 	s.mcpServer.AddTool(mcpgo.NewTool("get_entity_claims",
 		mcpgo.WithDescription("List all claims extracted for a given entity"),
 		mcpgo.WithString("entity_id", mcpgo.Required(), mcpgo.Description("Entity ID")),
+		docProjectOpt(),
 	), server.ToolHandlerFunc(func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 		args := req.GetArguments()
 		entityID := stringArg(args, "entity_id", "")
 		if entityID == "" {
 			return toolError(fmt.Errorf("entity_id required")), nil
 		}
-		claims, err := s.store.ClaimsForEntity(ctx, entityID)
+		_, st, _, err := s.resolveDocsScope(args)
+		if err != nil {
+			return toolError(err), nil
+		}
+		claims, err := st.ClaimsForEntity(ctx, entityID)
 		if err != nil {
 			return toolError(err), nil
 		}
@@ -318,4 +409,3 @@ func registerTools(s *Server) {
 		return toolText(string(b)), nil
 	}))
 }
-

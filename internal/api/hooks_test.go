@@ -35,7 +35,7 @@ func setupHookRouter(t *testing.T) (http.Handler, string, string) {
 		t.Fatal(err)
 	}
 
-	h := NewRouter(nil, nil, nil, cfg, reg)
+	h := NewRouter(nil, nil, cfg, reg)
 	return h, remote, slug
 }
 
@@ -164,7 +164,7 @@ func TestHookSessionStart(t *testing.T) {
 	t.Run("nil_registry_returns_204", func(t *testing.T) {
 		// Directly build router with nil registry — mimics early startup.
 		cfg := &config.Config{DataDir: t.TempDir(), DefaultProject: config.DefaultProjectSlug}
-		h := NewRouter(nil, nil, nil, cfg, nil)
+		h := NewRouter(nil, nil, cfg, nil)
 		rec := doHook(h, `{"remote":"git@github.com:x/y.git"}`)
 		if rec.Code != http.StatusNoContent {
 			t.Fatalf("status=%d want 204 body=%s", rec.Code, rec.Body.String())

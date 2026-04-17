@@ -42,6 +42,18 @@ func newNotesHandlers(dataDir string, cfg interface{ NotesDir(string) string }, 
 	}
 }
 
+// newNotesHandlersWithStores reuses an existing shared projectStores
+// cache rather than allocating a private one. Wave-2 routers pass the
+// same cache used by the doc handlers so both read/write through a
+// single set of SQLite connections.
+func newNotesHandlersWithStores(stores *projectStores, cfg interface{ NotesDir(string) string }, registry *project.Registry) *notesHandlers {
+	return &notesHandlers{
+		cfg:      cfg,
+		stores:   stores,
+		registry: registry,
+	}
+}
+
 // writePayload is the JSON body for PUT /api/projects/{project}/notes/{key...}.
 type writePayload struct {
 	Content string   `json:"content"`
