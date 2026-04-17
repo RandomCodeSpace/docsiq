@@ -65,7 +65,7 @@ func ValidateKey(key string) error {
 		return fmt.Errorf("%w: absolute path", ErrInvalidKey)
 	}
 	// Reject any `..` segment (covers ".." alone, "../x", "x/..", "x/../y").
-	for _, seg := range strings.Split(key, "/") {
+	for seg := range strings.SplitSeq(key, "/") {
 		if seg == ".." {
 			return fmt.Errorf("%w: parent dir segment", ErrInvalidKey)
 		}

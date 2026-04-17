@@ -113,7 +113,7 @@ func TestMetricsEndpoint(t *testing.T) {
 		// Each non-comment, non-empty line must match the Prometheus
 		// exposition grammar: `<name>{labels} <value>` or `<name> <value>`.
 		// This is a structural sanity check, not a full parser.
-		for _, line := range strings.Split(rec.Body.String(), "\n") {
+		for line := range strings.SplitSeq(rec.Body.String(), "\n") {
 			if line == "" || strings.HasPrefix(line, "#") {
 				continue
 			}
