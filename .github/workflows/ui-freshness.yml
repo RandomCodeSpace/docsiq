@@ -1,0 +1,50 @@
+name: ui-dist freshness
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  ui-dist-freshness:
+    name: ui-dist freshness
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install UI dependencies
+        run: npm --prefix ui ci
+
+      - name: Build UI
+        run: npm --prefix ui run build
+
+      - name: Verify committed ui/dist matches the build output
+        run: |
+          if ! git diff --exit-code -- ui/dist/; then
+            echo ""
+            echo "=================================================================="
+            echo "ERROR: ui/dist/ is stale."
+            echo ""
+            echo "The committed contents of ui/dist/ do not match the output of"
+            echo "'npm --prefix ui run build'. Because DocsContext is distributed"
+            echo "via 'go install' (which cannot run npm/vite), the built UI assets"
+            echo "MUST be committed to git and kept in sync with the UI sources."
+            echo ""
+            echo "To fix locally, run:"
+            echo ""
+            echo "    npm --prefix ui run build && git add ui/dist"
+            echo ""
+            echo "then commit the result and push again."
+            echo "=================================================================="
+            exit 1
+          fi

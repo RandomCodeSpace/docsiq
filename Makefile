@@ -16,11 +16,15 @@ ui-build:
 build: ui-build
 	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" ./...
 
+# Filter out ui/node_modules — a transitive npm dep (flatted) ships a Go package
+# that would otherwise be walked by `./...`.
+GO_PKGS := $(shell go list ./... 2>/dev/null | grep -v /ui/node_modules/)
+
 test:
-	CGO_ENABLED=0 go test -timeout 120s ./...
+	CGO_ENABLED=0 go test -timeout 120s $(GO_PKGS)
 
 vet:
-	go vet ./...
+	go vet $(GO_PKGS)
 
 check: build vet test
 

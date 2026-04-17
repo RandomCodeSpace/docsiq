@@ -48,6 +48,13 @@ func writeError(w http.ResponseWriter, r *http.Request, status int, msg string, 
 	writeJSON(w, status, map[string]string{"error": msg})
 }
 
+// health is a trivially-always-200 liveness probe. No store/config
+// dependency so it works even if the backend is degraded, and the
+// auth middleware explicitly whitelists /health.
+func (h *handlers) health(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, 200, map[string]string{"status": "ok"})
+}
+
 func (h *handlers) getStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.store.GetStats(r.Context())
 	if err != nil {

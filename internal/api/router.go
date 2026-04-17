@@ -23,6 +23,10 @@ func NewRouter(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *
 
 	mux := http.NewServeMux()
 
+	// Public liveness probe — registered on the mux itself. The auth
+	// middleware also explicitly bypasses /health as defense-in-depth.
+	mux.HandleFunc("GET /health", h.health)
+
 	// MCP Streamable HTTP transport (POST /mcp, GET /mcp for SSE stream)
 	mux.Handle("/mcp", mcpServer.Handler())
 
@@ -42,7 +46,7 @@ func NewRouter(st *store.Store, prov llm.Provider, emb *embedder.Embedder, cfg *
 	// Embedded UI
 	mux.Handle("/", spaHandler(ui.Assets))
 
-	return loggingMiddleware(recoveryMiddleware(mux))
+	return loggingMiddleware(recoveryMiddleware(bearerAuthMiddleware(cfg.Server.APIKey, mux)))
 }
 
 func spaHandler(assets fs.FS) http.Handler {

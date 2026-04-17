@@ -19,7 +19,10 @@ type Store struct {
 
 // Open opens (or creates) the SQLite database at path and runs migrations.
 func Open(path string) (*Store, error) {
-	db, err := sql.Open("sqlite", path+"?_journal_mode=WAL&_foreign_keys=on")
+	if path == "" {
+		return nil, fmt.Errorf("open db: path is empty")
+	}
+	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(wal)&_pragma=foreign_keys(on)")
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
