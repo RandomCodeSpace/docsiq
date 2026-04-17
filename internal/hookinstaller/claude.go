@@ -8,7 +8,9 @@ import (
 
 // ClaudeInstaller targets ~/.claude/settings.json.
 //
-// Config shape (Claude Code, current as of kgraph reference):
+// Config shape — schema source: https://docs.claude.com/en/docs/claude-code/hooks
+// fetched 2026-04-17. Claude Code's SessionStart hook is a three-level
+// nested structure: event -> matcher-group -> command-list:
 //
 //	{
 //	  "hooks": {
@@ -18,14 +20,31 @@ import (
 //	  }
 //	}
 //
+// Per docs, SessionStart supports optional matcher values ("startup",
+// "resume", "clear", "compact"); omitting the matcher means the group
+// activates on every occurrence. We omit it so our hook always fires.
+//
 // We preserve all other top-level keys (mcpServers, permissions, etc)
 // and only mutate hooks.SessionStart. Within SessionStart, we also
 // preserve any entries that aren't ours.
-type ClaudeInstaller struct{}
+type ClaudeInstaller struct {
+	// testPath is set by test-only constructors to bypass ~/.claude
+	// resolution. Production code leaves this empty.
+	testPath string
+}
+
+// newClaudeInstallerWithPath is a test-only constructor that targets a
+// specific settings.json file rather than ~/.claude/settings.json.
+func newClaudeInstallerWithPath(p string) ClaudeInstaller {
+	return ClaudeInstaller{testPath: p}
+}
 
 func (ClaudeInstaller) Name() string { return "claude" }
 
-func (ClaudeInstaller) ConfigPath() (string, error) {
+func (c ClaudeInstaller) ConfigPath() (string, error) {
+	if c.testPath != "" {
+		return c.testPath, nil
+	}
 	home, err := homeDir()
 	if err != nil {
 		return "", err
