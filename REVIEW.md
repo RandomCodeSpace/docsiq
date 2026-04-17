@@ -31,6 +31,8 @@ store.go:324     — docSelect is the correct 12-col query, but
 
 **Recommended fix:** Replace the inline query with `docSelect + " WHERE id=? OR canonical_id=? ORDER BY version ASC"` to match every other doc query function.
 
+**Status:** fixed in P0-1-PENDING
+
 ---
 
 ### [P0-2] Path traversal via multipart filename in upload handler — `internal/api/handlers.go:409`

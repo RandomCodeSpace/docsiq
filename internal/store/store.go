@@ -301,11 +301,9 @@ func (s *Store) SupersedeDocument(ctx context.Context, id string) error {
 
 // GetDocumentVersions returns all versions of a document by canonical ID, oldest first.
 func (s *Store) GetDocumentVersions(ctx context.Context, canonicalID string) ([]*Document, error) {
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT id,path,title,doc_type,file_hash,structured,version,canonical_id,is_latest,created_at,updated_at
-		FROM documents
-		WHERE id=? OR canonical_id=?
-		ORDER BY version ASC`, canonicalID, canonicalID)
+	rows, err := s.db.QueryContext(ctx,
+		docSelect+" WHERE id=? OR canonical_id=? ORDER BY version ASC",
+		canonicalID, canonicalID)
 	if err != nil {
 		return nil, err
 	}
