@@ -24,6 +24,16 @@ import (
 // any SQLite single-row limit while accommodating very long design docs.
 const MaxNoteBytes = 10 * 1024 * 1024
 
+// MaxImportEntries caps the number of archive entries importTar will
+// process. Anything beyond this is treated as a potential zip-bomb /
+// resource-exhaustion attempt and rejected with 413. (P0-3)
+const MaxImportEntries = 10_000
+
+// MaxImportTotalBytes caps the aggregate decompressed bytes across all
+// entries in a single importTar request. Combined with MaxImportEntries
+// this bounds memory + disk impact of a single import. (P0-3)
+const MaxImportTotalBytes int64 = 500 << 20 // 500 MB
+
 // notesHandlers is the handler set that depends on the per-project
 // store cache and the configured data dir. A separate struct (rather
 // than adding fields to the main `handlers`) keeps Phase-2 surface
@@ -445,6 +455,9 @@ func (h *notesHandlers) importTar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	imported := 0
+	// P0-3: aggregate caps to prevent OOM from crafted archives.
+	var totalBytes int64
+	entryCount := 0
 	for {
 		hdr, err := tr.Next()
 		if errors.Is(err, io.EOF) {
@@ -452,6 +465,12 @@ func (h *notesHandlers) importTar(w http.ResponseWriter, r *http.Request) {
 		}
 		if err != nil {
 			writeError(w, r, 400, "tar read: "+err.Error(), err)
+			return
+		}
+		entryCount++
+		if entryCount > MaxImportEntries {
+			writeError(w, r, http.StatusRequestEntityTooLarge,
+				fmt.Sprintf("too many entries (cap %d)", MaxImportEntries), nil)
 			return
 		}
 		name := filepath.ToSlash(filepath.Clean(hdr.Name))
@@ -484,6 +503,12 @@ func (h *notesHandlers) importTar(w http.ResponseWriter, r *http.Request) {
 		if len(data) > MaxNoteBytes {
 			writeError(w, r, http.StatusRequestEntityTooLarge,
 				"entry too large: "+hdr.Name, nil)
+			return
+		}
+		totalBytes += int64(len(data))
+		if totalBytes > MaxImportTotalBytes {
+			writeError(w, r, http.StatusRequestEntityTooLarge,
+				fmt.Sprintf("total bytes exceed cap %d", MaxImportTotalBytes), nil)
 			return
 		}
 		if err := os.WriteFile(dest, data, 0o644); err != nil {

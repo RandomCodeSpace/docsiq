@@ -53,7 +53,7 @@ for _, fh := range files {
 
 **Recommended fix:** Sanitize `fh.Filename` to `filepath.Base(fh.Filename)` (stripping all directory components) before joining, AND assert `strings.HasPrefix(absDst, absTmpDir+string(os.PathSeparator))` as defense-in-depth. Reject entries whose sanitized name is empty, `.`, or `..`.
 
-**Status:** fixed in P0-2-PENDING
+**Status:** fixed in 42109f7
 
 ---
 
@@ -73,6 +73,8 @@ if len(data) > MaxNoteBytes { ... return }
 ```
 
 **Recommended fix:** Add a counter for total bytes decompressed AND a maximum entry count. Suggest `MaxImportEntries = 10_000` and `MaxImportTotalBytes = 500 << 20` (500 MB). Return 413 when either limit trips.
+
+**Status:** fixed in P0-3-PENDING
 
 ---
 
