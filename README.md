@@ -232,6 +232,26 @@ Per-project SQLite databases live at
 `$DATA_DIR/projects/<slug>/docsiq.db`, with a tiny registry at
 `$DATA_DIR/registry.db` mapping slugs to project metadata.
 
+## Hook support matrix
+
+docsiq registers a SessionStart hook with each AI client so GraphRAG
+context is loaded when the client starts. Only Claude Code publishes a
+documented SessionStart hook schema — the others are a best-effort
+placeholder pinned by fixture tests. Installing an unverified hook
+prints a `slog.Warn` so operators can opt out.
+
+| Client | Config path | Schema source | Status |
+|---|---|---|---|
+| Claude Code | `~/.claude/settings.json` | [docs.claude.com/en/docs/claude-code/hooks](https://docs.claude.com/en/docs/claude-code/hooks) (fetched 2026-04-17) | verified |
+| Cursor | `~/.cursor/docsiq-hooks.json` | no docs (docs.cursor.com/en/agent/hooks returned empty, 2026-04-17) | unverified |
+| Copilot CLI | `~/.config/github-copilot/hooks.json` | no docs (github.com/copilot CLI docs publish no hook schema, 2026-04-17) | unverified |
+| Codex CLI | `~/.codex/hooks.json` | no docs (github.com/openai/codex `docs/config.md` documents only a `Notify` post-turn hook, no SessionStart, 2026-04-17) | unverified |
+
+> **Note:** Unverified hook shapes mirror the original kgraph guesses.
+> When a client publishes a real schema, the corresponding installer in
+> `internal/hookinstaller/` should be updated along with its fixture
+> pair in `internal/hookinstaller/fixtures/<client>/`.
+
 ## Supported File Types
 
 | Format | Extensions | Notes |
