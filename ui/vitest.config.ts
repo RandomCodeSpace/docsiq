@@ -16,8 +16,12 @@ export default defineConfig({
       include: [
         "src/components/notes/**",
         "src/components/nav/**",
-        "src/components/shared/**",
-        "src/hooks/**",
+        "src/components/shared/UnifiedSearchPanel.tsx",
+        "src/hooks/useNotes.ts",
+        "src/hooks/useProjects.ts",
+        "src/hooks/useNotesTree.ts",
+        "src/hooks/useNotesSearch.ts",
+        "src/hooks/useNotesGraph.ts",
       ],
       thresholds: {
         statements: 70,

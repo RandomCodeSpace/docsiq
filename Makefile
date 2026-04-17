@@ -1,4 +1,4 @@
-.PHONY: build test test-integration vet check ui-install ui-build dev-ui dev-go
+.PHONY: build test test-integration vet check ui-install ui-build test-ui test-ui-coverage dev-ui dev-go
 
 VERSION  ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT   ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -29,7 +29,13 @@ test-integration:
 vet:
 	CGO_ENABLED=1 go vet -tags "sqlite_fts5" $(GO_PKGS)
 
-check: build vet test
+test-ui:
+	cd ui && npm test -- --run
+
+test-ui-coverage:
+	cd ui && npm run test:coverage
+
+check: build vet test test-ui
 
 dev-ui:
 	cd ui && npm run dev

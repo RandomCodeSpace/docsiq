@@ -79,6 +79,9 @@ jobs:
       - name: Build UI
         run: npm --prefix ui run build
 
+      - name: vitest
+        run: npm --prefix ui test -- --run --coverage
+
       - name: verify ui/dist/ matches fresh build
         run: |
           if ! git diff --exit-code -- ui/dist/; then

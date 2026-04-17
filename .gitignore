@@ -23,6 +23,7 @@ go.work.sum
 # Frontend tooling
 ui/node_modules/
 ui/*.tsbuildinfo
+ui/coverage/
 
 # Environment
 .env
