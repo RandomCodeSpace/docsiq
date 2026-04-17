@@ -59,6 +59,27 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+  test-integration:
+    name: integration tests (-race)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: cache go build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: go-integ-${{ hashFiles('go.sum') }}
+
+      - name: integration tests
+        run: CGO_ENABLED=1 go test -tags "sqlite_fts5 integration" -race -timeout 600s ./...
+
   ui-freshness:
     name: ui-dist freshness
     runs-on: ubuntu-latest
