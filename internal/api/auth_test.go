@@ -526,8 +526,7 @@ func BenchmarkBearerAuth_WrongKey(b *testing.B) {
 	wrong := "b" + strings.Repeat("a", 63) // differs only in first byte
 	keyB := []byte(key)
 	wrongB := []byte(wrong)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = subtle.ConstantTimeCompare(wrongB, keyB)
 	}
 }

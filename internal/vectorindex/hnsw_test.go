@@ -355,8 +355,7 @@ func BenchmarkHNSWSearch(b *testing.B) {
 		_ = idx.Add(id, v)
 	}
 	qv := randomVec(rng, dim)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = idx.Search(qv, k)
 	}
 }
@@ -369,8 +368,7 @@ func BenchmarkBruteForce(b *testing.B) {
 		vecs[fmt.Sprintf("v%d", i)] = randomVec(rng, dim)
 	}
 	qv := randomVec(rng, dim)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = bruteForceTopK(qv, vecs, k)
 	}
 }
