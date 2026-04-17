@@ -53,11 +53,29 @@ func lockFor(notesDir string) *sync.Mutex {
 	return m
 }
 
+// gitLookupFn is overridable in tests. Production callers go through
+// gitAvailable which memoizes the lookup via sync.OnceValue (P1-4).
+var gitLookupFn = func() (string, error) { return exec.LookPath("git") }
+
 // gitAvailable returns true if a `git` binary is resolvable on PATH.
-// Cheap — we call this once per write and log-warn on miss.
-func gitAvailable() bool {
-	_, err := exec.LookPath("git")
+// The result is memoized for process lifetime — git install state
+// doesn't change during a running server and exec.LookPath is a full
+// PATH scan (filesystem stats) that adds latency to every note write
+// when cached uncondtionally.
+//
+// Reset by tests via resetGitAvailableCache().
+var gitAvailable = sync.OnceValue(func() bool {
+	_, err := gitLookupFn()
 	return err == nil
+})
+
+// resetGitAvailableCache rebuilds the sync.OnceValue so tests can
+// observe independent runs. Not exported — internal to the package.
+func resetGitAvailableCache() {
+	gitAvailable = sync.OnceValue(func() bool {
+		_, err := gitLookupFn()
+		return err == nil
+	})
 }
 
 // initRepo initializes <notesDir>/.git on first use. Idempotent: if the

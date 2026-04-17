@@ -117,7 +117,7 @@ func notesError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, errUnknownProject):
 		writeError(w, r, http.StatusNotFound, "unknown project", err)
 	case errors.Is(err, notes.ErrInvalidKey):
-		writeError(w, r, http.StatusForbidden, "invalid key: "+err.Error(), err)
+		writeError(w, r, http.StatusBadRequest, "invalid key: "+err.Error(), err)
 	case errors.Is(err, notes.ErrNotFound):
 		writeError(w, r, http.StatusNotFound, "note not found", err)
 	default:
@@ -179,7 +179,7 @@ func (h *notesHandlers) writeNote(w http.ResponseWriter, r *http.Request) {
 	}
 	key := extractKey(r, "/notes/")
 	if err := notes.ValidateKey(key); err != nil {
-		writeError(w, r, http.StatusForbidden, "invalid key: "+err.Error(), err)
+		writeError(w, r, http.StatusBadRequest, "invalid key: "+err.Error(), err)
 		return
 	}
 	if r.ContentLength > 0 && r.ContentLength > MaxNoteBytes {
@@ -240,7 +240,7 @@ func (h *notesHandlers) deleteNote(w http.ResponseWriter, r *http.Request) {
 	}
 	key := extractKey(r, "/notes/")
 	if err := notes.ValidateKey(key); err != nil {
-		writeError(w, r, http.StatusForbidden, "invalid key: "+err.Error(), err)
+		writeError(w, r, http.StatusBadRequest, "invalid key: "+err.Error(), err)
 		return
 	}
 	if err := notes.Delete(notesDir, key); err != nil {
@@ -269,7 +269,7 @@ func (h *notesHandlers) noteHistory(w http.ResponseWriter, r *http.Request) {
 	raw := extractKey(r, "/notes/")
 	key := strings.TrimSuffix(raw, "/history")
 	if err := notes.ValidateKey(key); err != nil {
-		writeError(w, r, http.StatusForbidden, "invalid key: "+err.Error(), err)
+		writeError(w, r, http.StatusBadRequest, "invalid key: "+err.Error(), err)
 		return
 	}
 	limit := 50

@@ -63,6 +63,9 @@ func registerNotesTools(s *Server) {
 		slug := stringArg(args, "project", "")
 		q := stringArg(args, "query", "")
 		limit := intArg(args, "limit", 20)
+		if q == "" {
+			return toolError(fmt.Errorf("query required")), nil
+		}
 		if err := s.validateProject(slug); err != nil {
 			return toolError(err), nil
 		}

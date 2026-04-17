@@ -32,7 +32,10 @@ func open(path string) (*Store, error) {
 	if path == "" {
 		return nil, fmt.Errorf("open db: path is empty")
 	}
-	db, err := sql.Open("sqlite3", path+"?_journal_mode=WAL&_foreign_keys=on")
+	// P1-2: _busy_timeout lets SQLite wait-and-retry on SQLITE_BUSY
+	// rather than failing instantly. With MaxOpenConns=1 this prevents
+	// spurious "database is locked" errors under concurrent load.
+	db, err := sql.Open("sqlite3", path+"?_journal_mode=WAL&_foreign_keys=on&_busy_timeout=5000")
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
