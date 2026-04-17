@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/RandomCodeSpace/docsiq/internal/llm"
 	"github.com/RandomCodeSpace/docsiq/internal/search"
 	"github.com/RandomCodeSpace/docsiq/internal/store"
 	"github.com/RandomCodeSpace/docsiq/internal/vectorindex"
@@ -102,11 +103,21 @@ func registerTools(s *Server) {
 		if query == "" {
 			return toolError(fmt.Errorf("query required")), nil
 		}
-		_, st, _, err := s.resolveDocsScope(args)
+		slug, st, _, err := s.resolveDocsScope(args)
 		if err != nil {
 			return toolError(err), nil
 		}
-		result, err := search.GlobalSearch(ctx, st, s.embedder, s.provider, query, level)
+		// Per-project LLM override: if cfg.LLMOverrides has an entry for
+		// this slug, use that provider instead of the server-level root
+		// provider. On resolution failure (bad override config) fall back
+		// to s.provider so a broken override can't block global_search.
+		prov := s.provider
+		if s.cfg != nil {
+			if p, perr := llm.ProviderForProject(s.cfg, slug); perr == nil && p != nil {
+				prov = p
+			}
+		}
+		result, err := search.GlobalSearch(ctx, st, s.embedder, prov, query, level)
 		if err != nil {
 			return toolError(err), nil
 		}
