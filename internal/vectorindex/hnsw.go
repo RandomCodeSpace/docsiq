@@ -413,10 +413,3 @@ func (h *maxHeap) Pop() any {
 	*h = old[:n-1]
 	return x
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

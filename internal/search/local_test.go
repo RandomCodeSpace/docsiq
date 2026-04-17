@@ -44,13 +44,6 @@ func (m *mockProvider) EmbedBatch(ctx context.Context, texts []string) ([][]floa
 	return out, nil
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func seedCorpus(t *testing.T) (*store.Store, *embedder.Embedder, *mockProvider) {
 	t.Helper()
 	dir := t.TempDir()
