@@ -35,7 +35,6 @@ func TestVectorIndexes_ForProject_SingleFlight(t *testing.T) {
 	// Barrier so all goroutines call ForProject ~simultaneously.
 	start := make(chan struct{})
 	for i := range goroutines {
-		i := i
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
