@@ -326,7 +326,14 @@ func (h *notesHandlers) searchNotes(w http.ResponseWriter, r *http.Request) {
 	if projectErr(w, r, err) {
 		return
 	}
-	q := r.URL.Query().Get("q")
+	// NF-P1-1: reject empty / whitespace-only q so REST matches the MCP
+	// search_notes contract. Previously a blank q silently returned `[]`,
+	// which misled clients into "no results" instead of "bad request".
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if q == "" {
+		writeError(w, r, http.StatusBadRequest, "query required", nil)
+		return
+	}
 	limit := 20
 	if ls := r.URL.Query().Get("limit"); ls != "" {
 		if n, err := strconv.Atoi(ls); err == nil && n > 0 && n <= 500 {

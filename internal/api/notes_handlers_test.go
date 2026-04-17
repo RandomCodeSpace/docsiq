@@ -328,10 +328,25 @@ func TestNotesHandlers_WikilinkOutlinksInResponse(t *testing.T) {
 }
 
 func TestNotesHandlers_SearchEmptyQuery(t *testing.T) {
+	// NF-P1-1: empty / whitespace-only q must match the MCP contract and
+	// be rejected with 400 "query required" rather than silently returning
+	// an empty hit list (which misled clients into thinking the corpus was
+	// empty). Covers bare `q=`, missing `q` entirely, and whitespace.
 	h, slug, _ := setupNotesRouter(t)
-	rec := doN(h, http.MethodGet, "/api/projects/"+slug+"/search?q=", "")
-	if rec.Code != 200 {
-		t.Errorf("empty query should 200 with [] hits, got %d", rec.Code)
+	for _, path := range []string{
+		"/api/projects/" + slug + "/search?q=",
+		"/api/projects/" + slug + "/search",
+		"/api/projects/" + slug + "/search?q=%20%20",
+	} {
+		rec := doN(h, http.MethodGet, path, "")
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: status=%d want 400; body=%s", path, rec.Code, rec.Body.String())
+		}
+		var body map[string]any
+		_ = json.Unmarshal(rec.Body.Bytes(), &body)
+		if body["error"] != "query required" {
+			t.Errorf("%s: body=%v want error=\"query required\"", path, body)
+		}
 	}
 }
 
