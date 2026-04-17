@@ -31,7 +31,7 @@ store.go:324     — docSelect is the correct 12-col query, but
 
 **Recommended fix:** Replace the inline query with `docSelect + " WHERE id=? OR canonical_id=? ORDER BY version ASC"` to match every other doc query function.
 
-**Status:** fixed in P0-1-PENDING
+**Status:** fixed in 0cd9a97
 
 ---
 
@@ -52,6 +52,8 @@ for _, fh := range files {
 `filepath.Join("/tmp/docsiq-upload-abc", "../../etc/cron.d/pwn")` evaluates to `/etc/cron.d/pwn`. No path containment assertion follows before `os.Create(dst)`.
 
 **Recommended fix:** Sanitize `fh.Filename` to `filepath.Base(fh.Filename)` (stripping all directory components) before joining, AND assert `strings.HasPrefix(absDst, absTmpDir+string(os.PathSeparator))` as defense-in-depth. Reject entries whose sanitized name is empty, `.`, or `..`.
+
+**Status:** fixed in P0-2-PENDING
 
 ---
 

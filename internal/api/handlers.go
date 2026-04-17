@@ -404,9 +404,33 @@ func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	absTmp, err := filepath.Abs(tmpDir)
+	if err != nil {
+		writeError(w, r, 500, err.Error(), err)
+		return
+	}
+
 	var paths []string
 	for _, fh := range files {
-		dst := filepath.Join(tmpDir, fh.Filename)
+		// Defense against multipart filename path traversal (P0-2). Strip
+		// directory components first, reject degenerate names, then assert
+		// absolute-path containment before creating the file.
+		name := filepath.Base(fh.Filename)
+		if name == "" || name == "." || name == ".." || strings.ContainsAny(name, "/\\") {
+			slog.Warn("⚠️ upload: skipping invalid filename", "filename", fh.Filename)
+			continue
+		}
+		dst := filepath.Join(tmpDir, name)
+		absDst, err := filepath.Abs(dst)
+		if err != nil {
+			writeError(w, r, 500, err.Error(), err)
+			return
+		}
+		if !strings.HasPrefix(absDst, absTmp+string(os.PathSeparator)) {
+			slog.Warn("⚠️ upload: entry escapes tmp dir; skipping",
+				"filename", fh.Filename, "resolved", absDst)
+			continue
+		}
 		f, err := fh.Open()
 		if err != nil {
 			writeError(w, r, 500, err.Error(), err)
@@ -426,6 +450,10 @@ func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		paths = append(paths, dst)
+	}
+	if len(paths) == 0 {
+		writeError(w, r, 400, "no valid files provided", nil)
+		return
 	}
 
 	jobID := fmt.Sprintf("job-%d", h.jobCounter.Add(1))
