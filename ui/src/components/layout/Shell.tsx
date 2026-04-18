@@ -1,10 +1,23 @@
 import { type ReactNode, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { SkipLink } from "./SkipLink";
+import { useUIStore } from "@/stores/ui";
+import { useHotkey } from "@/hooks/useHotkey";
 
 export function Shell({ children }: { children: ReactNode }) {
   const [cmdOpen, setCmdOpen] = useState(false);
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
+  const navigate = useNavigate();
+
+  useHotkey("mod+\\", () => toggleSidebar());
+  useHotkey("mod+k", () => setCmdOpen((v) => !v));
+  useHotkey("g,h", () => navigate("/"));
+  useHotkey("g,n", () => navigate("/notes"));
+  useHotkey("g,d", () => navigate("/docs"));
+  useHotkey("g,g", () => navigate("/graph"));
+  useHotkey("g,m", () => navigate("/mcp"));
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -21,7 +34,6 @@ export function Shell({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
-      {/* CommandPalette will mount in Wave 3 */}
       <span className="sr-only" aria-hidden>{cmdOpen ? "open" : "closed"}</span>
     </div>
   );
