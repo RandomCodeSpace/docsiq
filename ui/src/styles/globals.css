@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+@theme {
+  --color-base: #0f1115;
+  --color-surface-1: #14171d;
+  --color-surface-2: #1b1f26;
+  --color-border: #1e2128;
+  --color-border-strong: #2a2f38;
+  --color-text: #e4e6ec;
+  --color-text-muted: #6f7482;
+  --color-text-faint: #4a4f59;
+
+  --color-accent: #3ecf8e;
+  --color-accent-hover: #4ad89a;
+  --color-accent-contrast: #0f1115;
+
+  --color-semantic-new: #3ecf8e;
+  --color-semantic-index: #6ba6ff;
+  --color-semantic-graph: #b08fe8;
+  --color-semantic-error: #e06060;
+  --color-semantic-warn: #f3b54a;
+
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+
+  --ease-out: cubic-bezier(0.3, 0, 0, 1);
+  --ease-in: cubic-bezier(0.7, 0, 1, 0.3);
+}
+
+@media (prefers-color-scheme: light) {
+  @theme {
+    --color-base: #f8f9fb;
+    --color-surface-1: #ffffff;
+    --color-surface-2: #f1f3f6;
+    --color-border: #e5e8ec;
+    --color-border-strong: #c8ced6;
+    --color-text: #0f1115;
+    --color-text-muted: #5e6672;
+    --color-text-faint: #8c93a0;
+    --color-accent: #1faa69;
+    --color-accent-hover: #1a9a5f;
+    --color-accent-contrast: #ffffff;
+    --color-semantic-new: #1faa69;
+    --color-semantic-index: #2968d4;
+    --color-semantic-graph: #7246c2;
+    --color-semantic-error: #c03030;
+    --color-semantic-warn: #b8801e;
+  }
+}
+
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/Geist-400.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/Geist-500.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/Geist-600.woff2") format("woff2");
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/GeistMono-400.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/GeistMono-500.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  background: var(--color-base);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01", "ss03";
+  -webkit-font-smoothing: antialiased;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
