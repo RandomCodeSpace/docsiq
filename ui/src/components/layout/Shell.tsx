@@ -5,6 +5,7 @@ import { TopBar } from "./TopBar";
 import { SkipLink } from "./SkipLink";
 import { useUIStore } from "@/stores/ui";
 import { useHotkey } from "@/hooks/useHotkey";
+import { CommandPalette } from "@/components/command/CommandPalette";
 
 export function Shell({ children }: { children: ReactNode }) {
   const [cmdOpen, setCmdOpen] = useState(false);
@@ -34,7 +35,7 @@ export function Shell({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
-      <span className="sr-only" aria-hidden>{cmdOpen ? "open" : "closed"}</span>
+      <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} />
     </div>
   );
 }
