@@ -1,16 +1,20 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Shell } from "../Shell";
 
 describe("Shell", () => {
   it("renders sidebar, topbar, skip link, and main landmark", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
-      <MemoryRouter>
-        <Shell>
-          <div>content</div>
-        </Shell>
-      </MemoryRouter>,
+      <QueryClientProvider client={qc}>
+        <MemoryRouter>
+          <Shell>
+            <div>content</div>
+          </Shell>
+        </MemoryRouter>
+      </QueryClientProvider>,
     );
     expect(screen.getByRole("navigation", { name: /primary/i })).toBeInTheDocument();
     expect(screen.getByRole("main")).toBeInTheDocument();
