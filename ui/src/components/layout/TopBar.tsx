@@ -1,6 +1,7 @@
 import { useUIStore } from "@/stores/ui";
 import { t } from "@/i18n";
 import { PanelLeft } from "lucide-react";
+import { ThemeToggle } from "./ThemeToggle";
 
 interface TopBarProps {
   onCommandOpen: () => void;
@@ -29,6 +30,7 @@ export function TopBar({ onCommandOpen }: TopBarProps) {
         <span>{t("nav.search")}</span>
         <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface-2)] border border-[var(--color-border)]">⌘K</kbd>
       </button>
+      <ThemeToggle />
     </header>
   );
 }
