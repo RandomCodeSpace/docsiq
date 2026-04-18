@@ -1,8 +1,15 @@
+import { GraphCanvas } from "@/components/graph/GraphCanvas";
+import { useNotesGraph } from "@/hooks/api/useGraph";
+import { useProjectStore } from "@/stores/project";
+
 export default function Graph() {
+  const project = useProjectStore((s) => s.slug);
+  const { data, isLoading } = useNotesGraph(project);
+  if (isLoading) return <div className="p-8 text-sm text-[var(--color-text-muted)]">Loading graph…</div>;
+  if (!data) return <div className="p-8 text-sm">No graph data.</div>;
   return (
-    <div className="p-6">
-      <h1 className="text-xl font-semibold">Graph</h1>
-      <p className="text-sm text-[var(--color-text-muted)] mt-2">Stub — implemented in later wave.</p>
+    <div className="h-[calc(100vh-44px)] p-4">
+      <GraphCanvas data={data} />
     </div>
   );
 }
