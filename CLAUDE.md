@@ -45,8 +45,8 @@ internal/
 
 ## Config & Environment
 
-- Config dir: `~/.docsiq/` (legacy `~/.docscontext/` still honored for a deprecation window)
-- Env var prefix: `DOCSIQ_` (legacy `DOCSCONTEXT_` is auto-migrated in-process at startup and emits a deprecation warning)
+- Config dir: `~/.docsiq/`
+- Env var prefix: `DOCSIQ_`
 - Supports both `.yaml` and `.yml` config files
 
 ## Code Style

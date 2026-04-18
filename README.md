@@ -8,12 +8,6 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/RandomCodeSpace/docsiq)](https://github.com/RandomCodeSpace/docsiq/blob/main/go.mod)
 [![Frontend Version](https://img.shields.io/badge/frontend-none-lightgrey)](https://github.com/RandomCodeSpace/docsiq)
 
-> **Repo rename:** the project was previously named `docscontext`. The local
-> checkout directory may still be `docscontext/`, but the Go module and
-> binary are now `docsiq`. The GitHub repo rename from `docscontext` to
-> `docsiq` is a manual step on github.com — badge/clone URLs above assume
-> it has been done.
-
 A GraphRAG tool inspired by [Microsoft GraphRAG](https://github.com/microsoft/graphrag). Built on CGO-backed SQLite ([`mattn/go-sqlite3`](https://github.com/mattn/go-sqlite3) with FTS5) plus the [`sqlite-vec`](https://github.com/asg017/sqlite-vec) loadable extension for ANN vector search.
 Ingests unstructured documents, builds a hierarchical knowledge graph with community detection, and exposes an **MCP server + embedded Web UI** on a single port.
 
