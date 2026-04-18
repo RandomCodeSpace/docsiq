@@ -20,7 +20,19 @@ export default function DocumentsList() {
           <Button onClick={() => setUploadOpen(true)}>Upload</Button>
         </div>
         <UploadModal open={uploadOpen} onOpenChange={setUploadOpen} />
-        <div className="docs-empty">No documents indexed yet.</div>
+        <div className="docs-empty">
+          <p className="docs-empty-title">No documents indexed yet.</p>
+          <p className="docs-empty-desc">
+            docsiq indexes from disk or URL into a GraphRAG knowledge base. Run the CLI against a
+            folder of PDFs, Markdown, text, or a docs site.
+          </p>
+          <code className="docs-empty-code">docsiq index ~/path/to/docs --project {project}</code>
+          <p className="docs-empty-hint">
+            Requires an LLM provider (Azure OpenAI / OpenAI / Ollama) configured in
+            <code className="mx-1 px-1 py-0.5 bg-muted rounded font-mono">~/.docsiq/config.yaml</code>.
+            Notes and wikilinks work without a provider.
+          </p>
+        </div>
       </div>
     );
   }

@@ -191,6 +191,16 @@ html, body, #root {
   text-rendering: optimizeLegibility;
 }
 
+/* iOS / notched devices: respect safe areas at the body edges */
+@supports (padding: env(safe-area-inset-top)) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+  }
+}
+
 /* Focus rings live on individual primitives; nav links / links get this baseline */
 a:focus-visible,
 button:not([data-slot]):focus-visible,
@@ -381,7 +391,11 @@ html, body {
   .docs-page           { @apply p-6 max-w-[1200px] mx-auto; }
   .docs-page-head      { @apply flex items-center justify-between mb-4; }
   .docs-page-title     { @apply text-xl font-semibold text-foreground; }
-  .docs-empty          { @apply p-10 text-center text-sm text-muted-foreground border border-dashed border-border rounded-md; }
+  .docs-empty          { @apply p-10 border border-dashed border-border rounded-md bg-card; }
+  .docs-empty-title    { @apply text-sm font-medium text-foreground; }
+  .docs-empty-desc     { @apply text-sm text-muted-foreground mt-1; }
+  .docs-empty-code     { @apply block my-4 p-3 bg-muted border border-border rounded font-mono text-xs text-foreground overflow-x-auto whitespace-pre; }
+  .docs-empty-hint     { @apply text-xs text-muted-foreground; }
 
   /* ── Single document / note view ─────────────────────────── */
   .doc-view            { @apply p-8 max-w-[860px] mx-auto; }

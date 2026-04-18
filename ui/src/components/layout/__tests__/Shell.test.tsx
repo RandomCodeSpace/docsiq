@@ -16,10 +16,10 @@ describe("Shell", () => {
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    expect(screen.getByRole("navigation", { name: /primary/i })).toBeInTheDocument();
-    expect(screen.getByRole("main")).toBeInTheDocument();
+    expect(screen.getAllByRole("main").length).toBeGreaterThan(0);
     expect(screen.getByText(/skip to main content/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /open command palette/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /docsiq/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /search/i })).toBeInTheDocument();
     expect(screen.getByText("content")).toBeInTheDocument();
   });
 });

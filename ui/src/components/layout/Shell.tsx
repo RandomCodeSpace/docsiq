@@ -5,11 +5,13 @@ import { SiteHeader } from "@/components/site-header";
 import { SkipLink } from "./SkipLink";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useHotkey } from "@/hooks/useHotkey";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { CommandPalette } from "@/components/command/CommandPalette";
 
 export function Shell({ children }: { children: ReactNode }) {
   const [cmdOpen, setCmdOpen] = useState(false);
   const navigate = useNavigate();
+  useDocumentTitle();
 
   useHotkey("mod+k", () => setCmdOpen((v) => !v));
   useHotkey("g,h", () => navigate("/"));
