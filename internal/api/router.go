@@ -1,7 +1,9 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"html"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -125,7 +127,7 @@ func NewRouter(prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, re
 	registerHookRoutes(mux, registry)
 
 	// Embedded UI
-	mux.Handle("/", spaHandler(ui.Assets))
+	mux.Handle("/", spaHandler(ui.Assets, cfg))
 
 	// Middleware ordering (outermost → innermost):
 	//   logging → recovery → auth → project → mux
@@ -138,7 +140,7 @@ func NewRouter(prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, re
 				projectMiddleware(cfg, registry, mux))))
 }
 
-func spaHandler(assets fs.FS) http.Handler {
+func spaHandler(assets fs.FS, cfg *config.Config) http.Handler {
 	fileServer := http.FileServer(http.FS(assets))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -152,7 +154,7 @@ func spaHandler(assets fs.FS) http.Handler {
 			cleanPath = "index.html"
 		}
 
-		if strings.Contains(path.Base(cleanPath), ".") {
+		if cleanPath != "index.html" && strings.Contains(path.Base(cleanPath), ".") {
 			fileServer.ServeHTTP(w, r)
 			return
 		}
@@ -163,6 +165,14 @@ func spaHandler(assets fs.FS) http.Handler {
 			return
 		}
 
+		if cfg.Server.APIKey != "" {
+			content = bytes.Replace(
+				content,
+				[]byte("</head>"),
+				[]byte(`<meta name="docsiq-api-key" content="`+html.EscapeString(cfg.Server.APIKey)+`"></head>`),
+				1,
+			)
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(content)
