@@ -7,6 +7,8 @@ import { initAuth } from "@/lib/api-client";
 import Home from "@/routes/Home";
 import NotesLayout from "@/routes/notes/NotesLayout";
 import NoteView from "@/routes/notes/NoteView";
+import NoteEditor from "@/routes/notes/NoteEditor";
+import NotesSearch from "@/routes/notes/NotesSearch";
 import DocumentsList from "@/routes/documents/DocumentsList";
 import DocumentView from "@/routes/documents/DocumentView";
 import Graph from "@/routes/Graph";
@@ -20,7 +22,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/notes" element={<NotesLayout />}>
+            <Route path="search" element={<NotesSearch />} />
             <Route path=":key" element={<NoteView />} />
+            <Route path=":key/edit" element={<NoteEditor />} />
           </Route>
           <Route path="/docs" element={<DocumentsList />} />
           <Route path="/docs/:id" element={<DocumentView />} />
