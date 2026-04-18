@@ -1,6 +1,7 @@
 const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
 export function formatRelativeTime(fromMs: number, now: number = Date.now()): string {
+  if (!Number.isFinite(fromMs)) return "—";
   const diffMs = fromMs - now;
   const abs = Math.abs(diffMs);
   const min = 60_000;

@@ -6,7 +6,12 @@ import type { Document } from "@/types/api";
 export function useDocs(project: string) {
   return useQuery({
     queryKey: qk.docs(project),
-    queryFn: () => apiFetch<Document[]>(`/api/documents?project=${encodeURIComponent(project)}`),
+    queryFn: async () => {
+      const res = await apiFetch<Document[] | null>(
+        `/api/documents?project=${encodeURIComponent(project)}`,
+      );
+      return Array.isArray(res) ? res : [];
+    },
   });
 }
 

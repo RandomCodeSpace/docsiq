@@ -6,12 +6,12 @@ export default function DocumentView() {
   const { id } = useParams();
   const project = useProjectStore((s) => s.slug);
   const { data, isLoading } = useDoc(project, id);
-  if (isLoading) return <div className="p-8 text-sm text-[var(--color-text-muted)]">Loading…</div>;
+  if (isLoading) return <div className="p-8 text-sm text-muted-foreground">Loading…</div>;
   if (!data) return <div className="p-8 text-sm">Not found.</div>;
   return (
-    <article className="p-8 max-w-[720px] mx-auto">
-      <h1 className="text-xl font-semibold">{data.title || data.path}</h1>
-      <div className="mt-2 font-mono text-xs text-[var(--color-text-muted)]">
+    <article className="doc-view">
+      <h1 className="doc-view-title">{data.title || data.path}</h1>
+      <div className="doc-view-meta">
         {data.doc_type} · v{data.version}
       </div>
     </article>

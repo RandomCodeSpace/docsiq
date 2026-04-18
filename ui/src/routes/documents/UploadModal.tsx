@@ -38,8 +38,8 @@ export function UploadModal({ open, onOpenChange }: { open: boolean; onOpenChang
           onChange={(e) => onFiles(e.currentTarget.files)}
           className="block w-full text-sm"
         />
-        {busy && <p className="text-xs text-[var(--color-text-muted)]">Uploading…</p>}
-        {err && <p className="text-xs text-[var(--color-semantic-error)]">{err}</p>}
+        {busy && <p className="text-xs text-muted-foreground">Uploading…</p>}
+        {err && <p className="text-xs text-destructive">{err}</p>}
       </DialogContent>
     </Dialog>
   );

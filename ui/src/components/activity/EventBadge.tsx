@@ -1,19 +1,16 @@
 import type { ActivityEventKind } from "@/hooks/api/useActivity";
 
-const STYLES: Record<ActivityEventKind, { label: string; color: string }> = {
-  note_added: { label: "+ NOTE", color: "var(--color-semantic-new)" },
-  note_updated: { label: "~ NOTE", color: "var(--color-semantic-new)" },
-  doc_indexed: { label: "INDEX", color: "var(--color-semantic-index)" },
-  doc_error: { label: "ERROR", color: "var(--color-semantic-error)" },
+const STYLES: Record<ActivityEventKind, { label: string; className: string }> = {
+  note_added: { label: "+ NOTE", className: "activity-badge-new" },
+  note_updated: { label: "~ NOTE", className: "activity-badge-upd" },
+  doc_indexed: { label: "INDEX", className: "activity-badge-doc" },
+  doc_error: { label: "ERROR", className: "activity-badge-err" },
 };
 
 export function EventBadge({ kind }: { kind: ActivityEventKind }) {
-  const { label, color } = STYLES[kind];
+  const { label, className } = STYLES[kind];
   return (
-    <span
-      className="font-mono text-[10px] px-1.5 py-0.5 rounded"
-      style={{ color, borderColor: color, border: "1px solid" }}
-    >
+    <span className={`activity-badge ${className}`}>
       {label}
     </span>
   );

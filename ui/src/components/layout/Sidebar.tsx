@@ -28,7 +28,7 @@ export function Sidebar() {
       role="navigation"
       aria-label="Primary"
       className={cn(
-        "border-r border-[var(--color-border)] bg-[var(--color-surface-1)] flex flex-col",
+        "border-r border-border bg-card flex flex-col",
         collapsed ? "w-[56px]" : "w-[220px]",
       )}
     >
@@ -41,9 +41,9 @@ export function Sidebar() {
             className={({ isActive }) =>
               cn(
                 "flex items-center gap-3 rounded-md px-3 py-1.5 text-sm",
-                "hover:bg-[var(--color-surface-2)] transition-colors",
-                isActive && "bg-[var(--color-surface-2)] text-[var(--color-text)]",
-                !isActive && "text-[var(--color-text-muted)]",
+                "hover:bg-muted transition-colors",
+                isActive && "bg-muted text-foreground",
+                !isActive && "text-muted-foreground",
               )
             }
             title={collapsed ? label : undefined}
@@ -52,7 +52,7 @@ export function Sidebar() {
             {!collapsed && (
               <>
                 <span className="flex-1">{label}</span>
-                <span className="font-mono text-[10px] text-[var(--color-text-faint)]">
+                <span className="font-mono text-[10px] text-muted-foreground">
                   {chord}
                 </span>
               </>

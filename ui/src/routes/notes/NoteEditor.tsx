@@ -43,41 +43,43 @@ export default function NoteEditor() {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="p-8 max-w-[620px] mx-auto space-y-4">
-      <h1 className="text-xl font-semibold">Edit {key}</h1>
+    <form onSubmit={handleSubmit(onSubmit)} className="note-editor">
+      <div className="note-editor-head">
+        <h1 className="note-editor-title">Edit {key}</h1>
+      </div>
       <textarea
         {...register("content")}
         rows={20}
-        className="w-full font-mono text-sm p-3 bg-[var(--color-surface-1)] border border-[var(--color-border)] rounded-md"
+        className="note-editor-textarea"
         aria-label="Note content"
       />
       {formState.errors.content && (
-        <p className="text-xs text-[var(--color-semantic-error)]">
+        <p className="text-xs text-destructive">
           {formState.errors.content.message}
         </p>
       )}
       <input
         {...register("author")}
         placeholder="Author (optional)"
-        className="w-full px-3 py-2 bg-[var(--color-surface-1)] border border-[var(--color-border)] rounded-md text-sm"
+        className="w-full px-3 py-2 bg-card border border-border rounded-md text-sm"
       />
       <input
         {...register("tagsRaw")}
         placeholder="Tags, comma-separated"
-        className="w-full px-3 py-2 bg-[var(--color-surface-1)] border border-[var(--color-border)] rounded-md text-sm"
+        className="w-full px-3 py-2 bg-card border border-border rounded-md text-sm"
       />
       <div className="flex gap-2">
         <button
           type="submit"
           disabled={formState.isSubmitting}
-          className="px-3 py-1.5 bg-[var(--color-accent)] text-[var(--color-accent-contrast)] rounded-md text-sm"
+          className="px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm"
         >
           Save
         </button>
         <button
           type="button"
           onClick={() => nav(-1)}
-          className="px-3 py-1.5 border border-[var(--color-border-strong)] rounded-md text-sm"
+          className="px-3 py-1.5 border border-border rounded-md text-sm"
         >
           Cancel
         </button>

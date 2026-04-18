@@ -1,58 +1,154 @@
 @import "tailwindcss";
 
-@theme {
-  --color-base: #0f1115;
-  --color-surface-1: #14171d;
-  --color-surface-2: #1b1f26;
-  --color-border: #1e2128;
-  --color-border-strong: #2a2f38;
-  --color-text: #e4e6ec;
-  --color-text-muted: #6f7482;
-  --color-text-faint: #4a4f59;
+@custom-variant dark (&:is(.dark *));
 
-  --color-accent: #3ecf8e;
-  --color-accent-hover: #4ad89a;
-  --color-accent-contrast: #0f1115;
+/* ────────────────────────────────────────────────────────────────
+ * Terminal theme — Linear density + Raycast keyboard-first +
+ * Arc chromatic restraint. Single accent, no decorative shadows,
+ * mono for data, sans for UI.
+ * ──────────────────────────────────────────────────────────────── */
 
-  --color-semantic-new: #3ecf8e;
-  --color-semantic-index: #6ba6ff;
-  --color-semantic-graph: #b08fe8;
-  --color-semantic-error: #e06060;
-  --color-semantic-warn: #f3b54a;
+:root {
+  /* Neutrals — light */
+  --background: oklch(0.99 0 0);
+  --foreground: oklch(0.17 0.01 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.17 0.01 260);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.17 0.01 260);
+  --muted: oklch(0.97 0.005 260);
+  --muted-foreground: oklch(0.5 0.01 260);
+  --accent: oklch(0.96 0.005 260);
+  --accent-foreground: oklch(0.17 0.01 260);
+  --border: oklch(0.92 0.005 260);
+  --input: oklch(0.92 0.005 260);
+
+  /* Brand — Supabase green, tuned for light bg */
+  --primary: oklch(0.68 0.16 152);
+  --primary-foreground: oklch(1 0 0);
+  --ring: oklch(0.68 0.16 152);
+
+  --secondary: oklch(0.97 0.005 260);
+  --secondary-foreground: oklch(0.17 0.01 260);
+  --destructive: oklch(0.58 0.2 27);
+  --destructive-foreground: oklch(1 0 0);
+
+  /* Data viz — single hue family, varied lightness + chroma */
+  --chart-1: oklch(0.68 0.16 152);  /* green */
+  --chart-2: oklch(0.6 0.18 250);   /* blue */
+  --chart-3: oklch(0.62 0.2 300);   /* violet */
+  --chart-4: oklch(0.72 0.15 80);   /* amber */
+  --chart-5: oklch(0.58 0.2 27);    /* red */
+
+  /* Sidebar (collapsed pane has its own elevation step) */
+  --sidebar: oklch(0.98 0 0);
+  --sidebar-foreground: oklch(0.17 0.01 260);
+  --sidebar-primary: oklch(0.68 0.16 152);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.95 0.005 260);
+  --sidebar-accent-foreground: oklch(0.17 0.01 260);
+  --sidebar-border: oklch(0.92 0.005 260);
+  --sidebar-ring: oklch(0.68 0.16 152);
+
+  /* Geometry */
+  --radius: 0.375rem;  /* 6px — Linear/Arc tier, not rounded-xl */
+}
+
+.dark {
+  --background: oklch(0.14 0.01 260);   /* near-black, slight cool */
+  --foreground: oklch(0.92 0.005 260);
+  --card: oklch(0.17 0.01 260);
+  --card-foreground: oklch(0.92 0.005 260);
+  --popover: oklch(0.19 0.01 260);
+  --popover-foreground: oklch(0.92 0.005 260);
+  --muted: oklch(0.2 0.01 260);
+  --muted-foreground: oklch(0.62 0.01 260);
+  --accent: oklch(0.22 0.01 260);
+  --accent-foreground: oklch(0.92 0.005 260);
+  --border: oklch(0.25 0.01 260);
+  --input: oklch(0.25 0.01 260);
+
+  --primary: oklch(0.78 0.17 152);   /* brighter green on dark */
+  --primary-foreground: oklch(0.14 0.01 260);
+  --ring: oklch(0.78 0.17 152);
+
+  --secondary: oklch(0.22 0.01 260);
+  --secondary-foreground: oklch(0.92 0.005 260);
+  --destructive: oklch(0.7 0.2 27);
+  --destructive-foreground: oklch(0.14 0.01 260);
+
+  --chart-1: oklch(0.78 0.17 152);
+  --chart-2: oklch(0.7 0.18 250);
+  --chart-3: oklch(0.72 0.2 300);
+  --chart-4: oklch(0.78 0.15 80);
+  --chart-5: oklch(0.7 0.2 27);
+
+  --sidebar: oklch(0.16 0.01 260);
+  --sidebar-foreground: oklch(0.92 0.005 260);
+  --sidebar-primary: oklch(0.78 0.17 152);
+  --sidebar-primary-foreground: oklch(0.14 0.01 260);
+  --sidebar-accent: oklch(0.22 0.01 260);
+  --sidebar-accent-foreground: oklch(0.92 0.005 260);
+  --sidebar-border: oklch(0.25 0.01 260);
+  --sidebar-ring: oklch(0.78 0.17 152);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
 
   --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, monospace;
 
-  --radius-sm: 4px;
-  --radius: 6px;
-  --radius-lg: 10px;
-  --radius-pill: 999px;
-
-  --ease-out: cubic-bezier(0.3, 0, 0, 1);
-  --ease-in: cubic-bezier(0.7, 0, 1, 0.3);
+  --animate-fade-in: fade-in 140ms cubic-bezier(0.3, 0, 0, 1);
+  --animate-slide-up: slide-up 220ms cubic-bezier(0.3, 0, 0, 1);
 }
 
-@media (prefers-color-scheme: light) {
-  @theme {
-    --color-base: #f8f9fb;
-    --color-surface-1: #ffffff;
-    --color-surface-2: #f1f3f6;
-    --color-border: #e5e8ec;
-    --color-border-strong: #c8ced6;
-    --color-text: #0f1115;
-    --color-text-muted: #5e6672;
-    --color-text-faint: #8c93a0;
-    --color-accent: #1faa69;
-    --color-accent-hover: #1a9a5f;
-    --color-accent-contrast: #ffffff;
-    --color-semantic-new: #1faa69;
-    --color-semantic-index: #2968d4;
-    --color-semantic-graph: #7246c2;
-    --color-semantic-error: #c03030;
-    --color-semantic-warn: #b8801e;
-  }
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
+/* ─── Fonts ─── */
 @font-face {
   font-family: "Geist";
   src: url("/fonts/Geist-400.woff2") format("woff2");
@@ -87,17 +183,50 @@
 html, body, #root {
   height: 100%;
   margin: 0;
-  background: var(--color-base);
-  color: var(--color-text);
+  background: var(--background);
+  color: var(--foreground);
   font-family: var(--font-sans);
   font-feature-settings: "cv11", "ss01", "ss03";
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-*:focus-visible {
-  outline: 2px solid var(--color-accent);
+/* Focus rings live on individual primitives; nav links / links get this baseline */
+a:focus-visible,
+button:not([data-slot]):focus-visible,
+[role="link"]:focus-visible {
+  outline: 1.5px solid var(--ring);
   outline-offset: 2px;
-  border-radius: var(--radius-sm);
+  border-radius: calc(var(--radius) - 2px);
+}
+
+/* No bouncy scroll on macOS */
+html, body {
+  overscroll-behavior: none;
+}
+
+/* Prevent iOS Safari auto-zoom on focus — inputs must be ≥16px on small screens */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Scrollbars — subtle, keyboard-first aesthetic */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--muted-foreground) 30%, transparent);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklch, var(--muted-foreground) 50%, transparent);
+  background-clip: padding-box;
+  border: 2px solid transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -107,4 +236,211 @@ html, body, #root {
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ * Component classes — single source of truth.
+ * Custom components reference these by name; no utility soup in JSX.
+ * shadcn primitives under components/ui/ keep their own internals.
+ * ═══════════════════════════════════════════════════════════════ */
+
+@layer components {
+
+  /* ── Page scaffolding ─────────────────────────────────────── */
+  .page            { @apply flex flex-col flex-1 min-h-0; }
+  .page-content    { @apply flex flex-col flex-1 min-h-0 overflow-hidden; }
+  .page-header     { @apply flex items-baseline justify-between px-6 pt-5 pb-3; }
+  .page-header-title { @apply text-sm font-medium text-foreground; }
+  .page-header-meta  { @apply text-xs text-muted-foreground; }
+  .page-body       { @apply flex-1 overflow-y-auto; }
+
+  /* ── Section primitive ────────────────────────────────────── */
+  .section         { @apply flex flex-col min-h-0; }
+  .section-head    { @apply flex items-baseline justify-between px-5 pt-5 pb-2; }
+  .section-title   { @apply text-sm font-medium text-foreground; }
+  .section-link    { @apply text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5; }
+
+  /* ── Stats strip (Home top row) ───────────────────────────── */
+  .stats-strip     { @apply grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 divide-x divide-y sm:divide-y-0 divide-border border-y border-border bg-card; }
+  .stats-cell      { @apply flex flex-col justify-between px-5 py-4 min-h-[86px]; }
+  .stats-label     { @apply text-[10px] uppercase tracking-[0.08em] text-muted-foreground font-medium; }
+  .stats-value-row { @apply flex items-baseline gap-2 mt-1; }
+  .stats-value     { @apply text-2xl font-mono tabular-nums tracking-tight text-foreground; }
+  .stats-delta     { @apply text-xs font-mono text-primary; }
+
+  /* ── Home split layout ───────────────────────────────────── */
+  .home-split      { @apply grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] divide-x divide-border flex-1 min-h-0; }
+  .home-main       { @apply flex flex-col min-h-0 min-w-0; }
+  .home-rail       { @apply flex flex-col min-h-0; }
+  .home-rail-top   { @apply border-b border-border; }
+  .graph-card      { @apply px-3 pb-4; }
+
+  /* ── Note rows (Home "Recent notes", list items) ─────────── */
+  .note-list       { @apply flex-1 overflow-y-auto; }
+  .note-row        { @apply flex items-baseline justify-between gap-3 px-5 py-2 hover:bg-accent/60 transition-colors; }
+  .note-row-name   { @apply font-mono text-[13px] text-foreground truncate; }
+  .note-row-folder { @apply font-mono text-[10px] text-muted-foreground truncate max-w-[180px]; }
+
+  /* ── Notes index grid (/notes landing) ───────────────────── */
+  .notes-index       { @apply p-6 max-w-[980px] mx-auto; }
+  .notes-index-head  { @apply flex items-baseline justify-between mb-4; }
+  .notes-index-title { @apply text-xl font-semibold text-foreground; }
+  .notes-index-count { @apply text-xs text-muted-foreground; }
+  .notes-index-hint  { @apply text-xs text-muted-foreground mb-6; }
+  .notes-index-grid  { @apply grid grid-cols-1 md:grid-cols-2 gap-5; }
+  .notes-folder      { @apply border border-border rounded-md p-3 bg-card; }
+  .notes-folder-head { @apply text-[10px] uppercase tracking-wider text-muted-foreground mb-2; }
+  .notes-folder-count{ @apply text-muted-foreground; }
+  .notes-folder-list { @apply font-mono text-sm space-y-1; }
+  .notes-folder-item { @apply truncate; }
+  .notes-folder-link { @apply text-foreground hover:text-primary; }
+
+  /* ── Kbd chip ────────────────────────────────────────────── */
+  .kbd             { @apply font-mono text-[10px] px-1.5 py-0.5 border border-border rounded bg-muted; }
+
+  /* ── Note view (single note page) ────────────────────────── */
+  .note-view       { @apply p-8 max-w-[720px] mx-auto; }
+  .note-view-title { @apply text-2xl font-semibold tracking-tight; }
+  .note-view-meta  { @apply text-xs font-mono text-muted-foreground mt-1.5; }
+
+  /* ── MCP Console (two-pane inspector) ────────────────────── */
+  .mcp-shell         { @apply grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] flex-1 min-h-0; }
+  .mcp-aside         { @apply border-r border-border overflow-y-auto; }
+  .mcp-aside-head    { @apply p-3 border-b border-border; }
+  .mcp-aside-title   { @apply flex items-baseline justify-between mb-2; }
+  .mcp-aside-name    { @apply text-sm font-semibold; }
+  .mcp-aside-count   { @apply text-[10px] text-muted-foreground; }
+  .mcp-filter        { @apply w-full px-2 py-1 text-xs font-mono bg-card border border-border rounded; }
+  .mcp-refresh       { @apply mt-2 w-full text-xs text-muted-foreground underline decoration-dotted; }
+  .mcp-error         { @apply p-3 text-xs text-destructive font-mono; }
+  .mcp-tool          { @apply w-full text-left px-3 py-2 text-xs font-mono border-b border-border text-muted-foreground hover:bg-muted transition-colors; }
+  .mcp-tool-active   { @apply bg-muted text-foreground; }
+  .mcp-tool-desc     { @apply text-[10px] text-muted-foreground line-clamp-2 mt-0.5; }
+  .mcp-main          { @apply overflow-y-auto; }
+  .mcp-content       { @apply p-6 max-w-[900px]; }
+  .mcp-title         { @apply text-lg font-semibold font-mono; }
+  .mcp-desc          { @apply text-sm text-muted-foreground mt-1; }
+  .mcp-panel         { @apply border border-border rounded-md p-4 mb-4 bg-card; }
+  .mcp-panel-head    { @apply flex items-center justify-between mb-3; }
+  .mcp-panel-title   { @apply text-xs uppercase tracking-wider text-muted-foreground; }
+  .mcp-raw-toggle    { @apply text-xs text-muted-foreground flex items-center gap-1.5 cursor-pointer; }
+  .mcp-textarea      { @apply w-full px-3 py-2 bg-background border border-border rounded text-xs font-mono; }
+  .mcp-empty-params  { @apply text-xs text-muted-foreground font-mono; }
+  .mcp-run-row       { @apply mt-4 flex items-center gap-3; }
+  .mcp-history       { @apply space-y-2; }
+  .mcp-history-item  { @apply border border-border rounded-md bg-card; }
+  .mcp-history-head  { @apply cursor-pointer p-3 flex items-center gap-3; }
+  .mcp-history-name  { @apply font-mono text-xs px-2 py-0.5 rounded bg-muted; }
+  .mcp-history-ms    { @apply text-xs text-muted-foreground; }
+  .mcp-history-ok    { @apply text-xs text-primary ml-auto; }
+  .mcp-history-err   { @apply text-xs text-destructive ml-auto truncate; }
+  .mcp-history-body  { @apply p-3 text-xs font-mono overflow-auto bg-background border-t border-border rounded-b-md; }
+
+  /* ── Param form (MCP) ────────────────────────────────────── */
+  .param-label     { @apply block text-xs font-mono mb-1; }
+  .param-name      { @apply text-foreground; }
+  .param-type      { @apply text-muted-foreground; }
+  .param-required  { @apply text-destructive ml-1; }
+  .param-desc      { @apply block text-[10px] text-muted-foreground font-sans mt-0.5; }
+  .param-input     { @apply w-full px-2 py-1.5 bg-background border border-border rounded text-xs font-mono; }
+
+  /* ── SkipLink (a11y) ─────────────────────────────────────── */
+  .skip-link { @apply sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-3 focus:py-2 focus:rounded-md focus:bg-primary focus:text-primary-foreground focus:shadow-lg; }
+
+  /* ── Sidebar brand row (name + collapse trigger) ─────────── */
+  .sidebar-brand        { @apply flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0; }
+  .sidebar-brand-link   { @apply flex items-center gap-2 min-w-0 flex-1 rounded-md px-1.5 py-1 hover:bg-sidebar-accent transition-colors group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:p-1; }
+  .sidebar-brand-name   { @apply text-base font-semibold text-sidebar-foreground truncate group-data-[collapsible=icon]:hidden; }
+  .sidebar-brand-trigger{ @apply size-7 shrink-0 group-data-[collapsible=icon]:hidden; }
+
+  /* ── Site header (top bar) ───────────────────────────────── */
+  .site-header              { @apply flex h-(--header-height) shrink-0 items-center justify-between gap-2 border-b border-border px-4 lg:px-6 bg-background; }
+  .site-header-left         { @apply flex items-center gap-2 min-w-0; }
+  .site-header-mobile-trigger { @apply md:hidden size-8 shrink-0; }
+  .site-header-title        { @apply text-base font-medium text-foreground truncate; }
+  .site-header-actions      { @apply flex items-center gap-2; }
+  .site-header-search       { @apply h-8 gap-2 text-muted-foreground; }
+  .site-header-kbd          { @apply pointer-events-none hidden h-5 items-center gap-1 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 select-none sm:flex; }
+
+  /* ── Activity feed ───────────────────────────────────────── */
+  .activity-list       { @apply divide-y divide-border; }
+  .activity-row        { @apply flex items-start gap-3 px-6 py-3 hover:bg-accent/50 transition-colors; }
+  .activity-icon-wrap  { @apply flex-shrink-0 flex items-center justify-center size-7 rounded-md bg-muted text-muted-foreground; }
+  .activity-body       { @apply flex-1 min-w-0; }
+  .activity-title      { @apply text-sm text-foreground truncate; }
+  .activity-detail     { @apply text-xs font-mono text-muted-foreground truncate mt-0.5; }
+  .activity-time       { @apply text-xs font-mono text-muted-foreground flex-shrink-0; }
+  .activity-empty      { @apply px-6 py-8 text-sm text-muted-foreground text-center; }
+  .activity-badge      { @apply inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[10px]; }
+  .activity-badge-new  { @apply bg-primary/15 text-primary; }
+  .activity-badge-doc  { @apply bg-chart-2/15 text-chart-2; }
+  .activity-badge-upd  { @apply bg-muted text-muted-foreground; }
+  .activity-badge-err  { @apply bg-destructive/15 text-destructive; }
+
+  /* ── Documents (table + cards) ───────────────────────────── */
+  .docs-page           { @apply p-6 max-w-[1200px] mx-auto; }
+  .docs-page-head      { @apply flex items-center justify-between mb-4; }
+  .docs-page-title     { @apply text-xl font-semibold text-foreground; }
+  .docs-empty          { @apply p-10 text-center text-sm text-muted-foreground border border-dashed border-border rounded-md; }
+
+  /* ── Single document / note view ─────────────────────────── */
+  .doc-view            { @apply p-8 max-w-[860px] mx-auto; }
+  .doc-view-title      { @apply text-2xl font-semibold tracking-tight; }
+  .doc-view-meta       { @apply text-xs font-mono text-muted-foreground mt-1.5; }
+
+  /* ── Notes: editor + search ──────────────────────────────── */
+  .note-editor         { @apply p-6 max-w-[820px] mx-auto; }
+  .note-editor-head    { @apply flex items-center justify-between mb-4; }
+  .note-editor-title   { @apply text-lg font-semibold; }
+  .note-editor-textarea{ @apply w-full min-h-[60vh] px-4 py-3 bg-card border border-border rounded-md font-mono text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y; }
+
+  .notes-search        { @apply p-6 max-w-[860px] mx-auto; }
+  .notes-search-input  { @apply w-full px-3 py-2 bg-card border border-border rounded-md font-mono text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring mb-4; }
+  .notes-search-hit    { @apply block rounded-md px-4 py-3 border border-border bg-card hover:border-ring hover:bg-accent/40 transition-colors; }
+  .notes-search-hit-title { @apply font-mono text-sm text-foreground; }
+  .notes-search-hit-snippet { @apply text-xs text-muted-foreground mt-1 line-clamp-2; }
+
+  /* ── Graph page ──────────────────────────────────────────── */
+  .graph-page          { @apply flex flex-col flex-1 min-h-0; }
+  .graph-page-head     { @apply flex items-baseline justify-between px-6 py-4 border-b border-border; }
+  .graph-canvas-wrap   { @apply flex-1 min-h-0; }
+
+  /* ── Wikilink inline ─────────────────────────────────────── */
+  .wikilink            { @apply font-mono text-sm rounded px-1 py-0.5 bg-primary/10 text-primary hover:bg-primary/20 transition-colors; }
+  .wikilink-missing    { @apply bg-destructive/10 text-destructive; }
+
+  /* ── Markdown prose body ─────────────────────────────────── */
+  .prose-body          { @apply text-[15px] leading-7 text-foreground; }
+  .prose-body h1,
+  .prose-body h2,
+  .prose-body h3       { @apply font-semibold tracking-tight mt-8 mb-3 text-foreground; }
+  .prose-body h1       { @apply text-2xl mt-0; }
+  .prose-body h2       { @apply text-lg; }
+  .prose-body h3       { @apply text-base; }
+  .prose-body p        { @apply my-3; }
+  .prose-body ul       { @apply my-3 pl-6 list-disc; }
+  .prose-body ol       { @apply my-3 pl-6 list-decimal; }
+  .prose-body li       { @apply my-1; }
+  .prose-body a        { @apply text-primary underline decoration-dotted underline-offset-2 hover:decoration-solid; }
+  .prose-body code     { @apply font-mono text-[0.85em] px-1 py-0.5 rounded bg-muted text-foreground; }
+  .prose-body pre      { @apply my-4 p-3 rounded-md bg-card border border-border overflow-x-auto; }
+  .prose-body pre code { @apply bg-transparent p-0 text-[13px]; }
+  .prose-body blockquote { @apply pl-4 border-l-2 border-border italic text-muted-foreground my-4; }
+  .prose-body hr       { @apply my-6 border-border; }
+
+  /* ── Theme toggle ───────────────────────────────────────── */
+  .theme-toggle        { @apply p-1.5 rounded-md hover:bg-muted transition-colors; }
+
+  /* ── Tree drawer + link panel (sheets) ───────────────────── */
+  .tree-node-folder    { @apply flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wider; }
+  .tree-node-note      { @apply flex items-center gap-2 px-2 py-1 rounded text-sm font-mono hover:bg-accent/60 transition-colors; }
+  .tree-node-note-active { @apply bg-accent text-foreground; }
+  .link-panel-section  { @apply mb-6; }
+  .link-panel-heading  { @apply text-xs uppercase tracking-wider text-muted-foreground mb-2; }
+  .link-panel-list     { @apply space-y-1; }
+  .link-panel-item     { @apply block text-sm font-mono text-foreground hover:text-primary truncate; }
+  .link-panel-empty    { @apply text-xs text-muted-foreground; }
+
+  /* ── Command palette item icon chips ─────────────────────── */
+  .cmd-chip            { @apply font-mono text-[10px] px-1.5 mr-2 rounded bg-muted text-muted-foreground; }
 }

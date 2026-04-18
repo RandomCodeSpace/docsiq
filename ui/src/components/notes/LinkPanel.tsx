@@ -22,38 +22,44 @@ export function LinkPanel({ project, open, onOpenChange, currentKey }: Props) {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-[280px]">
         <SheetHeader className="mb-4">
-          <SheetTitle className="font-mono text-xs uppercase tracking-wider text-[var(--color-text-muted)]">
+          <SheetTitle className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
             Links
           </SheetTitle>
         </SheetHeader>
-        <div className="space-y-4 text-sm">
-          <section>
-            <h3 className="text-xs uppercase text-[var(--color-text-muted)] mb-1.5">Inbound</h3>
-            {inbound.length === 0 && <p className="text-xs text-[var(--color-text-muted)]">—</p>}
-            {inbound.map((k) => (
-              <Link
-                key={k}
-                to={`/notes/${encodeURIComponent(k)}`}
-                onClick={() => onOpenChange(false)}
-                className="block px-2 py-1 rounded hover:bg-[var(--color-surface-2)]"
-              >
-                {k}
-              </Link>
-            ))}
+        <div>
+          <section className="link-panel-section">
+            <h3 className="link-panel-heading">Inbound</h3>
+            {inbound.length === 0 && <p className="link-panel-empty">—</p>}
+            <ul className="link-panel-list">
+              {inbound.map((k) => (
+                <li key={k}>
+                  <Link
+                    to={`/notes/${encodeURIComponent(k)}`}
+                    onClick={() => onOpenChange(false)}
+                    className="link-panel-item"
+                  >
+                    {k}
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </section>
-          <section>
-            <h3 className="text-xs uppercase text-[var(--color-text-muted)] mb-1.5">Outbound</h3>
-            {outbound.length === 0 && <p className="text-xs text-[var(--color-text-muted)]">—</p>}
-            {outbound.map((k) => (
-              <Link
-                key={k}
-                to={`/notes/${encodeURIComponent(k)}`}
-                onClick={() => onOpenChange(false)}
-                className="block px-2 py-1 rounded hover:bg-[var(--color-surface-2)]"
-              >
-                {k}
-              </Link>
-            ))}
+          <section className="link-panel-section">
+            <h3 className="link-panel-heading">Outbound</h3>
+            {outbound.length === 0 && <p className="link-panel-empty">—</p>}
+            <ul className="link-panel-list">
+              {outbound.map((k) => (
+                <li key={k}>
+                  <Link
+                    to={`/notes/${encodeURIComponent(k)}`}
+                    onClick={() => onOpenChange(false)}
+                    className="link-panel-item"
+                  >
+                    {k}
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </section>
         </div>
       </SheetContent>

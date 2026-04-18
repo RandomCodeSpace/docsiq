@@ -6,7 +6,20 @@ import type { Note } from "@/types/api";
 export function useNotes(project: string) {
   return useQuery({
     queryKey: qk.notes(project),
-    queryFn: () => apiFetch<Note[]>(`/api/projects/${encodeURIComponent(project)}/notes`),
+    queryFn: async (): Promise<Note[]> => {
+      const res = await apiFetch<{ keys?: string[] } | Note[] | null>(
+        `/api/projects/${encodeURIComponent(project)}/notes`,
+      );
+      if (Array.isArray(res)) return res;
+      const keys = res?.keys ?? [];
+      return keys.map((key) => ({
+        key,
+        content: "",
+        tags: [],
+        created_at: "",
+        updated_at: "",
+      }));
+    },
   });
 }
 
@@ -14,8 +27,12 @@ export function useNote(project: string, key: string | undefined) {
   return useQuery({
     queryKey: qk.note(project, key ?? ""),
     enabled: !!key,
-    queryFn: () =>
-      apiFetch<Note>(`/api/projects/${encodeURIComponent(project)}/notes/${encodeURIComponent(key!)}`),
+    queryFn: async (): Promise<Note> => {
+      const res = await apiFetch<Note | { note: Note }>(
+        `/api/projects/${encodeURIComponent(project)}/notes/${encodeURIComponent(key!)}`,
+      );
+      return "note" in res && res.note ? (res as { note: Note }).note : (res as Note);
+    },
   });
 }
 

@@ -15,7 +15,7 @@ export function ThemeToggle() {
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Change theme"
-        className="p-1.5 rounded-md hover:bg-[var(--color-surface-2)] transition-colors"
+        className="theme-toggle"
       >
         <Icon size={16} />
       </DropdownMenuTrigger>

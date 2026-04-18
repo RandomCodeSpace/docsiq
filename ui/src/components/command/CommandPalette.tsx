@@ -54,7 +54,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
                   key={`note-${n.key}`}
                   onSelect={() => { navigate(`/notes/${n.key}`); close(); }}
                 >
-                  <span className="font-mono text-[10px] px-1.5 mr-2 rounded bg-[var(--color-surface-2)] text-[var(--color-text-muted)]">NOTE</span>
+                  <span className="cmd-chip">NOTE</span>
                   {n.title || n.key}
                 </CommandItem>
               ))}
@@ -68,7 +68,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
                   key={`doc-${d.chunk_id}`}
                   onSelect={() => { navigate(`/docs/${d.doc_id}`); close(); }}
                 >
-                  <span className="font-mono text-[10px] px-1.5 mr-2 rounded bg-[var(--color-surface-2)] text-[var(--color-text-muted)]">DOC</span>
+                  <span className="cmd-chip">DOC</span>
                   {d.doc_title}
                 </CommandItem>
               ))}

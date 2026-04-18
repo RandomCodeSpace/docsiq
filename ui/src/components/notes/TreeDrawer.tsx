@@ -22,8 +22,8 @@ export function TreeDrawer({ project, open, onOpenChange, currentKey }: Props) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="left" className="w-[300px] p-0">
-        <SheetHeader className="px-4 py-3 border-b border-[var(--color-border)]">
-          <SheetTitle className="font-mono text-xs uppercase tracking-wider text-[var(--color-text-muted)]">
+        <SheetHeader className="px-4 py-3 border-b border-border">
+          <SheetTitle className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
             Notes
           </SheetTitle>
         </SheetHeader>
@@ -31,7 +31,7 @@ export function TreeDrawer({ project, open, onOpenChange, currentKey }: Props) {
           {folders.map((folder) => (
             <div key={folder || "(root)"} className="mb-2">
               {folder && (
-                <div className="font-mono text-xs text-[var(--color-text-muted)] px-2 py-1">
+                <div className="tree-node-folder">
                   {folder}/
                 </div>
               )}
@@ -41,12 +41,7 @@ export function TreeDrawer({ project, open, onOpenChange, currentKey }: Props) {
                   <Link
                     key={n.key}
                     to={`/notes/${encodeURIComponent(n.key)}`}
-                    className={
-                      "block px-2 py-1 rounded text-sm " +
-                      (currentKey === n.key
-                        ? "bg-[var(--color-surface-2)] text-[var(--color-text)]"
-                        : "text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]")
-                    }
+                    className={currentKey === n.key ? "tree-node-note tree-node-note-active" : "tree-node-note"}
                     onClick={() => onOpenChange(false)}
                   >
                     {n.key.split("/").pop()}
@@ -55,7 +50,7 @@ export function TreeDrawer({ project, open, onOpenChange, currentKey }: Props) {
             </div>
           ))}
           {folders.length === 0 && (
-            <div className="p-2 text-xs text-[var(--color-text-muted)]">No notes yet.</div>
+            <div className="p-2 text-xs text-muted-foreground">No notes yet.</div>
           )}
         </div>
       </SheetContent>

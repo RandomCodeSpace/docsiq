@@ -24,9 +24,18 @@ export function Providers({ children }: { children: ReactNode }) {
   const theme = useUIStore((s) => s.theme);
   useEffect(() => {
     const root = document.documentElement;
-    const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const effective = theme === "system" ? (systemDark ? "dark" : "light") : theme;
-    root.dataset.theme = effective;
+    const apply = () => {
+      const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const effective = theme === "system" ? (systemDark ? "dark" : "light") : theme;
+      root.dataset.theme = effective;
+      root.classList.toggle("dark", effective === "dark");
+    };
+    apply();
+    if (theme === "system") {
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      mq.addEventListener("change", apply);
+      return () => mq.removeEventListener("change", apply);
+    }
   }, [theme]);
 
   return (

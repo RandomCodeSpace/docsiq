@@ -18,13 +18,28 @@ export function useActivity(project: string) {
   return useQuery({
     queryKey: qk.activity(project),
     queryFn: async () => {
-      const [notes, docs] = await Promise.all([
-        apiFetch<Note[]>(`/api/projects/${encodeURIComponent(project)}/notes`).catch(() => []),
-        apiFetch<Document[]>(`/api/documents?project=${encodeURIComponent(project)}`).catch(() => []),
+      const [notesRaw, docsRaw] = await Promise.all([
+        apiFetch<{ keys?: string[] } | Note[] | null>(
+          `/api/projects/${encodeURIComponent(project)}/notes`,
+        ).catch(() => null),
+        apiFetch<Document[] | null>(
+          `/api/documents?project=${encodeURIComponent(project)}`,
+        ).catch(() => null),
       ]);
+      const notes: Note[] = Array.isArray(notesRaw)
+        ? notesRaw
+        : (notesRaw?.keys ?? []).map((key) => ({
+            key,
+            content: "",
+            tags: [] as string[],
+            created_at: "",
+            updated_at: "",
+          }));
+      const docs: Document[] = Array.isArray(docsRaw) ? docsRaw : [];
       const events: ActivityEvent[] = [];
       for (const n of notes) {
         const ts = new Date(n.updated_at).getTime();
+        if (!Number.isFinite(ts)) continue;
         const isNew = ts === new Date(n.created_at).getTime();
         events.push({
           id: `note-${n.key}-${ts}`,
@@ -35,12 +50,14 @@ export function useActivity(project: string) {
         });
       }
       for (const d of docs) {
+        const ts = Number(d.updated_at) * 1000;
+        if (!Number.isFinite(ts)) continue;
         events.push({
           id: `doc-${d.id}-${d.updated_at}`,
           kind: "doc_indexed",
           title: d.title || d.path,
           detail: d.doc_type,
-          timestamp: d.updated_at * 1000,
+          timestamp: ts,
           href: `/docs/${d.id}`,
         });
       }
