@@ -1,0 +1,37 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect, useState, type ReactNode } from "react";
+import { BrowserRouter } from "react-router-dom";
+import { useUIStore } from "@/stores/ui";
+
+export function Providers({ children }: { children: ReactNode }) {
+  const [client] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 30_000,
+            retry: (failureCount, error: unknown) => {
+              const status = (error as { status?: number })?.status ?? 0;
+              if (status >= 400 && status < 500) return false;
+              return failureCount < 3;
+            },
+            refetchOnWindowFocus: false,
+          },
+        },
+      }),
+  );
+
+  const theme = useUIStore((s) => s.theme);
+  useEffect(() => {
+    const root = document.documentElement;
+    const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const effective = theme === "system" ? (systemDark ? "dark" : "light") : theme;
+    root.dataset.theme = effective;
+  }, [theme]);
+
+  return (
+    <QueryClientProvider client={client}>
+      <BrowserRouter>{children}</BrowserRouter>
+    </QueryClientProvider>
+  );
+}
