@@ -42,8 +42,12 @@ type Provider interface {
 }
 
 // NewProvider constructs the configured provider.
+// When cfg.Provider is "none", NewProvider returns (nil, nil) — the caller
+// must treat a nil Provider as "LLM disabled" and guard accordingly.
 func NewProvider(cfg *config.LLMConfig) (Provider, error) {
 	switch cfg.Provider {
+	case "none":
+		return nil, nil
 	case "azure":
 		return newAzureProvider(cfg)
 	case "ollama":
@@ -51,7 +55,7 @@ func NewProvider(cfg *config.LLMConfig) (Provider, error) {
 	case "openai":
 		return newOpenAIProvider(cfg)
 	default:
-		return nil, fmt.Errorf("unknown LLM provider: %s (supported: azure, ollama, openai)", cfg.Provider)
+		return nil, fmt.Errorf("unknown LLM provider: %s (supported: azure, ollama, openai, none)", cfg.Provider)
 	}
 }
 
