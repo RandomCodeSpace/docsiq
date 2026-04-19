@@ -1,6 +1,8 @@
 package notes
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"testing"
@@ -122,5 +124,107 @@ func TestBuildGraph_WikilinksInFrontmatterBodyOnly(t *testing.T) {
 	g, _ := BuildGraph(dir)
 	if len(g.Edges) != 0 {
 		t.Errorf("edges = %d, want 0 (fm refs must not produce edges)", len(g.Edges))
+	}
+}
+
+// TestBuildGraph_CrossProject verifies that a wikilink of the form
+// [[projects/B/x]] in project A produces a cross-project edge and a stub
+// node marked with project="B". When the target note exists on disk, the
+// stub must NOT be marked missing.
+func TestBuildGraph_CrossProject(t *testing.T) {
+	// Build a fake projectsRoot with two projects: A and B.
+	root := t.TempDir()
+
+	dirA := filepath.Join(root, "A", "notes")
+	dirB := filepath.Join(root, "B", "notes")
+	if err := os.MkdirAll(dirA, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(dirB, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write note "a" in project A linking to B/x via cross-project wikilink.
+	if err := Write(dirA, &Note{Key: "a", Content: "see [[projects/B/x]]"}); err != nil {
+		t.Fatal(err)
+	}
+	// Write note "x" in project B so it exists on disk.
+	if err := Write(dirB, &Note{Key: "x", Content: "I am x"}); err != nil {
+		t.Fatal(err)
+	}
+
+	g, err := BuildGraph(dirA, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Must have exactly one edge: a → projects/B/x, cross_project=true.
+	if len(g.Edges) != 1 {
+		t.Fatalf("edges = %d, want 1; edges=%v", len(g.Edges), g.Edges)
+	}
+	edge := g.Edges[0]
+	if edge.Source != "a" {
+		t.Errorf("edge.Source = %q, want %q", edge.Source, "a")
+	}
+	if edge.Target != "projects/B/x" {
+		t.Errorf("edge.Target = %q, want %q", edge.Target, "projects/B/x")
+	}
+	if !edge.CrossProject {
+		t.Errorf("edge.CrossProject = false, want true")
+	}
+
+	// Find the stub node for project B.
+	var stub *NoteNode
+	for i := range g.Nodes {
+		if g.Nodes[i].Key == "projects/B/x" {
+			stub = &g.Nodes[i]
+			break
+		}
+	}
+	if stub == nil {
+		t.Fatalf("no node for key %q in graph; nodes=%v", "projects/B/x", g.Nodes)
+	}
+	if stub.Project != "B" {
+		t.Errorf("stub.Project = %q, want %q", stub.Project, "B")
+	}
+	// Target exists on disk → must NOT be marked missing.
+	if stub.Missing {
+		t.Errorf("stub.Missing = true, want false (note exists on disk)")
+	}
+}
+
+// TestBuildGraph_CrossProjectMissing verifies that when the target note does
+// not exist on disk, the stub node is marked missing=true.
+func TestBuildGraph_CrossProjectMissing(t *testing.T) {
+	root := t.TempDir()
+	dirA := filepath.Join(root, "A", "notes")
+	if err := os.MkdirAll(dirA, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Project B's notes dir is never created — target is absent.
+	if err := Write(dirA, &Note{Key: "a", Content: "[[projects/B/ghost]]"}); err != nil {
+		t.Fatal(err)
+	}
+
+	g, err := BuildGraph(dirA, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var stub *NoteNode
+	for i := range g.Nodes {
+		if g.Nodes[i].Key == "projects/B/ghost" {
+			stub = &g.Nodes[i]
+			break
+		}
+	}
+	if stub == nil {
+		t.Fatal("stub node not found")
+	}
+	if !stub.Missing {
+		t.Errorf("stub.Missing = false, want true (note absent on disk)")
+	}
+	if stub.Project != "B" {
+		t.Errorf("stub.Project = %q, want %q", stub.Project, "B")
 	}
 }

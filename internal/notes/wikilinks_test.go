@@ -6,6 +6,48 @@ import (
 	"testing"
 )
 
+func TestParseWikilink(t *testing.T) {
+	cases := []struct {
+		name         string
+		target       string
+		wantProject  string
+		wantKey      string
+		wantCross    bool
+	}{
+		// same-project: plain key
+		{"same_plain", "foo", "", "foo", false},
+		// cross-project: valid slug + key
+		{"cross_valid", "projects/docsiq/internal/pipeline", "docsiq", "internal/pipeline", true},
+		// NOT cross-project: no key part after slug
+		{"no_key", "projects/docsiq", "", "projects/docsiq", false},
+		// NOT cross-project: empty slug
+		{"empty_slug", "projects//foo", "", "projects//foo", false},
+		// same-project: folder key
+		{"same_folder", "architecture/overview", "", "architecture/overview", false},
+		// cross-project: underscore and hyphen in slug
+		{"cross_slug_chars", "projects/my-proj_1/notes/design", "my-proj_1", "notes/design", true},
+		// same-project: only "projects" with no slash after
+		{"projects_no_slash", "projects", "", "projects", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ParseWikilink(tc.target)
+			if got.Target != tc.target {
+				t.Errorf("Target = %q, want %q", got.Target, tc.target)
+			}
+			if got.Project != tc.wantProject {
+				t.Errorf("Project = %q, want %q", got.Project, tc.wantProject)
+			}
+			if got.Key != tc.wantKey {
+				t.Errorf("Key = %q, want %q", got.Key, tc.wantKey)
+			}
+			if got.CrossProject != tc.wantCross {
+				t.Errorf("CrossProject = %v, want %v", got.CrossProject, tc.wantCross)
+			}
+		})
+	}
+}
+
 func TestExtractWikilinks(t *testing.T) {
 	cases := []struct {
 		name string

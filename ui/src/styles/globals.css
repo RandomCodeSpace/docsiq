@@ -422,6 +422,10 @@ html, body {
   /* ── Wikilink inline ─────────────────────────────────────── */
   .wikilink            { @apply font-mono text-sm rounded px-1 py-0.5 bg-primary/10 text-primary hover:bg-primary/20 transition-colors; }
   .wikilink-missing    { @apply bg-destructive/10 text-destructive; }
+  /* Cross-project wikilinks get a subtle ring accent to distinguish them. */
+  .wikilink-cross      { @apply ring-1 ring-inset ring-primary/40; }
+  /* Small inline chip showing the target project slug. */
+  .wikilink-cross-chip { @apply font-mono text-[10px] px-1 mr-1 rounded bg-primary/20 text-primary align-middle; }
 
   /* ── Markdown prose body ─────────────────────────────────── */
   .prose-body          { @apply text-[15px] leading-7 text-foreground; }
