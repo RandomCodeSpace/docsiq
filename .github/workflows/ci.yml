@@ -13,11 +13,11 @@ jobs:
     name: ui (build + test + budget)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: ui/package-lock.json
 
@@ -46,7 +46,7 @@ jobs:
           fi
 
       - name: Upload ui/dist
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ui-dist
           path: ui/dist
@@ -64,18 +64,18 @@ jobs:
     env:
       CGO_ENABLED: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
-          go-version: '1.22'
+          go-version-file: go.mod
 
       - name: Assert C toolchain (macOS)
         if: runner.os == 'macOS'
         run: clang --version
 
       - name: Go build cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cache/go-build
@@ -88,7 +88,7 @@ jobs:
       # Hydrate ui/dist with the build artifact produced by the `ui` job so
       # the //go:embed ui/dist directive has real assets to embed.
       - name: Download ui/dist
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ui-dist
           path: ui/dist
@@ -103,7 +103,7 @@ jobs:
         run: CGO_ENABLED=1 go build -tags sqlite_fts5 -o docsiq ./
 
       - name: Upload docsiq binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: docsiq-${{ matrix.os }}
           path: docsiq
@@ -115,14 +115,14 @@ jobs:
     needs: ui
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
-          go-version: '1.22'
+          go-version-file: go.mod
 
       - name: cache go build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cache/go-build
@@ -130,7 +130,7 @@ jobs:
           key: go-integ-${{ hashFiles('go.sum') }}
 
       - name: Download ui/dist
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ui-dist
           path: ui/dist
