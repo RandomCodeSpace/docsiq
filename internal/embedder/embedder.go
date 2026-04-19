@@ -15,7 +15,12 @@ type Embedder struct {
 	concurrency int // max concurrent batch requests
 }
 
+// New creates a new Embedder. If provider is nil (LLM disabled via
+// provider=none), New returns nil. Callers must check for nil before use.
 func New(provider llm.Provider, batchSize int) *Embedder {
+	if provider == nil {
+		return nil
+	}
 	if batchSize <= 0 {
 		batchSize = 20
 	}
