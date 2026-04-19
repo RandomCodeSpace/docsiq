@@ -9,8 +9,53 @@ permissions:
   contents: read
 
 jobs:
+  ui:
+    name: ui (build + test + budget)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install UI dependencies
+        run: npm --prefix ui ci
+
+      - name: Type check
+        run: npm --prefix ui run typecheck
+
+      - name: Vitest
+        run: npm --prefix ui test -- --run --coverage
+
+      - name: Build UI
+        run: npm --prefix ui run build
+
+      - name: Assert bundle budget (≤ 580 KB JS + CSS, initial chunk)
+        run: |
+          set -eu
+          js_bytes=$(stat -c %s ui/dist/assets/index-*.js 2>/dev/null || stat -f %z ui/dist/assets/index-*.js)
+          css_bytes=$(stat -c %s ui/dist/assets/index-*.css 2>/dev/null || stat -f %z ui/dist/assets/index-*.css)
+          total=$((js_bytes + css_bytes))
+          echo "bundle: ${js_bytes} js + ${css_bytes} css = ${total} bytes"
+          if [ "$total" -gt 593920 ]; then
+            echo "::error::Bundle ${total} B exceeds 580 KB budget"
+            exit 1
+          fi
+
+      - name: Upload ui/dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist
+          retention-days: 1
+          if-no-files-found: error
+
   test:
     name: test (${{ matrix.os }})
+    needs: ui
     strategy:
       fail-fast: false
       matrix:
@@ -25,8 +70,6 @@ jobs:
         with:
           go-version: '1.22'
 
-      # mattn/go-sqlite3 needs a C compiler. Ubuntu has gcc by default;
-      # macOS has Xcode CLT on GitHub runners.
       - name: Assert C toolchain (macOS)
         if: runner.os == 'macOS'
         run: clang --version
@@ -41,6 +84,14 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
+
+      # Hydrate ui/dist with the build artifact produced by the `ui` job so
+      # the //go:embed ui/dist directive has real assets to embed.
+      - name: Download ui/dist
+        uses: actions/download-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist
 
       - name: go vet (cgo + fts5)
         run: CGO_ENABLED=1 go vet -tags sqlite_fts5 $(go list ./... | grep -v /ui/node_modules/)
@@ -61,6 +112,7 @@ jobs:
 
   test-integration:
     name: integration tests (-race)
+    needs: ui
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -77,49 +129,11 @@ jobs:
             ~/go/pkg/mod
           key: go-integ-${{ hashFiles('go.sum') }}
 
+      - name: Download ui/dist
+        uses: actions/download-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist
+
       - name: integration tests
         run: CGO_ENABLED=1 go test -tags "sqlite_fts5 integration" -race -timeout 600s ./...
-
-  ui-freshness:
-    name: ui-dist freshness
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: ui/package-lock.json
-
-      - name: Install UI dependencies
-        run: npm --prefix ui ci
-
-      - name: Build UI
-        run: npm --prefix ui run build
-
-      - name: vitest
-        run: npm --prefix ui test -- --run --coverage
-
-      - name: verify ui/dist/ matches fresh build
-        run: |
-          if ! git diff --exit-code -- ui/dist/; then
-            echo "::error::ui/dist/ is stale. Run 'npm --prefix ui run build' and commit the result."
-            exit 1
-          fi
-
-      - name: Assert bundle budget (≤ 580 KB JS + CSS, initial chunk)
-        run: |
-          set -eu
-          js_bytes=$(stat -c %s ui/dist/assets/index-*.js 2>/dev/null || stat -f %z ui/dist/assets/index-*.js)
-          css_bytes=$(stat -c %s ui/dist/assets/index-*.css 2>/dev/null || stat -f %z ui/dist/assets/index-*.css)
-          total=$((js_bytes + css_bytes))
-          echo "bundle: ${js_bytes} js + ${css_bytes} css = ${total} bytes"
-          # Budget: 580 KB for the initial chunk (lazy markdown/graph/editor
-          # chunks excluded from this gate by the glob above).
-          if [ "$total" -gt 593920 ]; then
-            echo "::error::Bundle ${total} B exceeds 580 KB budget"
-            exit 1
-          fi
