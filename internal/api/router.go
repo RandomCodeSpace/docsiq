@@ -64,7 +64,6 @@ func NewRouter(prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, re
 		stores = newProjectStores(cfg.DataDir)
 	}
 
-	mcpServer := mcp.New(stores, prov, emb, cfg, registry, mcp.WithVectorIndexes(ro.vecIndexes))
 	h := &handlers{
 		stores:     stores,
 		provider:   prov,
@@ -86,8 +85,25 @@ func NewRouter(prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, re
 	// TODO(docsiq): P2-2 consider optional scrape token via cfg.Server.MetricsKey
 	mux.Handle("GET /metrics", metricsHandler(registry, stores, cfg))
 
-	// MCP Streamable HTTP transport (POST /mcp, GET /mcp for SSE stream)
-	mux.Handle("/mcp", mcpServer.Handler())
+	// MCP Streamable HTTP transport (POST /mcp, GET /mcp for SSE stream).
+	// When prov is nil (provider=none) we omit the MCP server entirely and
+	// return 503 on /mcp — the notes/graph/tree tools inside the MCP server
+	// do not need LLM, but the search and upload tools do; rather than
+	// partial registration (which would silently return errors on those
+	// tools), we gate the whole MCP endpoint on LLM availability. Clients
+	// that discover tools via /mcp will receive a clear HTTP 503 instead of
+	// a confusing empty tool list.
+	if prov != nil {
+		mcpServer := mcp.New(stores, prov, emb, cfg, registry, mcp.WithVectorIndexes(ro.vecIndexes))
+		mux.Handle("/mcp", mcpServer.Handler())
+	} else {
+		mux.HandleFunc("/mcp", func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+				"error": "LLM not configured; set llm.provider in config",
+				"code":  "llm_disabled",
+			})
+		})
+	}
 
 	// REST API — docs pipeline (Phase-0)
 	mux.HandleFunc("GET /api/stats", h.getStats)
