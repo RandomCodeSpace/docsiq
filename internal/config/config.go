@@ -248,7 +248,12 @@ func Load(cfgFile string) (*Config, error) {
 		return nil, fmt.Errorf("unmarshaling config: %w", err)
 	}
 
-	slog.Info("⚙️ resolved LLM config", "provider", cfg.LLM.Provider)
+	// "none" is an explicit opt-out of LLM; treat it as valid and log clearly.
+	if cfg.LLM.Provider == "none" {
+		slog.Info("⚙️ resolved LLM config", "provider", "none", "llm_disabled", true)
+	} else {
+		slog.Info("⚙️ resolved LLM config", "provider", cfg.LLM.Provider)
+	}
 
 	// Expand home dir
 	if strings.HasPrefix(cfg.DataDir, "~/") {
