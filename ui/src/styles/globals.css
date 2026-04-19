@@ -371,6 +371,7 @@ html, body {
   .site-header-actions      { @apply flex items-center gap-2; }
   .site-header-search       { @apply h-8 gap-2 text-muted-foreground; }
   .site-header-kbd          { @apply pointer-events-none hidden h-5 items-center gap-1 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 select-none sm:flex; }
+  .site-header-reload       { @apply inline-flex items-center justify-center size-8 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
 
   /* ── Activity feed ───────────────────────────────────────── */
   .activity-list       { @apply divide-y divide-border; }
@@ -415,10 +416,15 @@ html, body {
   .notes-search-hit-snippet { @apply text-xs text-muted-foreground mt-1 line-clamp-2; }
 
   /* ── Graph page ──────────────────────────────────────────── */
-  .graph-page          { @apply flex flex-col flex-1 min-h-0; }
-  .graph-page-head     { @apply flex items-baseline justify-between px-6 py-4 border-b border-border; }
-  .graph-canvas-wrap   { @apply flex-1 min-h-0 relative; }
-  .graph-canvas        { @apply absolute inset-0 w-full h-full block; }
+  .graph-page            { @apply flex flex-col flex-1 min-h-0 h-[calc(100svh-var(--header-height))]; }
+  .graph-page-head       { @apply flex items-baseline justify-between px-6 py-4 border-b border-border; }
+  .graph-canvas-wrap     { @apply flex-1 min-h-0 relative w-full; }
+  .graph-canvas          { @apply absolute inset-0 w-full h-full block; }
+  .graph-fallback-banner { @apply absolute top-2 left-2 z-10 px-2 py-1 text-[10px] font-mono rounded-md bg-muted text-muted-foreground border border-border; }
+  .graph-meta            { @apply absolute top-2 left-2 z-10 px-2 py-1 text-[10px] font-mono rounded-md bg-muted text-muted-foreground border border-border max-w-[60%] truncate; }
+  .graph-meta-sep        { @apply text-foreground; }
+  .graph-reset           { @apply absolute top-2 right-2 z-10 px-2 py-1 text-[10px] font-mono rounded-md bg-muted text-muted-foreground border border-border hover:bg-accent hover:text-foreground transition-colors; }
+  .graph-node            { transition: opacity 120ms cubic-bezier(0.3, 0, 0, 1); }
 
   /* ── Wikilink inline ─────────────────────────────────────── */
   .wikilink            { @apply font-mono text-sm rounded px-1 py-0.5 bg-primary/10 text-primary hover:bg-primary/20 transition-colors; }
