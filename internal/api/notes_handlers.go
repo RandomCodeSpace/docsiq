@@ -362,7 +362,12 @@ func (h *notesHandlers) graph(w http.ResponseWriter, r *http.Request) {
 	if projectErr(w, r, err) {
 		return
 	}
-	g, err := notes.BuildGraph(notesDir)
+	// projectsRoot is the directory whose children are <slug>/notes/ dirs.
+	// NotesDir returns <DataDir>/projects/<slug>/notes, so the root is two
+	// levels up from notesDir. We pass it so BuildGraph can resolve cross-
+	// project wikilinks and mark missing targets correctly.
+	projectsRoot := filepath.Dir(filepath.Dir(notesDir))
+	g, err := notes.BuildGraph(notesDir, projectsRoot)
 	if err != nil {
 		notesError(w, r, err)
 		return

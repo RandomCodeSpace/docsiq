@@ -105,7 +105,11 @@ var serveCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("llm provider: %w", err)
 		}
-		slog.Info("⚙️ LLM provider initialised", "provider", prov.Name(), "model", prov.ModelID())
+		if prov == nil {
+			slog.Info("⚙️ LLM disabled (provider=none) — notes, graph, tree, notes-search available; /api/search and /api/upload will return 503")
+		} else {
+			slog.Info("⚙️ LLM provider initialised", "provider", prov.Name(), "model", prov.ModelID())
+		}
 
 		emb := embedder.New(prov, cfg.Indexing.BatchSize)
 

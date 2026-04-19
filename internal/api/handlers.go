@@ -202,6 +202,13 @@ type searchRequest struct {
 }
 
 func (h *handlers) search(w http.ResponseWriter, r *http.Request) {
+	if h.provider == nil || h.embedder == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+			"error": "LLM not configured; set llm.provider in config",
+			"code":  "llm_disabled",
+		})
+		return
+	}
 	st, ok := h.resolveStore(w, r)
 	if !ok {
 		return
@@ -384,6 +391,13 @@ func (h *handlers) getCommunity(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
+	if h.provider == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+			"error": "LLM not configured; set llm.provider in config",
+			"code":  "llm_disabled",
+		})
+		return
+	}
 	st, ok := h.resolveStore(w, r)
 	if !ok {
 		return

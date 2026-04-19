@@ -1,0 +1,15 @@
+export const qk = {
+  stats: (project: string) => ["stats", project] as const,
+  projects: () => ["projects"] as const,
+  notes: (project: string) => ["notes", project] as const,
+  note: (project: string, key: string) => ["note", project, key] as const,
+  notesTree: (project: string) => ["notes-tree", project] as const,
+  notesGraph: (project: string) => ["notes-graph", project] as const,
+  notesSearch: (project: string, q: string) => ["notes-search", project, q] as const,
+  docs: (project: string) => ["docs", project] as const,
+  doc: (project: string, id: string) => ["doc", project, id] as const,
+  search: (project: string, q: string, mode: string) => ["search", project, q, mode] as const,
+  entities: (project: string) => ["entities", project] as const,
+  communities: (project: string) => ["communities", project] as const,
+  activity: (project: string) => ["activity", project] as const,
+};

@@ -437,6 +437,41 @@ func TestLoad(t *testing.T) {
 	})
 }
 
+func TestProviderNone(t *testing.T) {
+	t.Run("provider_none_parses_correctly", func(t *testing.T) {
+		home := t.TempDir()
+		isolateEnv(t, home)
+
+		yamlPath := filepath.Join(home, "cfg.yaml")
+		content := []byte("llm:\n  provider: \"none\"\n")
+		if err := os.WriteFile(yamlPath, content, 0o644); err != nil {
+			t.Fatalf("write yaml: %v", err)
+		}
+
+		cfg, err := Load(yamlPath)
+		if err != nil {
+			t.Fatalf("unexpected error loading provider=none config: %v", err)
+		}
+		if cfg.LLM.Provider != "none" {
+			t.Errorf("LLM.Provider = %q, want \"none\"", cfg.LLM.Provider)
+		}
+	})
+
+	t.Run("provider_none_via_env", func(t *testing.T) {
+		home := t.TempDir()
+		isolateEnv(t, home)
+		t.Setenv("DOCSIQ_LLM_PROVIDER", "none")
+
+		cfg, err := Load("")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.LLM.Provider != "none" {
+			t.Errorf("LLM.Provider = %q, want \"none\"", cfg.LLM.Provider)
+		}
+	})
+}
+
 func TestProjectDBPath(t *testing.T) {
 	cfg := &Config{DataDir: "/tmp/docsiq-data"}
 	got := cfg.ProjectDBPath("my-slug")

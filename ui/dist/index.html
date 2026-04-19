@@ -1,15 +1,27 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DocsContext</title>
-    <script type="module" crossorigin src="/assets/index-Crkfq0pI.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CvUtt9DQ.css">
+    <meta charset="utf-8" />
+    <title>docsiq — UI not built</title>
+    <style>
+      :root { color-scheme: dark light; }
+      body { font-family: ui-sans-serif, system-ui, sans-serif; background: #0f1115; color: #e4e6ec; padding: 2rem; max-width: 640px; margin: 0 auto; line-height: 1.5; }
+      h1 { font-size: 1.25rem; margin: 0 0 1rem; }
+      code { background: #1b1f26; border: 1px solid #262a33; border-radius: 4px; padding: 0.1rem 0.35rem; font-family: ui-monospace, monospace; font-size: 0.9em; }
+      pre { background: #1b1f26; border: 1px solid #262a33; border-radius: 6px; padding: 1rem; overflow-x: auto; }
+      a { color: #3ecf8e; }
+      .muted { color: #9097a3; font-size: 0.9rem; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <h1>docsiq — UI not built</h1>
+    <p>The SPA hasn't been built yet. The Go binary embeds
+    <code>ui/dist/</code> at compile time and this is the placeholder that
+    lives in the repo.</p>
+    <p>Build the UI, then rebuild the binary:</p>
+    <pre>npm --prefix ui ci
+npm --prefix ui run build
+go build -tags sqlite_fts5 -o docsiq ./</pre>
+    <p class="muted">CI does this on every run. Locally use <code>make build</code>.</p>
   </body>
 </html>
-
-
