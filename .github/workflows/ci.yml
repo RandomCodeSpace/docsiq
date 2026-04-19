@@ -136,4 +136,6 @@ jobs:
           path: ui/dist
 
       - name: integration tests
-        run: CGO_ENABLED=1 go test -tags "sqlite_fts5 integration" -race -timeout 600s ./...
+        # TestHNSW_Recall10k indexes 10k vectors; under -race this pushes well
+        # past the old 600s. 1200s gives enough slack without being blanket-lax.
+        run: CGO_ENABLED=1 go test -tags "sqlite_fts5 integration" -race -timeout 1200s ./...
