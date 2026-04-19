@@ -417,7 +417,8 @@ html, body {
   /* ── Graph page ──────────────────────────────────────────── */
   .graph-page          { @apply flex flex-col flex-1 min-h-0; }
   .graph-page-head     { @apply flex items-baseline justify-between px-6 py-4 border-b border-border; }
-  .graph-canvas-wrap   { @apply flex-1 min-h-0; }
+  .graph-canvas-wrap   { @apply flex-1 min-h-0 relative; }
+  .graph-canvas        { @apply absolute inset-0 w-full h-full block; }
 
   /* ── Wikilink inline ─────────────────────────────────────── */
   .wikilink            { @apply font-mono text-sm rounded px-1 py-0.5 bg-primary/10 text-primary hover:bg-primary/20 transition-colors; }
