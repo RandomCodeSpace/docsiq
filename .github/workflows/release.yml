@@ -1,7 +1,7 @@
 name: release
 
-# Auto-cuts a beta prerelease on every main push.
-# Tag pushes are ignored so the workflow doesn't recurse.
+# Auto-cuts a signed beta prerelease on every main push.
+# Tag pushes are ignored so the workflow doesn't recurse on its own tag.
 on:
   push:
     branches: [main]
@@ -13,11 +13,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: auto-tag + release
+  tag:
+    name: compute next tag
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
+    outputs:
+      tag: ${{ steps.ver.outputs.tag }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
@@ -26,6 +28,7 @@ jobs:
       - name: Compute next beta tag
         id: ver
         run: |
+          set -eu
           latest=$(git tag -l 'v0.0.0-beta.*' \
             | grep -E 'v0\.0\.0-beta\.[0-9]+$' \
             | sort -V \
@@ -39,16 +42,143 @@ jobs:
           echo "tag=$next" >> "$GITHUB_OUTPUT"
           echo "Next tag: $next"
 
+  ui:
+    name: build ui
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: ui/package-lock.json
+
+      - run: npm --prefix ui ci
+      - run: npm --prefix ui run build
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ui-dist
+          path: ui/dist
+          retention-days: 1
+          if-no-files-found: error
+
+  build:
+    name: build ${{ matrix.suffix }}
+    needs: [tag, ui]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            suffix: linux-amd64
+          - runner: macos-13
+            goos: darwin
+            goarch: amd64
+            suffix: darwin-amd64
+          - runner: macos-latest
+            goos: darwin
+            goarch: arm64
+            suffix: darwin-arm64
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    env:
+      CGO_ENABLED: "1"
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: ui-dist
+          path: ui/dist
+
+      - name: Build binary
+        id: build
+        run: |
+          set -eu
+          tag="${{ needs.tag.outputs.tag }}"
+          sha="${{ github.sha }}"
+          date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          pkg="github.com/RandomCodeSpace/docsiq/cmd"
+          ldflags="-s -w -X ${pkg}.Version=${tag} -X ${pkg}.Commit=${sha} -X ${pkg}.Date=${date}"
+          out="docsiq-${tag}-${{ matrix.suffix }}"
+          go build -tags sqlite_fts5 -trimpath -ldflags="${ldflags}" -o "${out}" ./
+          echo "binary=${out}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: binary-${{ matrix.suffix }}
+          path: ${{ steps.build.outputs.binary }}
+          retention-days: 1
+          if-no-files-found: error
+
+  release:
+    name: sign + publish
+    needs: [tag, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write   # required for cosign keyless signing
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: binary-*
+          merge-multiple: true
+          path: dist/
+
+      - uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
+        with:
+          cosign-release: 'v3.0.6'
+
+      - name: Sign binaries
+        run: |
+          set -eu
+          cd dist
+          for f in docsiq-*; do
+            case "$f" in *.sig|*.pem|SHA256SUMS*) continue ;; esac
+            cosign sign-blob --yes \
+              --output-signature "${f}.sig" \
+              --output-certificate "${f}.pem" \
+              "$f"
+          done
+
+      - name: Generate SHA256SUMS (+ signature)
+        run: |
+          set -eu
+          cd dist
+          sha256sum docsiq-* > SHA256SUMS
+          cosign sign-blob --yes \
+            --output-signature SHA256SUMS.sig \
+            --output-certificate SHA256SUMS.pem \
+            SHA256SUMS
+
       - name: Create tag + release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
-          tag="${{ steps.ver.outputs.tag }}"
+          tag="${{ needs.tag.outputs.tag }}"
           git tag "$tag"
           git push origin "$tag"
           gh release create "$tag" \
             --target "${{ github.sha }}" \
             --prerelease \
             --generate-notes \
-            --title "$tag"
+            --title "$tag" \
+            dist/*
