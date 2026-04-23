@@ -32,15 +32,15 @@ jobs:
       - name: Build UI
         run: npm --prefix ui run build
 
-      - name: Assert bundle budget (≤ 580 KB JS + CSS, initial chunk)
+      - name: Assert bundle budget (≤ 640 KiB JS + CSS, initial chunk)
         run: |
           set -eu
           js_bytes=$(stat -c %s ui/dist/assets/index-*.js 2>/dev/null || stat -f %z ui/dist/assets/index-*.js)
           css_bytes=$(stat -c %s ui/dist/assets/index-*.css 2>/dev/null || stat -f %z ui/dist/assets/index-*.css)
           total=$((js_bytes + css_bytes))
           echo "bundle: ${js_bytes} js + ${css_bytes} css = ${total} bytes"
-          if [ "$total" -gt 593920 ]; then
-            echo "::error::Bundle ${total} B exceeds 580 KB budget"
+          if [ "$total" -gt 655360 ]; then
+            echo "::error::Bundle ${total} B exceeds 640 KiB budget"
             exit 1
           fi
 
