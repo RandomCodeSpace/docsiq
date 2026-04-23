@@ -146,7 +146,7 @@ type ServerConfig struct {
 	Host           string `mapstructure:"host"`
 	Port           int    `mapstructure:"port"`
 	APIKey         string `mapstructure:"api_key"`
-	MaxUploadBytes int64  `mapstructure:"max_upload_bytes"`
+	MaxUploadBytes int64  `mapstructure:"max_upload_bytes"` // 0 or negative disables the cap
 }
 
 func Load(cfgFile string) (*Config, error) {

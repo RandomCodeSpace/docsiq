@@ -413,9 +413,9 @@ func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
 		// malformed-form errors we emit a 400.
 		var mbe *http.MaxBytesError
 		if errors.As(err, &mbe) {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusRequestEntityTooLarge)
-			_, _ = fmt.Fprintf(w, `{"error":"request body exceeds maximum upload size of %d bytes"}`, mbe.Limit)
+			// http.MaxBytesReader has already called w.WriteHeader(413)
+			// internally; calling it again would emit "http: superfluous
+			// response.WriteHeader call". Just return.
 			return
 		}
 		writeError(w, r, 400, "parse form: "+err.Error(), nil)
@@ -620,6 +620,14 @@ func intQuery(s string, def int) int {
 	return n
 }
 
+// writeTooLarge emits a 413 JSON error describing the configured limit.
+// Callers must ensure w.WriteHeader has not already been committed.
+func writeTooLarge(w http.ResponseWriter, limit int64) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusRequestEntityTooLarge)
+	_, _ = fmt.Fprintf(w, `{"error":"request body exceeds maximum upload size of %d bytes"}`, limit)
+}
+
 // enforceUploadLimit checks Content-Length against limit and, if the
 // declared size is within bounds, wraps r.Body with http.MaxBytesReader
 // so that any overflow during parsing is caught. Returns false and writes
@@ -631,9 +639,8 @@ func enforceUploadLimit(w http.ResponseWriter, r *http.Request, limit int64) boo
 	}
 	// Fast path: Content-Length is declared and already exceeds the limit.
 	if r.ContentLength > limit {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusRequestEntityTooLarge)
-		_, _ = fmt.Fprintf(w, `{"error":"request body exceeds maximum upload size of %d bytes"}`, limit)
+		slog.Warn("⚠️ upload: rejected oversize request", "content_length", r.ContentLength, "limit", limit)
+		writeTooLarge(w, limit)
 		return false
 	}
 	// Slow path: wrap body so overflow is caught during parsing.
