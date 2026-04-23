@@ -66,7 +66,7 @@
   "enhancement_responses_justification": "Enhancement requests receive a triage response within 14 days.",
 
   "vulnerability_report_process_status": "Met",
-  "vulnerability_report_process_justification": "Private vulnerability reporting via GitHub's private advisories; documented in SECURITY.md with 72h acknowledgement SLA. https://github.com/RandomCodeSpace/docsiq/blob/main/SECURITY.md",
+  "vulnerability_report_process_justification": "https://github.com/RandomCodeSpace/docsiq/blob/main/SECURITY.md",
 
   "vulnerability_report_private_status": "Met",
   "vulnerability_report_private_justification": "GitHub private vulnerability reporting is enabled on the repo. https://github.com/RandomCodeSpace/docsiq/security/advisories",
