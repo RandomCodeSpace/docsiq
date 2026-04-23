@@ -1,11 +1,20 @@
 name: scorecard
 
+# Triggers:
+#   - workflow_run on completed 'release' runs   → scan fresh release assets
+#   - weekly schedule (Mondays, 06:00 UTC)       → backstop against drift
+#   - branch_protection_rule changes             → re-score when policy moves
+#   - manual workflow_dispatch                   → on-demand
+# Not on every main push — most commits don't change release/scorecard-visible
+# state, so we were burning runner time publishing stale results.
 on:
+  workflow_run:
+    workflows: [release]
+    types: [completed]
   branch_protection_rule:
   schedule:
     - cron: '0 6 * * 1'
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 permissions: read-all
 
