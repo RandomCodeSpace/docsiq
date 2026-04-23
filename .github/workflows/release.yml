@@ -137,7 +137,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    name: goreleaser
+    name: publish release
     needs: [tag, build]
     runs-on: ubuntu-latest
     permissions:
@@ -149,10 +149,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
-        with:
-          go-version-file: go.mod
-
       - uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
         with:
           # v2.x — v3 broke our sign-blob flag compatibility.
@@ -163,39 +159,74 @@ jobs:
           pattern: binary-*
           path: downloaded/
 
-      - name: Lay out prebuilt/ for goreleaser
+      - name: Assemble versioned binaries + SHA256SUMS
+        env:
+          TAG: ${{ needs.tag.outputs.tag }}
         run: |
           set -eu
-          mkdir -p prebuilt
+          mkdir -p dist
           for dir in downloaded/binary-*; do
             rest=$(basename "$dir" | sed 's/^binary-//')
             goos="${rest%-*}"
             goarch="${rest##*-}"
-            target_dir="prebuilt/docsiq_${goos}_${goarch}"
-            mkdir -p "$target_dir"
-            cp "$dir/docsiq" "$target_dir/docsiq"
-            chmod +x "$target_dir/docsiq"
+            out="dist/docsiq-${TAG}-${goos}-${goarch}"
+            cp "$dir/docsiq" "$out"
+            chmod +x "$out"
           done
-          ls -R prebuilt/
+          (cd dist && sha256sum docsiq-* > SHA256SUMS)
+          ls -la dist/
+
+      - name: Sign artifacts with cosign (keyless)
+        run: |
+          set -eu
+          cd dist
+          for f in docsiq-* SHA256SUMS; do
+            cosign sign-blob --yes \
+              --output-signature="${f}.sig" \
+              --output-certificate="${f}.pem" \
+              "$f"
+          done
+          ls -la
 
       - name: Create + push tag
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.tag.outputs.tag }}
         run: |
           set -eu
-          tag="${{ needs.tag.outputs.tag }}"
-          git tag "$tag"
-          git push origin "$tag"
+          git tag "$TAG"
+          git push origin "$TAG"
 
-      - name: Run goreleaser
-        uses: goreleaser/goreleaser-action@e24998b8b67b290c2fa8b7c14fcfa7de2c5c9b8c # v7.1.0
-        with:
-          distribution: goreleaser
-          version: 'v2.15.4'
-          args: release --clean
+      - name: Create GitHub release and upload assets
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GORELEASER_CURRENT_TAG: ${{ needs.tag.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.tag.outputs.tag }}
+        run: |
+          set -eu
+          # Draft first so we can get the auto-generated body, then edit
+          # the body to append the cosign Verify footer before publishing.
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --generate-notes \
+            --draft \
+            dist/docsiq-* dist/SHA256SUMS dist/SHA256SUMS.sig dist/SHA256SUMS.pem
+
+          body=$(gh release view "$TAG" --json body -q .body)
+          {
+            printf '%s\n\n' "$body"
+            printf '### Verify\n\n'
+            printf 'All artifacts are signed with [cosign](https://github.com/sigstore/cosign) keyless via Sigstore.\n\n'
+            printf '```sh\n'
+            printf 'cosign verify-blob \\\n'
+            printf "  --certificate-identity-regexp 'https://github.com/RandomCodeSpace/docsiq/\\\\.github/workflows/release\\\\.yml.*' \\\\\n"
+            printf "  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \\\\\n"
+            printf '  --certificate docsiq-%s-linux-amd64.pem \\\n' "$TAG"
+            printf '  --signature docsiq-%s-linux-amd64.sig \\\n' "$TAG"
+            printf '  docsiq-%s-linux-amd64\n' "$TAG"
+            printf '```\n'
+          } > release-notes.md
+
+          gh release edit "$TAG" --notes-file release-notes.md --draft=false
 
       - name: Generate SLSA build provenance
         id: attest
@@ -209,8 +240,8 @@ jobs:
       - name: Upload provenance to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.tag.outputs.tag }}
         run: |
           set -eu
-          tag="${{ needs.tag.outputs.tag }}"
-          cp "${{ steps.attest.outputs.bundle-path }}" "docsiq-${tag}.intoto.jsonl"
-          gh release upload "$tag" "docsiq-${tag}.intoto.jsonl"
+          cp "${{ steps.attest.outputs.bundle-path }}" "docsiq-${TAG}.intoto.jsonl"
+          gh release upload "$TAG" "docsiq-${TAG}.intoto.jsonl"
