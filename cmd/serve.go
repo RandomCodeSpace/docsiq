@@ -9,9 +9,11 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/RandomCodeSpace/docsiq/internal/config"
 	"github.com/RandomCodeSpace/docsiq/internal/api"
 	"github.com/RandomCodeSpace/docsiq/internal/embedder"
 	"github.com/RandomCodeSpace/docsiq/internal/llm"
@@ -145,7 +147,10 @@ var serveCmd = &cobra.Command{
 			api.WithVectorIndexes(vecIndexes),
 		)
 
-		addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+		if err := validateServeSecurity(cfg); err != nil {
+				return err
+			}
+			addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 		ln, err := net.Listen("tcp", addr)
 		if err != nil {
 			return fmt.Errorf("listen: %w", err)
@@ -186,4 +191,25 @@ func init() {
 	rootCmd.AddCommand(serveCmd)
 	serveCmd.Flags().StringVar(&serveHost, "host", "", "Server host (overrides config)")
 	serveCmd.Flags().IntVar(&servePort, "port", 0, "Server port (overrides config)")
+}
+
+// validateServeSecurity refuses to start the server when the API key is
+// empty AND the bind host is not loopback. An unauthenticated service
+// exposed on the network is almost never intentional; make it explicit.
+// Loopback with empty key gets a prominent warning at boot instead.
+func validateServeSecurity(cfg *config.Config) error {
+	if cfg.Server.APIKey != "" {
+		return nil
+	}
+	host := strings.ToLower(strings.TrimSpace(cfg.Server.Host))
+	loopback := host == "127.0.0.1" || host == "localhost" || host == "::1" || host == ""
+	if !loopback {
+		return fmt.Errorf(
+			"server.api_key is empty and server.host=%q is not loopback; refusing to start. "+
+				"Set DOCSIQ_SERVER_API_KEY or bind to 127.0.0.1/localhost for dev",
+			cfg.Server.Host,
+		)
+	}
+	slog.Warn("⚠️ auth disabled (empty server.api_key); only loopback bind allowed", "host", host)
+	return nil
 }
