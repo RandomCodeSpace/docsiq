@@ -20,11 +20,23 @@ import (
 func TestUpload_ReturnsRetryOnFullQueue(t *testing.T) {
 	t.Parallel()
 	pool := workq.New(workq.Config{Workers: 1, QueueDepth: 1})
-	defer pool.Close(context.Background()) //nolint:errcheck
-
 	// Saturate the pool: one worker busy, one queue slot full.
 	block := make(chan struct{})
-	_ = pool.Submit(func(ctx context.Context) { <-block })
+	started := make(chan struct{})
+	// LIFO: close(block) runs first (unblocks the stuck worker), then
+	// pool.Close drains cleanly. This order is safe even on panic.
+	defer pool.Close(context.Background()) //nolint:errcheck
+	defer close(block)
+	// Signal via started that the worker has actually begun executing
+	// (and is now blocked on <-block) before we fill the queue slot.
+	// Without this synchronisation the race detector's slower scheduling
+	// can drain the first job from the channel before Submit #2 lands,
+	// leaving a free slot for the test's submit and producing a false 202.
+	_ = pool.Submit(func(ctx context.Context) { close(started); <-block })
+	<-started // worker is blocked on <-block; channel now empty
+	// Channel capacity = Workers+QueueDepth = 1+1 = 2.
+	// Fill both slots so the next submit returns ErrQueueFull.
+	_ = pool.Submit(func(ctx context.Context) {})
 	_ = pool.Submit(func(ctx context.Context) {})
 
 	var called atomic.Bool
@@ -64,5 +76,4 @@ func TestUpload_ReturnsRetryOnFullQueue(t *testing.T) {
 	if called.Load() {
 		t.Fatal("job should not have run when queue is full")
 	}
-	close(block)
 }

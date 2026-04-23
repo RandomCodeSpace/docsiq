@@ -537,10 +537,12 @@ func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
 	} else {
 		if err := h.workq.Submit(job); err != nil {
 			if errors.Is(err, workq.ErrQueueFull) {
+				h.setProgress(jobID, "rejected: indexing queue full")
 				w.Header().Set("Retry-After", "30")
 				writeError(w, r, http.StatusServiceUnavailable, "indexing queue full; retry later", nil)
 				return
 			}
+			h.setProgress(jobID, "rejected: server unavailable")
 			writeError(w, r, http.StatusServiceUnavailable, "server shutting down", err)
 			return
 		}
