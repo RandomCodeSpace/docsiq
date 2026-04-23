@@ -3,6 +3,7 @@ package workq
 import (
 	"context"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -55,7 +56,7 @@ func TestPool_CloseDrainsInflight(t *testing.T) {
 	t.Parallel()
 	p := New(Config{Workers: 2, QueueDepth: 4})
 	var ran atomic.Int32
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		_ = p.Submit(func(ctx context.Context) {
 			time.Sleep(20 * time.Millisecond)
 			ran.Add(1)
@@ -85,5 +86,22 @@ func TestPool_CloseCancelsOnContextDeadline(t *testing.T) {
 	err := p.Close(ctx)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("want DeadlineExceeded, got %v", err)
+	}
+}
+
+func TestPool_SubmitRaceDuringClose(t *testing.T) {
+	t.Parallel()
+	for range 50 {
+		p := New(Config{Workers: 4, QueueDepth: 8})
+		var wg sync.WaitGroup
+		for range 32 {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_ = p.Submit(func(ctx context.Context) {})
+			}()
+		}
+		_ = p.Close(context.Background())
+		wg.Wait()
 	}
 }

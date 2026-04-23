@@ -35,6 +35,10 @@ type Pool struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 
+	// mu guards close(p.jobs) vs concurrent sends in Submit. RLock
+	// on the send path lets many Submits proceed in parallel; Close
+	// takes the write lock before closing the channel.
+	mu        sync.RWMutex
 	closeOnce sync.Once
 	closed    chan struct{}
 }
@@ -66,6 +70,10 @@ func New(cfg Config) *Pool {
 // Submit enqueues job. Non-blocking: returns ErrQueueFull immediately
 // if no queue slot is available, ErrClosed if the pool is shutting down.
 func (p *Pool) Submit(job Job) error {
+	// RLock pairs with the write-lock in Close so the send on p.jobs
+	// cannot race with close(p.jobs).
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	select {
 	case <-p.closed:
 		return ErrClosed
@@ -85,8 +93,10 @@ func (p *Pool) Submit(job Job) error {
 // ctx.Err() is returned.
 func (p *Pool) Close(ctx context.Context) error {
 	p.closeOnce.Do(func() {
+		p.mu.Lock()
 		close(p.closed)
 		close(p.jobs)
+		p.mu.Unlock()
 	})
 	done := make(chan struct{})
 	go func() {
