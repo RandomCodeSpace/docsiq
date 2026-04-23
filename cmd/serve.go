@@ -13,8 +13,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/RandomCodeSpace/docsiq/internal/config"
 	"github.com/RandomCodeSpace/docsiq/internal/api"
+	"github.com/RandomCodeSpace/docsiq/internal/config"
 	"github.com/RandomCodeSpace/docsiq/internal/embedder"
 	"github.com/RandomCodeSpace/docsiq/internal/llm"
 	"github.com/RandomCodeSpace/docsiq/internal/project"
@@ -148,9 +148,9 @@ var serveCmd = &cobra.Command{
 		)
 
 		if err := validateServeSecurity(cfg); err != nil {
-				return err
-			}
-			addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+			return err
+		}
+		addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 		ln, err := net.Listen("tcp", addr)
 		if err != nil {
 			return fmt.Errorf("listen: %w", err)
@@ -202,7 +202,16 @@ func validateServeSecurity(cfg *config.Config) error {
 		return nil
 	}
 	host := strings.ToLower(strings.TrimSpace(cfg.Server.Host))
-	loopback := host == "127.0.0.1" || host == "localhost" || host == "::1" || host == ""
+	if host == "" {
+		return fmt.Errorf(
+			"server.api_key is empty and server.host is unset (binds all interfaces); refusing to start. " +
+				"Set DOCSIQ_SERVER_API_KEY or bind to 127.0.0.1/localhost for dev",
+		)
+	}
+	loopback := host == "localhost"
+	if ip := net.ParseIP(strings.Trim(host, "[]")); ip != nil {
+		loopback = loopback || ip.IsLoopback()
+	}
 	if !loopback {
 		return fmt.Errorf(
 			"server.api_key is empty and server.host=%q is not loopback; refusing to start. "+
