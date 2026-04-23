@@ -51,7 +51,7 @@
   "version_tags_justification": "https://github.com/RandomCodeSpace/docsiq/tags",
 
   "release_notes_status": "Met",
-  "release_notes_justification": "Generated per release via GitHub's generate_release_notes. https://github.com/RandomCodeSpace/docsiq/releases",
+  "release_notes_justification": "https://github.com/RandomCodeSpace/docsiq/blob/main/CHANGELOG.md",
 
   "report_process_status": "Met",
   "report_process_justification": "https://github.com/RandomCodeSpace/docsiq/blob/main/SECURITY.md",
