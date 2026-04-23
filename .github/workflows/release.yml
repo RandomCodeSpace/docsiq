@@ -167,6 +167,8 @@ jobs:
           set -eu
 
           # Extract the block under `## [<heading>]` up to the next `## [` heading.
+          # The heading may be `## [vX.Y.Z] — YYYY-MM-DD` or `## [X.Y.Z] — YYYY-MM-DD`;
+          # we match the prefix `## [<heading>]` regardless of trailing date.
           extract_section() {
             awk -v h="$1" '
               $0 ~ "^## \\[" h "\\]" { found=1; next }
@@ -177,7 +179,7 @@ jobs:
 
           has_content() { printf '%s' "$1" | grep -Eq '[^[:space:]]'; }
 
-          # The tag arrives as vX.Y.Z; CHANGELOG convention is [X.Y.Z] (no v).
+          # The tag arrives as vX.Y.Z; CHANGELOG convention is [X.Y.Z] (no v prefix).
           TAG_STRIPPED="${TAG#v}"
 
           body=""
@@ -187,34 +189,11 @@ jobs:
           done
 
           if ! has_content "$body"; then
-            # Promote [Unreleased] → [TAG_STRIPPED] — YYYY-MM-DD and insert a fresh empty Unreleased.
-            unreleased=$(extract_section 'Unreleased')
-            if ! has_content "$unreleased"; then
-              echo "::error::CHANGELOG.md has neither a '## [${TAG}]' / '## [${TAG_STRIPPED}]' section nor a non-empty '## [Unreleased]' section."
-              echo "::error::Add a '## [${TAG_STRIPPED}] — YYYY-MM-DD' section (or populate Unreleased) before releasing."
-              exit 1
-            fi
-
-            echo "Promoting [Unreleased] → [${TAG_STRIPPED}] in CHANGELOG.md"
-            date_iso=$(date -u +%Y-%m-%d)
-            python3 - <<PY
-          import pathlib
-          p = pathlib.Path('CHANGELOG.md')
-          t = p.read_text()
-          needle = '## [Unreleased]'
-          replacement = f'## [Unreleased]\n\n## [${TAG_STRIPPED}] — ${date_iso}'
-          if needle not in t:
-              raise SystemExit("no '## [Unreleased]' heading in CHANGELOG.md")
-          p.write_text(t.replace(needle, replacement, 1))
-          PY
-
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git config user.name  'github-actions[bot]'
-            git add CHANGELOG.md
-            git commit -m "docs: release ${TAG}"
-            git push origin HEAD:main
-
-            body=$(extract_section "$TAG_STRIPPED")
+            echo "::error::CHANGELOG.md has no '## [${TAG}]' or '## [${TAG_STRIPPED}]' section."
+            echo "::error::Release flow: open a PR that adds"
+            echo "::error::    ## [${TAG_STRIPPED}] — $(date -u +%Y-%m-%d)"
+            echo "::error::with curated bullets to CHANGELOG.md, merge it, then fire this workflow again."
+            exit 1
           fi
 
           # Emit to GITHUB_OUTPUT (heredoc form for multi-line).

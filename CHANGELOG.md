@@ -10,11 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Each release ships signed binaries (cosign keyless + Rekor), a signed
 `SHA256SUMS`, and SLSA build provenance.
 
-> **Contributors:** add bullets under `## [Unreleased]` as part of any
-> PR worth mentioning in release notes. When the release workflow runs,
-> it promotes `[Unreleased]` → `[vX.Y.Z] — YYYY-MM-DD` automatically and
-> uses that section as the GitHub release body. If no non-empty
-> `[Unreleased]` section exists at release time, the workflow fails.
+> **Release flow:** before firing the release workflow, open a PR that
+> adds a new `## [X.Y.Z] — YYYY-MM-DD` section with curated bullets, or
+> renames `## [Unreleased]` to the new version. Merge that PR, then fire
+> `release.yml`. The workflow reads the matching section as the GitHub
+> release body. If the section is missing, the release **fails** with a
+> clear error — no auto-commits to main, no silent fallback to raw git
+> logs. CHANGELOG.md is only modified through normal PRs.
 
 ## [Unreleased]
 
