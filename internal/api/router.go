@@ -115,6 +115,12 @@ func NewRouter(prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, re
 		})
 	}
 
+	// Session exchange — public (is the auth boundary).
+	// POST exchanges a bearer key for a docsiq_session httpOnly cookie.
+	// DELETE clears the cookie (logout).
+	mux.HandleFunc("POST /api/session", newSessionHandler(cfg.Server.APIKey))
+	mux.HandleFunc("DELETE /api/session", newSessionDeleteHandler())
+
 	// REST API — docs pipeline (Phase-0)
 	mux.HandleFunc("GET /api/stats", h.getStats)
 	mux.HandleFunc("GET /api/documents", h.listDocuments)
