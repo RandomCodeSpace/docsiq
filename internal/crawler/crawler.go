@@ -295,6 +295,12 @@ func resolveURL(base, href string) string {
 		}
 	}
 	resolved := b.ResolveReference(h)
+	// Belt-and-braces: also reject if the base URL had a non-http(s)
+	// scheme. The crawler only receives http(s) base URLs in production,
+	// but fuzzing proved resolveURL itself must enforce the invariant.
+	if rs := strings.ToLower(resolved.Scheme); rs != "http" && rs != "https" {
+		return ""
+	}
 	resolved.Fragment = ""
 	resolved.RawQuery = ""
 	return resolved.String()
