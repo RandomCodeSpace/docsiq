@@ -42,7 +42,7 @@ func TestUpload_ReturnsRetryOnFullQueue(t *testing.T) {
 	var called atomic.Bool
 	// Mimic what h.workq.Submit does in upload(): on ErrQueueFull, set
 	// Retry-After and write 503 via writeError equivalent.
-	handle := func(w http.ResponseWriter, r *http.Request) {
+	handle := func(w http.ResponseWriter, _ *http.Request) {
 		err := pool.Submit(func(ctx context.Context) {
 			called.Store(true)
 		})
