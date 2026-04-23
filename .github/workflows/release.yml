@@ -151,7 +151,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write   # required for cosign keyless signing
+      id-token: write       # required for cosign keyless signing
+      attestations: write   # required for actions/attest-build-provenance
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
@@ -193,16 +194,34 @@ jobs:
             --output-certificate SHA256SUMS.pem \
             SHA256SUMS
 
-      - name: Create tag + release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # SLSA build provenance — scorecard's Signed-Releases check asks
+      # for in-toto attestations alongside the cosign sigs. The bundle
+      # covers both binaries and SHA256SUMS.
+      - name: Generate SLSA build provenance
+        id: attest
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-path: |
+            dist/docsiq-*-linux-amd64
+            dist/docsiq-*-darwin-arm64
+            dist/SHA256SUMS
+
+      - name: Copy attestation into dist
         run: |
           set -eu
-          tag="${{ needs.tag.outputs.tag }}"
-          git tag "$tag"
-          git push origin "$tag"
-          gh release create "$tag" \
-            --target "${{ github.sha }}" \
-            --generate-notes \
-            --title "$tag" \
+          cp "${{ steps.attest.outputs.bundle-path }}" \
+            dist/docsiq-${{ needs.tag.outputs.tag }}.intoto.jsonl
+
+      # softprops/action-gh-release is the pattern scorecard's Packaging
+      # check recognises, replacing our ad-hoc `gh release create`.
+      # Creates the tag on the triggering SHA when it doesn't yet exist.
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        with:
+          tag_name: ${{ needs.tag.outputs.tag }}
+          name: ${{ needs.tag.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          make_latest: 'true'
+          files: |
             dist/*
