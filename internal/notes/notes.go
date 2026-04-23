@@ -88,11 +88,17 @@ func resolvePath(notesDir, key string) (string, error) {
 	if err := ValidateKey(key); err != nil {
 		return "", err
 	}
+	// filepath.IsLocal is CodeQL's recognised path-injection sanitiser;
+	// belt-and-braces on top of ValidateKey's segment checks.
+	rel := filepath.FromSlash(key) + ".md"
+	if !filepath.IsLocal(rel) {
+		return "", fmt.Errorf("%w: non-local relative path", ErrInvalidKey)
+	}
 	cleanBase, err := filepath.Abs(notesDir)
 	if err != nil {
 		return "", fmt.Errorf("resolve notes dir: %w", err)
 	}
-	full := filepath.Join(cleanBase, filepath.FromSlash(key)+".md")
+	full := filepath.Join(cleanBase, rel)
 	cleanFull, err := filepath.Abs(full)
 	if err != nil {
 		return "", fmt.Errorf("resolve note path: %w", err)
