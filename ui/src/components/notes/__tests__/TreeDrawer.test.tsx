@@ -7,8 +7,8 @@ import { server } from "@/test/msw";
 import { TreeDrawer } from "../TreeDrawer";
 
 // Polyfills for jsdom that shadcn Sheet (Radix) may need:
-if (!(global as any).ResizeObserver) {
-  (global as any).ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+if (!(globalThis as any).ResizeObserver) {
+  (globalThis as any).ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
 }
 if (!(Element.prototype as any).scrollIntoView) {
   (Element.prototype as any).scrollIntoView = () => {};

@@ -5,8 +5,8 @@ import { ThemeToggle } from "../ThemeToggle";
 import { useUIStore } from "@/stores/ui";
 
 // Polyfills for Radix dropdown in jsdom
-if (!(global as any).ResizeObserver) {
-  (global as any).ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+if (!(globalThis as any).ResizeObserver) {
+  (globalThis as any).ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
 }
 if (!(Element.prototype as any).scrollIntoView) {
   (Element.prototype as any).scrollIntoView = () => {};
