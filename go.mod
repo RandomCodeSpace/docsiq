@@ -7,7 +7,7 @@ require (
 	github.com/mark3labs/mcp-go v0.49.0
 	github.com/mattn/go-sqlite3 v1.14.42
 	github.com/schollz/progressbar/v3 v3.19.0
-	github.com/spf13/cobra v1.8.1
+	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/tmc/langchaingo v0.1.14
 	go.uber.org/goleak v1.3.0
