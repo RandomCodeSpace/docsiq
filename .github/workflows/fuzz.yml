@@ -4,8 +4,6 @@ name: fuzz (smoke)
 # for continuous fuzzing (OSS-Fuzz Tier 2) — just catches obvious
 # regressions before merge.
 on:
-  push:
-    branches: [main]
   pull_request:
 
 permissions: read-all
