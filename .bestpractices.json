@@ -233,27 +233,27 @@
   "sites_password_security_status": "N/A",
   "sites_password_security_justification": "N/A — no user accounts or passwords. Maintainer auth handled by GitHub.",
 
-  "code_of_conduct_status": "?",
-  "code_of_conduct_justification": "TODO — add CODE_OF_CONDUCT.md (Contributor Covenant 2.1) at repo root.",
+  "code_of_conduct_status": "Met",
+  "code_of_conduct_justification": "Contributor Covenant 2.1 adopted. https://github.com/RandomCodeSpace/docsiq/blob/main/CODE_OF_CONDUCT.md",
 
-  "governance_status": "?",
-  "governance_justification": "TODO — add GOVERNANCE.md describing BDFL model with sole maintainer, PR-review decision process, and security-contact continuity plan.",
+  "governance_status": "Met",
+  "governance_justification": "Lead-maintainer model documented with decision-making process, roles, and continuity plan. https://github.com/RandomCodeSpace/docsiq/blob/main/GOVERNANCE.md",
 
-  "roles_responsibilities_status": "?",
-  "roles_responsibilities_justification": "TODO — document maintainer / reviewer / security-contact roles in GOVERNANCE.md.",
+  "roles_responsibilities_status": "Met",
+  "roles_responsibilities_justification": "Lead maintainer, security contact, and reviewer roles documented. https://github.com/RandomCodeSpace/docsiq/blob/main/GOVERNANCE.md#roles",
 
-  "access_continuity_status": "?",
-  "access_continuity_justification": "TODO — add .github/CODEOWNERS plus GOVERNANCE.md section on admin-access backup and account-recovery plan.",
+  "access_continuity_status": "Met",
+  "access_continuity_justification": ".github/CODEOWNERS routes PR review to @aksOps; GOVERNANCE.md documents admin-access continuity via reproducible builds and cosign keyless signing. https://github.com/RandomCodeSpace/docsiq/blob/main/.github/CODEOWNERS",
 
-  "bus_factor_status": "?",
-  "bus_factor_justification": "TODO — note in GOVERNANCE.md that project is single-maintainer but all build/signing/registry artifacts are reproducible from source, mitigating bus-factor risk.",
+  "bus_factor_status": "Met",
+  "bus_factor_justification": "Single-maintainer risk mitigated by reproducible builds and keyless cosign signing anchored to GitHub OIDC + Rekor — not a private key. Any fork can reproduce identical release artifacts. https://github.com/RandomCodeSpace/docsiq/blob/main/GOVERNANCE.md#continuity-and-resilience",
 
-  "report_archive_status": "?",
-  "report_archive_justification": "TODO — confirm GitHub Issues serves as the report archive and note it in SECURITY.md.",
+  "report_archive_status": "Met",
+  "report_archive_justification": "GitHub Issues serves as the public report archive; Security Advisories archive coordinated-disclosure reports. https://github.com/RandomCodeSpace/docsiq/blob/main/SECURITY.md#report-archive",
 
-  "release_notes_vulns_status": "?",
-  "release_notes_vulns_justification": "TODO — add .github/release.yml template with a 'Security fixes' section auto-populated from PRs labelled `security`.",
+  "release_notes_vulns_status": "Met",
+  "release_notes_vulns_justification": ".github/release.yml defines a 'Security fixes' section auto-populated from PRs labelled `security` in GitHub-generated release notes. https://github.com/RandomCodeSpace/docsiq/blob/main/.github/release.yml",
 
-  "accessibility_best_practices_status": "?",
-  "accessibility_best_practices_justification": "TODO — add docs/ACCESSIBILITY.md covering WCAG AA stance for the embedded React SPA (keyboard nav, contrast tokens, prefers-reduced-motion)."
+  "accessibility_best_practices_status": "Met",
+  "accessibility_best_practices_justification": "WCAG 2.1 Level AA stance documented for the embedded React SPA: contrast ≥ 4.5:1, keyboard nav, prefers-reduced-motion, semantic HTML, axe-core checks. https://github.com/RandomCodeSpace/docsiq/blob/main/docs/ACCESSIBILITY.md"
 }
