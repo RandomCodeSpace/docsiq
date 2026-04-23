@@ -147,6 +147,8 @@ type ServerConfig struct {
 	Port           int    `mapstructure:"port"`
 	APIKey         string `mapstructure:"api_key"`
 	MaxUploadBytes int64  `mapstructure:"max_upload_bytes"` // 0 or negative disables the cap
+	WorkqWorkers   int    `mapstructure:"workq_workers"`    // 0 → runtime.NumCPU()
+	WorkqDepth     int    `mapstructure:"workq_depth"`      // 0 → 64
 }
 
 func Load(cfgFile string) (*Config, error) {
@@ -210,6 +212,8 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetDefault("server.port", 8080)
 	v.SetDefault("server.api_key", "")
 	v.SetDefault("server.max_upload_bytes", int64(100*1024*1024)) // 100 MiB
+	v.SetDefault("server.workq_workers", 0)                       // 0 → runtime.NumCPU()
+	v.SetDefault("server.workq_depth", 64)
 
 	// Config file search paths. Only ~/.docsiq and CWD are consulted.
 	newCfgDir := filepath.Join(home, ".docsiq")
@@ -233,6 +237,8 @@ func Load(cfgFile string) (*Config, error) {
 	// verbatim (not prefixed), so we list the full env var name.
 	_ = v.BindEnv("server.api_key", "DOCSIQ_SERVER_API_KEY", "DOCSIQ_API_KEY")
 	_ = v.BindEnv("server.max_upload_bytes", "DOCSIQ_SERVER_MAX_UPLOAD_BYTES")
+	_ = v.BindEnv("server.workq_workers", "DOCSIQ_SERVER_WORKQ_WORKERS")
+	_ = v.BindEnv("server.workq_depth", "DOCSIQ_SERVER_WORKQ_DEPTH")
 
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {

@@ -16,6 +16,7 @@ import (
 	"github.com/RandomCodeSpace/docsiq/internal/llm"
 	"github.com/RandomCodeSpace/docsiq/internal/mcp"
 	"github.com/RandomCodeSpace/docsiq/internal/project"
+	"github.com/RandomCodeSpace/docsiq/internal/workq"
 	"github.com/RandomCodeSpace/docsiq/ui"
 )
 
@@ -26,6 +27,7 @@ type RouterOption func(*routerOptions)
 type routerOptions struct {
 	vecIndexes *VectorIndexes
 	stores     *projectStores
+	workq      *workq.Pool
 }
 
 // WithVectorIndexes wires a per-project HNSW index cache into the
@@ -33,6 +35,13 @@ type routerOptions struct {
 // back to brute-force per request.
 func WithVectorIndexes(vi *VectorIndexes) RouterOption {
 	return func(o *routerOptions) { o.vecIndexes = vi }
+}
+
+// WithWorkq injects a bounded worker pool for background indexing jobs.
+// When nil (default), upload() falls back to a detached goroutine — the
+// dev/test path.
+func WithWorkq(p *workq.Pool) RouterOption {
+	return func(o *routerOptions) { o.workq = p }
 }
 
 // WithProjectStores lets callers inject a pre-built ProjectStores
@@ -70,6 +79,7 @@ func NewRouter(prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, re
 		embedder:   emb,
 		cfg:        cfg,
 		vecIndexes: ro.vecIndexes,
+		workq:      ro.workq,
 	}
 	nh := newNotesHandlersWithStores(stores, cfg, registry)
 	ph := &projectsHandler{registry: registry}

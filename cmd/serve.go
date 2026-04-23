@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/RandomCodeSpace/docsiq/internal/project"
 	"github.com/RandomCodeSpace/docsiq/internal/sqlitevec"
 	"github.com/RandomCodeSpace/docsiq/internal/vectorindex"
+	"github.com/RandomCodeSpace/docsiq/internal/workq"
 	"github.com/spf13/cobra"
 )
 
@@ -142,9 +144,20 @@ var serveCmd = &cobra.Command{
 			}
 		}
 
+		workers := cfg.Server.WorkqWorkers
+		if workers <= 0 {
+			workers = runtime.NumCPU()
+		}
+		depth := cfg.Server.WorkqDepth
+		if depth <= 0 {
+			depth = 64
+		}
+		pool := workq.New(workq.Config{Workers: workers, QueueDepth: depth})
+
 		router := api.NewRouter(prov, emb, cfg, registry,
 			api.WithProjectStores(stores),
 			api.WithVectorIndexes(vecIndexes),
+			api.WithWorkq(pool),
 		)
 
 		if err := validateServeSecurity(cfg); err != nil {
@@ -182,6 +195,17 @@ var serveCmd = &cobra.Command{
 			slog.Error("❌ shutdown error", "err", err)
 			return err
 		}
+
+		// Drain workq within its own 30s deadline. Server.Shutdown has already
+		// stopped accepting new HTTP requests, so no new jobs can be submitted;
+		// all that remains is letting in-flight pipelines finish or honour the
+		// cancelled ctx.
+		drainCtx, drainCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer drainCancel()
+		if err := pool.Close(drainCtx); err != nil {
+			slog.Warn("⚠️ workq drain timeout; some indexing jobs were cancelled mid-flight", "err", err)
+		}
+
 		slog.Info("✅ shutdown complete")
 		return nil
 	},

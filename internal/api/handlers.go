@@ -24,6 +24,7 @@ import (
 	"github.com/RandomCodeSpace/docsiq/internal/search"
 	"github.com/RandomCodeSpace/docsiq/internal/store"
 	"github.com/RandomCodeSpace/docsiq/internal/vectorindex"
+	"github.com/RandomCodeSpace/docsiq/internal/workq"
 )
 
 // handlers is the REST-side doc router state. Wave-2 drop: the
@@ -39,6 +40,9 @@ type handlers struct {
 	// return nil for a slug with no embeddings; LocalSearch falls back
 	// to brute-force in that case.
 	vecIndexes *VectorIndexes
+	// workq is the bounded worker pool for upload indexing jobs. When
+	// nil (dev/test path), upload() falls back to a detached goroutine.
+	workq *workq.Pool
 
 	// Upload progress tracking
 	uploadMu    sync.Mutex
@@ -497,25 +501,25 @@ func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
 
 	h.setProgress(jobID, fmt.Sprintf("queued: %d files", len(paths)))
 
-	// Use a detached context so the background goroutine is not cancelled
-	// when the HTTP response is sent.
-	bgCtx := context.Background()
-	tmpDirOwned = true
-
-	go func() {
+	job := func(ctx context.Context) {
 		defer os.RemoveAll(tmpDir)
 		pl := pipeline.New(st, h.provider, h.cfg)
 		for _, p := range paths {
+			if ctx.Err() != nil {
+				slog.Warn("🛑 upload indexing cancelled on shutdown", "job_id", jobID, "file", filepath.Base(p))
+				h.setProgress(jobID, "cancelled")
+				return
+			}
 			slog.Info("📦 upload indexing file", "job_id", jobID, "file", filepath.Base(p))
 			h.setProgress(jobID, fmt.Sprintf("indexing: %s", filepath.Base(p)))
-			if err := pl.IndexPath(bgCtx, p, pipeline.IndexOptions{}); err != nil {
+			if err := pl.IndexPath(ctx, p, pipeline.IndexOptions{}); err != nil {
 				slog.Error("❌ upload indexing failed", "job_id", jobID, "file", filepath.Base(p), "err", err)
 				h.setProgress(jobID, fmt.Sprintf("error: %v", err))
 				return
 			}
 		}
 		h.setProgress(jobID, "finalizing")
-		if err := pl.Finalize(bgCtx, false, true); err != nil {
+		if err := pl.Finalize(ctx, false, true); err != nil {
 			slog.Warn("⚠️ upload finalization failed", "job_id", jobID, "err", err)
 		}
 		// Invalidate the vector index for this project so the next
@@ -525,9 +529,25 @@ func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
 		}
 		slog.Info("✅ upload job complete", "job_id", jobID, "files", len(paths), "project", slug)
 		h.setProgress(jobID, "done")
-	}()
+	}
 
-	writeJSON(w, 202, map[string]string{"job_id": jobID, "status": "queued"})
+	if h.workq == nil {
+		tmpDirOwned = true
+		go job(context.Background()) // dev/test fallback
+	} else {
+		if err := h.workq.Submit(job); err != nil {
+			if errors.Is(err, workq.ErrQueueFull) {
+				w.Header().Set("Retry-After", "30")
+				writeError(w, r, http.StatusServiceUnavailable, "indexing queue full; retry later", nil)
+				return
+			}
+			writeError(w, r, http.StatusServiceUnavailable, "server shutting down", err)
+			return
+		}
+		tmpDirOwned = true
+	}
+
+	writeJSON(w, http.StatusAccepted, map[string]string{"job_id": jobID, "status": "accepted"})
 }
 
 func (h *handlers) setProgress(jobID, msg string) {
