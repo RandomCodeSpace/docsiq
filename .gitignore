@@ -39,6 +39,12 @@ ui/.vite/
 ui/coverage/
 ui/*.tsbuildinfo
 
+# Frontend — Playwright E2E artifacts (generated, never committed)
+ui/playwright-report/
+ui/test-results/
+ui/blob-report/
+ui/playwright/.cache/
+
 # Environment — never commit secrets
 .env
 .env.*
