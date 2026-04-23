@@ -1,0 +1,40 @@
+name: fuzz (smoke)
+
+# Short, bounded fuzz smoke test on every PR + push. Not a replacement
+# for continuous fuzzing (OSS-Fuzz Tier 2) — just catches obvious
+# regressions before merge.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions: read-all
+
+jobs:
+  fuzz:
+    name: go fuzz smoke
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: go.mod
+
+      - name: fuzz targets (30s each)
+        run: |
+          set -eu
+          targets=(
+            "./internal/crawler::FuzzResolveURL"
+            "./internal/chunker::FuzzChunker"
+          )
+          for entry in "${targets[@]}"; do
+            pkg="${entry%%::*}"
+            fn="${entry##*::}"
+            echo "::group::fuzz $pkg $fn"
+            CGO_ENABLED=1 go test -tags sqlite_fts5 \
+              -run=^$ -fuzz="^${fn}$" -fuzztime=30s "$pkg"
+            echo "::endgroup::"
+          done
