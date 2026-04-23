@@ -11,6 +11,12 @@
   "contribution_requirements_status": "Met",
   "contribution_requirements_justification": "CONTRIBUTING.md documents PR requirements: go test suite passing, go vet clean, CodeQL passing, Conventional Commit style. https://github.com/RandomCodeSpace/docsiq/blob/main/CONTRIBUTING.md",
 
+  "documentation_interface_status": "Met",
+  "documentation_interface_justification": "CLI interface documented in docs/cli-reference.md; REST API documented in docs/rest-api.md; MCP tool catalogue in docs/mcp-tools.md. https://github.com/RandomCodeSpace/docsiq/tree/main/docs",
+
+  "test_continuous_integration_status": "Met",
+  "test_continuous_integration_justification": "CI runs full test suite (unit + integration + fuzz) on every PR and every push to main. https://github.com/RandomCodeSpace/docsiq/blob/main/.github/workflows/ci.yml",
+
   "license_location_status": "Met",
   "license_location_justification": "https://github.com/RandomCodeSpace/docsiq/blob/main/LICENSE",
 
@@ -60,7 +66,7 @@
   "enhancement_responses_justification": "Enhancement requests receive a triage response within 14 days.",
 
   "vulnerability_report_process_status": "Met",
-  "vulnerability_report_process_justification": "Private vulnerability reporting via GitHub's private advisories; documented in SECURITY.md with 72h acknowledgement SLA. https://github.com/RandomCodeSpace/docsiq/blob/main/SECURITY.md",
+  "vulnerability_report_process_justification": "https://github.com/RandomCodeSpace/docsiq/blob/main/SECURITY.md",
 
   "vulnerability_report_private_status": "Met",
   "vulnerability_report_private_justification": "GitHub private vulnerability reporting is enabled on the repo. https://github.com/RandomCodeSpace/docsiq/security/advisories",
