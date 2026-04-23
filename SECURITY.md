@@ -36,3 +36,11 @@ security patches.
 We follow coordinated disclosure. Once a fix ships in a release, we
 publish a [GitHub Security Advisory](https://github.com/RandomCodeSpace/docsiq/security/advisories)
 crediting the reporter unless they request anonymity.
+
+## Report archive
+
+Non-sensitive bug reports and their full discussion history are archived
+publicly as [GitHub Issues](https://github.com/RandomCodeSpace/docsiq/issues).
+Security reports are archived as
+[GitHub Security Advisories](https://github.com/RandomCodeSpace/docsiq/security/advisories)
+after coordinated disclosure.
