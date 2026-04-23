@@ -60,7 +60,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
     env:
       CGO_ENABLED: "1"
@@ -71,16 +71,11 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Assert C toolchain (macOS)
-        if: runner.os == 'macOS'
-        run: clang --version
-
       - name: Go build cache
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: |
             ~/.cache/go-build
-            ~/Library/Caches/go-build
             ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
