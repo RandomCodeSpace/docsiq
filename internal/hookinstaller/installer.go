@@ -131,8 +131,8 @@ func writeJSONMapAtomic(path string, data map[string]json.RawMessage) error {
 		cleanup()
 		return fmt.Errorf("close temp: %w", err)
 	}
-	// 0o644 — standard config perms. Writable by user only.
-	if err := os.Chmod(tmpPath, 0o644); err != nil {
+	// 0o600 — user-only read/write. No group/world bits.
+	if err := os.Chmod(tmpPath, 0o600); err != nil {
 		cleanup()
 		return fmt.Errorf("chmod temp: %w", err)
 	}
@@ -163,19 +163,19 @@ func validateHookPath(p string) error {
 	return nil
 }
 
-// ExtractHookScript writes the embedded hook.sh to dest with 0o755 perms.
+// ExtractHookScript writes the embedded hook.sh to dest with 0o700 perms.
 // Creates the parent directory if missing. Overwrites existing files —
 // callers that want to preserve a user-modified hook should check first.
 func ExtractHookScript(dest string) error {
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dest), 0o700); err != nil {
 		return fmt.Errorf("mkdir %s: %w", filepath.Dir(dest), err)
 	}
-	if err := os.WriteFile(dest, HookScript, 0o755); err != nil {
+	if err := os.WriteFile(dest, HookScript, 0o700); err != nil {
 		return fmt.Errorf("write %s: %w", dest, err)
 	}
 	// WriteFile masks perms through umask on create; reset explicitly so
-	// the resulting file is reliably executable.
-	if err := os.Chmod(dest, 0o755); err != nil {
+	// the resulting file is reliably executable for the owner only.
+	if err := os.Chmod(dest, 0o700); err != nil {
 		return fmt.Errorf("chmod %s: %w", dest, err)
 	}
 	return nil
