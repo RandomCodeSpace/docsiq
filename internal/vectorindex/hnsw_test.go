@@ -215,6 +215,13 @@ func TestHNSW_Recall10k(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping 10k benchmark in -short")
 	}
+	if raceEnabled {
+		// Workload is fully sequential (no goroutines), so the race
+		// detector has nothing to catch here — it just adds ~10× overhead
+		// that dominates CI. Concurrency correctness is covered by
+		// TestHNSW_ConcurrentAddSearch, which DOES run under -race.
+		t.Skip("skipping 10k recall benchmark under -race (sequential workload)")
+	}
 	const (
 		n   = 10_000
 		dim = 384
