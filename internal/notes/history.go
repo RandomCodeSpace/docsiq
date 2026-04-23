@@ -183,6 +183,14 @@ func autoCommit(notesDir, key, author, subject string, deleted bool) {
 	// Relative path of the note file from notesDir — `git -C` makes this
 	// relative too. We always work with forward slashes inside git args.
 	rel := filepath.ToSlash(filepath.FromSlash(key) + ".md")
+	// filepath.IsLocal is a CodeQL-recognised command/path-injection
+	// sanitiser (caller already validates key via ValidateKey, but this
+	// proves safety to the static analyser).
+	if !filepath.IsLocal(rel) {
+		slog.Warn("note history: non-local rel path, skipping commit",
+			"notesDir", notesDir, "key", key)
+		return
+	}
 
 	if deleted {
 		// `git add -A -- <rel>` records removals as well as
@@ -243,6 +251,9 @@ func History(notesDir, key string, limit int) ([]HistoryEntry, error) {
 	}
 
 	rel := filepath.ToSlash(filepath.FromSlash(key) + ".md")
+	if !filepath.IsLocal(rel) {
+		return nil, fmt.Errorf("invalid key: non-local rel path")
+	}
 
 	// %H=sha, %an=author name, %at=author unix epoch, %s=subject.
 	// Null-byte separator keeps fields unambiguous even with whitespace

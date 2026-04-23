@@ -76,6 +76,13 @@ func projectMiddleware(cfg *config.Config, registry *project.Registry, next http
 			http.Error(w, "invalid project slug", http.StatusBadRequest)
 			return
 		}
+		// IsValidSlug already rejects anything path-dangerous (enforces
+		// `^[a-z0-9_-]+$`); filepath.IsLocal is a CodeQL-recognised
+		// path-injection sanitiser — belt-and-braces for static analysis.
+		if !filepath.IsLocal(slug) {
+			http.Error(w, "invalid project slug", http.StatusBadRequest)
+			return
+		}
 
 		// Lookup. The registry may be nil in tests that bypass serveCmd —
 		// treat nil as "skip registration, just attach the slug."
