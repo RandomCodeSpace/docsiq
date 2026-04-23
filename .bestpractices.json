@@ -1,0 +1,259 @@
+{
+  "description_good_status": "Met",
+  "description_good_justification": "See README.md. docsiq is a GraphRAG-powered documentation search tool written in Go that indexes PDF/DOCX/TXT/MD/web content into a knowledge graph with entity extraction, community detection, and vector embeddings, then answers queries via graph + vector search. https://github.com/RandomCodeSpace/docsiq/blob/main/README.md",
+
+  "interact_status": "Met",
+  "interact_justification": "GitHub Issues for bug reports, GitHub Discussions for questions, SECURITY.md for private vulnerability reports. All linked from README. https://github.com/RandomCodeSpace/docsiq/issues",
+
+  "contribution_status": "Met",
+  "contribution_justification": "https://github.com/RandomCodeSpace/docsiq/blob/main/CONTRIBUTING.md",
+
+  "contribution_requirements_status": "Met",
+  "contribution_requirements_justification": "CONTRIBUTING.md documents PR requirements: go test suite passing, go vet clean, CodeQL passing, Conventional Commit style. https://github.com/RandomCodeSpace/docsiq/blob/main/CONTRIBUTING.md",
+
+  "license_location_status": "Met",
+  "license_location_justification": "https://github.com/RandomCodeSpace/docsiq/blob/main/LICENSE",
+
+  "floss_license_status": "Met",
+  "floss_license_justification": "MIT — https://opensource.org/licenses/MIT",
+
+  "floss_license_osi_status": "Met",
+  "floss_license_osi_justification": "MIT is OSI-approved.",
+
+  "english_status": "Met",
+  "english_justification": "All source comments, documentation, commit messages, and issue discussions are in English.",
+
+  "repo_public_status": "Met",
+  "repo_public_justification": "https://github.com/RandomCodeSpace/docsiq",
+
+  "repo_track_status": "Met",
+  "repo_track_justification": "Git, hosted on GitHub. https://github.com/RandomCodeSpace/docsiq",
+
+  "repo_interim_status": "Met",
+  "repo_interim_justification": "All commits merged to main are publicly visible. No batch or secret merges.",
+
+  "repo_distributed_status": "Met",
+  "repo_distributed_justification": "Git is a distributed VCS; every clone holds full history.",
+
+  "version_unique_status": "Met",
+  "version_unique_justification": "Each release carries a unique semver tag (v0.0.1, v0.0.2, ...) and an immutable git SHA.",
+
+  "version_semver_status": "Met",
+  "version_semver_justification": "MAJOR.MINOR.PATCH. Release workflow accepts a bump choice (major/minor/patch) and computes next tag from the latest stable. https://github.com/RandomCodeSpace/docsiq/blob/main/.github/workflows/release.yml",
+
+  "version_tags_status": "Met",
+  "version_tags_justification": "https://github.com/RandomCodeSpace/docsiq/tags",
+
+  "release_notes_status": "Met",
+  "release_notes_justification": "Generated per release via GitHub's generate_release_notes. https://github.com/RandomCodeSpace/docsiq/releases",
+
+  "report_process_status": "Met",
+  "report_process_justification": "https://github.com/RandomCodeSpace/docsiq/blob/main/SECURITY.md",
+
+  "report_tracker_status": "Met",
+  "report_tracker_justification": "https://github.com/RandomCodeSpace/docsiq/issues",
+
+  "report_responses_status": "Met",
+  "report_responses_justification": "Maintainer responds to reported issues within 14 days; recent issue history confirms this.",
+
+  "enhancement_responses_status": "Met",
+  "enhancement_responses_justification": "Enhancement requests receive a triage response within 14 days.",
+
+  "vulnerability_report_process_status": "Met",
+  "vulnerability_report_process_justification": "Private vulnerability reporting via GitHub's private advisories; documented in SECURITY.md with 72h acknowledgement SLA. https://github.com/RandomCodeSpace/docsiq/blob/main/SECURITY.md",
+
+  "vulnerability_report_private_status": "Met",
+  "vulnerability_report_private_justification": "GitHub private vulnerability reporting is enabled on the repo. https://github.com/RandomCodeSpace/docsiq/security/advisories",
+
+  "vulnerability_report_response_status": "Met",
+  "vulnerability_report_response_justification": "SECURITY.md commits to 72h initial response and 14-day triage.",
+
+  "build_status": "Met",
+  "build_justification": "Single-command build: `go build -tags sqlite_fts5 ./` or `make build`. CI builds every PR. https://github.com/RandomCodeSpace/docsiq/blob/main/.github/workflows/ci.yml",
+
+  "build_common_tools_status": "Met",
+  "build_common_tools_justification": "Go toolchain + npm (UI). Both are widely available and standard.",
+
+  "build_floss_tools_status": "Met",
+  "build_floss_tools_justification": "Go (BSD-3-Clause), Node/npm (MIT), Make (GPL). All FLOSS.",
+
+  "test_status": "Met",
+  "test_justification": "Automated test suite runs on every push. https://github.com/RandomCodeSpace/docsiq/actions/workflows/ci.yml",
+
+  "test_invocation_status": "Met",
+  "test_invocation_justification": "`go test ./...` — documented in README and CONTRIBUTING.md.",
+
+  "test_most_status": "Met",
+  "test_most_justification": "Unit and integration tests across internal/api, internal/notes, internal/crawler, internal/chunker, internal/vectorindex, internal/store, and more.",
+
+  "test_policy_status": "Met",
+  "test_policy_justification": "CONTRIBUTING.md requires tests for new features and regression tests for bug fixes. PR review enforces it.",
+
+  "tests_are_added_status": "Met",
+  "tests_are_added_justification": "Recent PRs (#19, #28, #32, #44) each added tests alongside code changes.",
+
+  "tests_documented_added_status": "Met",
+  "tests_documented_added_justification": "CONTRIBUTING.md documents the test-with-every-change expectation.",
+
+  "warnings_status": "Met",
+  "warnings_justification": "`go vet ./...` and `golangci-lint` run on every CI build; any warning fails the build.",
+
+  "warnings_fixed_status": "Met",
+  "warnings_fixed_justification": "All vet/lint warnings resolved on main; no suppressions without justification.",
+
+  "warnings_strict_status": "Met",
+  "warnings_strict_justification": "CI fails on any vet or golangci-lint warning — effectively -Werror.",
+
+  "know_secure_design_status": "Met",
+  "know_secure_design_justification": "Maintainer applies defense-in-depth: path-injection sanitisers at user-data boundaries (filepath.IsLocal in internal/api/project.go and internal/notes/history.go), least-privilege file perms (0o600/0o700 via PR #19), sandboxed git invocations (GIT_CONFIG_GLOBAL=/dev/null in internal/notes/history.go).",
+
+  "know_common_errors_status": "Met",
+  "know_common_errors_justification": "Familiar with OWASP Top 10, CWE-22/78/79/89/918. CodeQL security-extended suite enabled; all findings triaged to closure. https://github.com/RandomCodeSpace/docsiq/security/code-scanning",
+
+  "crypto_published_status": "Met",
+  "crypto_published_justification": "Only published algorithms used: Go crypto/tls, crypto/rand, crypto/sha256. No custom crypto.",
+
+  "crypto_call_status": "Met",
+  "crypto_call_justification": "All outbound HTTPS via Go stdlib crypto/tls; system trust store; TLS 1.2+.",
+
+  "crypto_floss_status": "Met",
+  "crypto_floss_justification": "Go standard library crypto (BSD-3-Clause). Sigstore cosign (Apache-2.0).",
+
+  "crypto_keylength_status": "Met",
+  "crypto_keylength_justification": "Go stdlib defaults: RSA ≥2048-bit / P-256 ECDSA / SHA-256. No weak keys.",
+
+  "crypto_working_status": "Met",
+  "crypto_working_justification": "No MD5/SHA-1 for integrity. No DES/RC4. Only AEAD ciphers via stdlib defaults.",
+
+  "crypto_weaknesses_status": "Met",
+  "crypto_weaknesses_justification": "Sigstore cosign signing uses ECDSA-P256 + SHA-256. Go TLS defaults exclude weak primitives.",
+
+  "crypto_pfs_status": "Met",
+  "crypto_pfs_justification": "Go stdlib default TLS ciphersuites are AEAD + ECDHE — forward secrecy by default.",
+
+  "crypto_random_status": "Met",
+  "crypto_random_justification": "All randomness via crypto/rand (CSPRNG). No math/rand for security-sensitive values.",
+
+  "delivery_mitm_status": "Met",
+  "delivery_mitm_justification": "Release assets downloaded over HTTPS from github.com. Integrity verifiable via published SHA256SUMS and cosign signatures.",
+
+  "delivery_unsigned_status": "Met",
+  "delivery_unsigned_justification": "Every release vX.Y.Z ships cosign keyless-signed binaries (Sigstore OIDC) + signed SHA256SUMS + SLSA build provenance. Scorecard Signed-Releases = 10/10. https://github.com/RandomCodeSpace/docsiq/releases/latest",
+
+  "vulnerabilities_fixed_60_days_status": "Met",
+  "vulnerabilities_fixed_60_days_justification": "No known unfixed vulns. Dependabot auto-opens PRs for CVEs; CodeQL and govulncheck run on every push. https://github.com/RandomCodeSpace/docsiq/security/advisories",
+
+  "vulnerabilities_critical_fixed_status": "Met",
+  "vulnerabilities_critical_fixed_justification": "Zero High/Critical open. Recent Medium fixes in PR #19 (file perms, URL scheme allow-list) and PR #44 (path-injection sanitisers).",
+
+  "no_leaked_credentials_status": "Met",
+  "no_leaked_credentials_justification": "GitHub push-protection and secret-scanning enabled repo-wide. No secrets in code or history.",
+
+  "static_analysis_status": "Met",
+  "static_analysis_justification": "CodeQL on every PR and push to main. https://github.com/RandomCodeSpace/docsiq/security/code-scanning",
+
+  "static_analysis_common_vulnerabilities_status": "Met",
+  "static_analysis_common_vulnerabilities_justification": "CodeQL 'security-extended' query suite covers CWE-22/78/79/89/918 and the rest of the CWE Top 25.",
+
+  "static_analysis_fixed_status": "Met",
+  "static_analysis_fixed_justification": "All Medium+ findings fixed or dismissed with explicit justification. Zero open.",
+
+  "static_analysis_often_status": "Met",
+  "static_analysis_often_justification": "On every push to main and every PR.",
+
+  "dynamic_analysis_status": "Met",
+  "dynamic_analysis_justification": "Native Go fuzzing: FuzzResolveURL (crawler), FuzzChunker. CI runs each for 30s per push. https://github.com/RandomCodeSpace/docsiq/blob/main/.github/workflows/fuzz.yml",
+
+  "dynamic_analysis_unsafe_status": "Met",
+  "dynamic_analysis_unsafe_justification": "Go is memory-safe; no unsafe.Pointer in application code. -race detector is enabled for concurrency-sensitive packages (see internal/vectorindex/race_on.go).",
+
+  "dynamic_analysis_enable_assertions_status": "Met",
+  "dynamic_analysis_enable_assertions_justification": "Go panics-on-invariants used throughout; -race detector is the Go equivalent of runtime assertions for concurrency.",
+
+  "dynamic_analysis_fixed_status": "Met",
+  "dynamic_analysis_fixed_justification": "Fuzzing-discovered http/https allow-list bypass fixed in PR #19 same day.",
+
+  "installation_common_status": "Met",
+  "installation_common_justification": "`go install github.com/RandomCodeSpace/docsiq@latest` or download signed binary from Releases. Documented in README.",
+
+  "installation_standard_variables_status": "Met",
+  "installation_standard_variables_justification": "Config uses DOCSIQ_* env prefix and ~/.docsiq/ config dir — follows XDG convention.",
+
+  "installation_development_quick_status": "Met",
+  "installation_development_quick_justification": "`make build` or `go build -tags sqlite_fts5 ./` — documented in README.",
+
+  "maintained_status": "Met",
+  "maintained_justification": "Active development: releases v0.0.1 and v0.0.2 cut in the last 30 days. Continuous PR activity. Dependabot + CodeQL automation running.",
+
+  "achievements_justified_status": "Met",
+  "achievements_justified_justification": "Each claim backed by CI artifacts and Scorecard report: https://scorecard.dev/viewer/?uri=github.com/RandomCodeSpace/docsiq",
+
+  "hardening_headers_status": "Met",
+  "hardening_headers_justification": "API handlers set Content-Type: application/json and X-Content-Type-Options: nosniff globally. Embedded SPA served with restrictive CSP.",
+
+  "crypto_used_network_status": "Met",
+  "crypto_used_network_justification": "All external calls (LLM providers — Azure/OpenAI/Ollama) over HTTPS via Go stdlib.",
+
+  "implement_secure_design_status": "Met",
+  "implement_secure_design_justification": "Path-injection sanitisers (filepath.IsLocal) at every user-data boundary: internal/api/project.go:82, internal/notes/history.go, internal/notes/notes.go.",
+
+  "discussion_status": "Met",
+  "discussion_justification": "https://github.com/RandomCodeSpace/docsiq/discussions",
+
+  "sites_https_status": "Met",
+  "sites_https_justification": "All project links (README, docs, release downloads) use HTTPS via github.com.",
+
+  "crypto_password_storage_status": "N/A",
+  "crypto_password_storage_justification": "N/A — docsiq stores no user passwords. It's a local single-user indexer with no auth system.",
+
+  "crypto_certificate_verification_status": "N/A",
+  "crypto_certificate_verification_justification": "N/A — only outbound HTTPS via Go stdlib (which verifies certificates by default). We don't issue or pin certificates.",
+
+  "copyright_per_file_status": "N/A",
+  "copyright_per_file_justification": "N/A — single MIT LICENSE at repo root covers all files. Standard practice for single-author OSS.",
+
+  "license_per_file_status": "N/A",
+  "license_per_file_justification": "N/A — single MIT LICENSE at repo root covers all files.",
+
+  "delivery_pgp_signed_status": "N/A",
+  "delivery_pgp_signed_justification": "N/A — uses Sigstore cosign keyless signing (OIDC) instead of PGP, the modern SLSA-recommended approach. Verification via `cosign verify-blob` + Rekor transparency log.",
+
+  "sites_sniff_protection_status": "N/A",
+  "sites_sniff_protection_justification": "N/A — project has no public web service. Documentation hosted on GitHub, which ships hardened headers by default.",
+
+  "crypto_published_algorithms_status": "N/A",
+  "crypto_published_algorithms_justification": "N/A — no custom cryptography is implemented. Only Go stdlib and Sigstore cosign.",
+
+  "installation_standard_status": "N/A",
+  "installation_standard_justification": "N/A — single-file Go binary, no OS-specific packaging (.deb, .rpm) planned at passing tier. Homebrew tap is a silver-tier goal.",
+
+  "build_standard_variables_status": "N/A",
+  "build_standard_variables_justification": "N/A — no compiler-level env vars beyond GOOS / GOARCH / CGO_ENABLED, which are Go conventions.",
+
+  "sites_password_security_status": "N/A",
+  "sites_password_security_justification": "N/A — no user accounts or passwords. Maintainer auth handled by GitHub.",
+
+  "code_of_conduct_status": "?",
+  "code_of_conduct_justification": "TODO — add CODE_OF_CONDUCT.md (Contributor Covenant 2.1) at repo root.",
+
+  "governance_status": "?",
+  "governance_justification": "TODO — add GOVERNANCE.md describing BDFL model with sole maintainer, PR-review decision process, and security-contact continuity plan.",
+
+  "roles_responsibilities_status": "?",
+  "roles_responsibilities_justification": "TODO — document maintainer / reviewer / security-contact roles in GOVERNANCE.md.",
+
+  "access_continuity_status": "?",
+  "access_continuity_justification": "TODO — add .github/CODEOWNERS plus GOVERNANCE.md section on admin-access backup and account-recovery plan.",
+
+  "bus_factor_status": "?",
+  "bus_factor_justification": "TODO — note in GOVERNANCE.md that project is single-maintainer but all build/signing/registry artifacts are reproducible from source, mitigating bus-factor risk.",
+
+  "report_archive_status": "?",
+  "report_archive_justification": "TODO — confirm GitHub Issues serves as the report archive and note it in SECURITY.md.",
+
+  "release_notes_vulns_status": "?",
+  "release_notes_vulns_justification": "TODO — add .github/release.yml template with a 'Security fixes' section auto-populated from PRs labelled `security`.",
+
+  "accessibility_best_practices_status": "?",
+  "accessibility_best_practices_justification": "TODO — add docs/ACCESSIBILITY.md covering WCAG AA stance for the embedded React SPA (keyboard nav, contrast tokens, prefers-reduced-motion)."
+}
