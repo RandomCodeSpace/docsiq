@@ -1,9 +1,7 @@
 package api
 
 import (
-	"bytes"
 	"context"
-	"html"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -16,6 +14,7 @@ import (
 	"github.com/RandomCodeSpace/docsiq/internal/llm"
 	"github.com/RandomCodeSpace/docsiq/internal/mcp"
 	"github.com/RandomCodeSpace/docsiq/internal/project"
+	"github.com/RandomCodeSpace/docsiq/internal/workq"
 	"github.com/RandomCodeSpace/docsiq/ui"
 )
 
@@ -26,6 +25,7 @@ type RouterOption func(*routerOptions)
 type routerOptions struct {
 	vecIndexes *VectorIndexes
 	stores     *projectStores
+	workq      *workq.Pool
 }
 
 // WithVectorIndexes wires a per-project HNSW index cache into the
@@ -33,6 +33,13 @@ type routerOptions struct {
 // back to brute-force per request.
 func WithVectorIndexes(vi *VectorIndexes) RouterOption {
 	return func(o *routerOptions) { o.vecIndexes = vi }
+}
+
+// WithWorkq injects a bounded worker pool for background indexing jobs.
+// When nil (default), upload() falls back to a detached goroutine — the
+// dev/test path.
+func WithWorkq(p *workq.Pool) RouterOption {
+	return func(o *routerOptions) { o.workq = p }
 }
 
 // WithProjectStores lets callers inject a pre-built ProjectStores
@@ -70,6 +77,7 @@ func NewRouter(prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, re
 		embedder:   emb,
 		cfg:        cfg,
 		vecIndexes: ro.vecIndexes,
+		workq:      ro.workq,
 	}
 	nh := newNotesHandlersWithStores(stores, cfg, registry)
 	ph := &projectsHandler{registry: registry}
@@ -104,6 +112,12 @@ func NewRouter(prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, re
 			})
 		})
 	}
+
+	// Session exchange — public (is the auth boundary).
+	// POST exchanges a bearer key for a docsiq_session httpOnly cookie.
+	// DELETE clears the cookie (logout).
+	mux.HandleFunc("POST /api/session", newSessionHandler(cfg.Server.APIKey))
+	mux.HandleFunc("DELETE /api/session", newSessionDeleteHandler())
 
 	// REST API — docs pipeline (Phase-0)
 	mux.HandleFunc("GET /api/stats", h.getStats)
@@ -156,7 +170,7 @@ func NewRouter(prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, re
 				projectMiddleware(cfg, registry, mux))))
 }
 
-func spaHandler(assets fs.FS, cfg *config.Config) http.Handler {
+func spaHandler(assets fs.FS, _ *config.Config) http.Handler {
 	fileServer := http.FileServer(http.FS(assets))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -181,14 +195,6 @@ func spaHandler(assets fs.FS, cfg *config.Config) http.Handler {
 			return
 		}
 
-		if cfg.Server.APIKey != "" {
-			content = bytes.Replace(
-				content,
-				[]byte("</head>"),
-				[]byte(`<meta name="docsiq-api-key" content="`+html.EscapeString(cfg.Server.APIKey)+`"></head>`),
-				1,
-			)
-		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(content)

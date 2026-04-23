@@ -515,6 +515,29 @@ func TestBearerAuthMiddleware(t *testing.T) {
 	})
 }
 
+func TestAuth_AcceptsValidCookie(t *testing.T) {
+	t.Parallel()
+	h := buildAuthHandler("s3cret")
+	req := httptest.NewRequest(http.MethodGet, "/api/ping", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "s3cret"})
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("want 200 with valid cookie, got %d", rr.Code)
+	}
+}
+
+func TestAuth_RejectsMissingBothHeaderAndCookie(t *testing.T) {
+	t.Parallel()
+	h := buildAuthHandler("s3cret")
+	req := httptest.NewRequest(http.MethodGet, "/api/ping", nil)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401, got %d", rr.Code)
+	}
+}
+
 // BenchmarkBearerAuth_WrongKey ensures the constant-time compare path runs
 // under the benchmark harness. It is NOT a hard timing assertion — if the
 // code ever switches to a non-constant-time compare (==, bytes.Equal), the

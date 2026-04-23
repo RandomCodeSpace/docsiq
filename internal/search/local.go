@@ -87,7 +87,14 @@ func LocalSearch(ctx context.Context, st *store.Store, emb *embedder.Embedder, i
 			docIDs[c.Chunk.DocID] = true
 		}
 
-		entities, err := st.AllEntities(ctx)
+		// Scope entity fetch to the top-hit documents instead of a
+		// full-table scan. Entities with no relationships to any top-hit
+		// doc are out of local scope by definition.
+		docIDList := make([]string, 0, len(docIDs))
+		for id := range docIDs {
+			docIDList = append(docIDList, id)
+		}
+		entities, err := st.EntitiesForDocs(ctx, docIDList)
 		if err != nil {
 			return nil, err
 		}

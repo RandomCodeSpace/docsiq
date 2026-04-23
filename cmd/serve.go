@@ -9,15 +9,19 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/RandomCodeSpace/docsiq/internal/api"
+	"github.com/RandomCodeSpace/docsiq/internal/config"
 	"github.com/RandomCodeSpace/docsiq/internal/embedder"
 	"github.com/RandomCodeSpace/docsiq/internal/llm"
 	"github.com/RandomCodeSpace/docsiq/internal/project"
 	"github.com/RandomCodeSpace/docsiq/internal/sqlitevec"
 	"github.com/RandomCodeSpace/docsiq/internal/vectorindex"
+	"github.com/RandomCodeSpace/docsiq/internal/workq"
 	"github.com/spf13/cobra"
 )
 
@@ -140,11 +144,25 @@ var serveCmd = &cobra.Command{
 			}
 		}
 
+		workers := cfg.Server.WorkqWorkers
+		if workers <= 0 {
+			workers = runtime.NumCPU()
+		}
+		depth := cfg.Server.WorkqDepth
+		if depth <= 0 {
+			depth = 64
+		}
+		pool := workq.New(workq.Config{Workers: workers, QueueDepth: depth})
+
 		router := api.NewRouter(prov, emb, cfg, registry,
 			api.WithProjectStores(stores),
 			api.WithVectorIndexes(vecIndexes),
+			api.WithWorkq(pool),
 		)
 
+		if err := validateServeSecurity(cfg); err != nil {
+			return err
+		}
 		addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 		ln, err := net.Listen("tcp", addr)
 		if err != nil {
@@ -177,6 +195,17 @@ var serveCmd = &cobra.Command{
 			slog.Error("❌ shutdown error", "err", err)
 			return err
 		}
+
+		// Drain workq within its own 30s deadline. Server.Shutdown has already
+		// stopped accepting new HTTP requests, so no new jobs can be submitted;
+		// all that remains is letting in-flight pipelines finish or honour the
+		// cancelled ctx.
+		drainCtx, drainCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer drainCancel()
+		if err := pool.Close(drainCtx); err != nil {
+			slog.Warn("⚠️ workq drain timeout; some indexing jobs were cancelled mid-flight", "err", err)
+		}
+
 		slog.Info("✅ shutdown complete")
 		return nil
 	},
@@ -186,4 +215,34 @@ func init() {
 	rootCmd.AddCommand(serveCmd)
 	serveCmd.Flags().StringVar(&serveHost, "host", "", "Server host (overrides config)")
 	serveCmd.Flags().IntVar(&servePort, "port", 0, "Server port (overrides config)")
+}
+
+// validateServeSecurity refuses to start the server when the API key is
+// empty AND the bind host is not loopback. An unauthenticated service
+// exposed on the network is almost never intentional; make it explicit.
+// Loopback with empty key gets a prominent warning at boot instead.
+func validateServeSecurity(cfg *config.Config) error {
+	if cfg.Server.APIKey != "" {
+		return nil
+	}
+	host := strings.ToLower(strings.TrimSpace(cfg.Server.Host))
+	if host == "" {
+		return fmt.Errorf(
+			"server.api_key is empty and server.host is unset (binds all interfaces); refusing to start. " +
+				"Set DOCSIQ_SERVER_API_KEY or bind to 127.0.0.1/localhost for dev",
+		)
+	}
+	loopback := host == "localhost"
+	if ip := net.ParseIP(strings.Trim(host, "[]")); ip != nil {
+		loopback = loopback || ip.IsLoopback()
+	}
+	if !loopback {
+		return fmt.Errorf(
+			"server.api_key is empty and server.host=%q is not loopback; refusing to start. "+
+				"Set DOCSIQ_SERVER_API_KEY or bind to 127.0.0.1/localhost for dev",
+			cfg.Server.Host,
+		)
+	}
+	slog.Warn("⚠️ auth disabled (empty server.api_key); only loopback bind allowed", "host", host)
+	return nil
 }

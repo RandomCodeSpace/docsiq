@@ -20,12 +20,6 @@ export interface MCPTool {
   };
 }
 
-function getBearer(): string | null {
-  if (typeof document === "undefined") return null;
-  const v = document.querySelector('meta[name="docsiq-api-key"]')?.getAttribute("content");
-  return v && v.length ? v : null;
-}
-
 async function rpc(
   sessionId: string | null,
   body: unknown,
@@ -34,11 +28,14 @@ async function rpc(
     "Content-Type": "application/json",
     "Accept": "application/json, text/event-stream",
   };
-  const bearer = getBearer();
-  if (bearer) headers["Authorization"] = `Bearer ${bearer}`;
   if (sessionId) headers["Mcp-Session-Id"] = sessionId;
 
-  const res = await fetch("/mcp", { method: "POST", headers, body: JSON.stringify(body) });
+  const res = await fetch("/mcp", {
+    method: "POST",
+    credentials: "include",
+    headers,
+    body: JSON.stringify(body),
+  });
   const newSession = res.headers.get("Mcp-Session-Id") ?? sessionId;
 
   const text = await res.text();

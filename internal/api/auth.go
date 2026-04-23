@@ -50,17 +50,31 @@ func bearerAuthMiddleware(apiKey string, next http.Handler) http.Handler {
 			return
 		}
 
-		raw := strings.TrimSpace(r.Header.Get("Authorization"))
-		const prefix = "Bearer "
-		if !strings.HasPrefix(raw, prefix) {
-			slog.Warn("🔒 auth failure",
-				"path", path,
-				"remote_addr", r.RemoteAddr,
-				"reason", "no_bearer_prefix")
+		// /api/session is the auth boundary itself — always public.
+		if path == "/api/session" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Defense-in-depth: reject immediately if the server has no key
+		// configured. This mirrors newSessionHandler's guard and keeps the
+		// middleware correct under future refactors (rather than relying on
+		// the no_token branch firing because keyBytes would also be empty).
+		if apiKey == "" {
+			slog.Warn("🔒 auth failure", "path", path, "remote_addr", r.RemoteAddr, "reason", "server_misconfigured")
 			writeJSON401(w)
 			return
 		}
-		token := raw[len(prefix):]
+
+		token := extractToken(r)
+		if token == "" {
+			slog.Warn("🔒 auth failure",
+				"path", path,
+				"remote_addr", r.RemoteAddr,
+				"reason", "no_token")
+			writeJSON401(w)
+			return
+		}
 		if subtle.ConstantTimeCompare([]byte(token), keyBytes) != 1 {
 			slog.Warn("🔒 auth failure",
 				"path", path,
@@ -81,4 +95,21 @@ func writeJSON401(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusUnauthorized)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
+}
+
+// extractToken returns the bearer token from either the Authorization
+// header (preferred, for machine clients) or the session cookie (for
+// browser clients after POST /api/session). Returns "" if neither.
+func extractToken(r *http.Request) string {
+	raw := strings.TrimSpace(r.Header.Get("Authorization"))
+	const prefix = "Bearer "
+	if strings.HasPrefix(raw, prefix) {
+		return raw[len(prefix):]
+	}
+	if c, err := r.Cookie(sessionCookieName); err == nil {
+		if v := strings.TrimSpace(c.Value); v != "" {
+			return v
+		}
+	}
+	return ""
 }

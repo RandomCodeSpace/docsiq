@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -23,6 +24,7 @@ import (
 	"github.com/RandomCodeSpace/docsiq/internal/search"
 	"github.com/RandomCodeSpace/docsiq/internal/store"
 	"github.com/RandomCodeSpace/docsiq/internal/vectorindex"
+	"github.com/RandomCodeSpace/docsiq/internal/workq"
 )
 
 // handlers is the REST-side doc router state. Wave-2 drop: the
@@ -38,6 +40,9 @@ type handlers struct {
 	// return nil for a slug with no embeddings; LocalSearch falls back
 	// to brute-force in that case.
 	vecIndexes *VectorIndexes
+	// workq is the bounded worker pool for upload indexing jobs. When
+	// nil (dev/test path), upload() falls back to a detached goroutine.
+	workq *workq.Pool
 
 	// Upload progress tracking
 	uploadMu    sync.Mutex
@@ -403,8 +408,20 @@ func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slug := ProjectFromContext(r.Context())
-	// TODO(docsiq): P2-1 wrap r.Body with http.MaxBytesReader before ParseMultipartForm
-	if err := r.ParseMultipartForm(128 << 20); err != nil {
+	if !enforceUploadLimit(w, r, h.cfg.Server.MaxUploadBytes) {
+		return
+	}
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		// MaxBytesReader translates overflow into an error here; the
+		// response header is already 413 when that happens. For other
+		// malformed-form errors we emit a 400.
+		var mbe *http.MaxBytesError
+		if errors.As(err, &mbe) {
+			// http.MaxBytesReader has already called w.WriteHeader(413)
+			// internally; calling it again would emit "http: superfluous
+			// response.WriteHeader call". Just return.
+			return
+		}
 		writeError(w, r, 400, "parse form: "+err.Error(), nil)
 		return
 	}
@@ -484,25 +501,25 @@ func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
 
 	h.setProgress(jobID, fmt.Sprintf("queued: %d files", len(paths)))
 
-	// Use a detached context so the background goroutine is not cancelled
-	// when the HTTP response is sent.
-	bgCtx := context.Background()
-	tmpDirOwned = true
-
-	go func() {
+	job := func(ctx context.Context) {
 		defer os.RemoveAll(tmpDir)
 		pl := pipeline.New(st, h.provider, h.cfg)
 		for _, p := range paths {
+			if ctx.Err() != nil {
+				slog.Warn("🛑 upload indexing cancelled on shutdown", "job_id", jobID, "file", filepath.Base(p))
+				h.setProgress(jobID, "cancelled")
+				return
+			}
 			slog.Info("📦 upload indexing file", "job_id", jobID, "file", filepath.Base(p))
 			h.setProgress(jobID, fmt.Sprintf("indexing: %s", filepath.Base(p)))
-			if err := pl.IndexPath(bgCtx, p, pipeline.IndexOptions{}); err != nil {
+			if err := pl.IndexPath(ctx, p, pipeline.IndexOptions{}); err != nil {
 				slog.Error("❌ upload indexing failed", "job_id", jobID, "file", filepath.Base(p), "err", err)
 				h.setProgress(jobID, fmt.Sprintf("error: %v", err))
 				return
 			}
 		}
 		h.setProgress(jobID, "finalizing")
-		if err := pl.Finalize(bgCtx, false, true); err != nil {
+		if err := pl.Finalize(ctx, false, true); err != nil {
 			slog.Warn("⚠️ upload finalization failed", "job_id", jobID, "err", err)
 		}
 		// Invalidate the vector index for this project so the next
@@ -512,9 +529,27 @@ func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
 		}
 		slog.Info("✅ upload job complete", "job_id", jobID, "files", len(paths), "project", slug)
 		h.setProgress(jobID, "done")
-	}()
+	}
 
-	writeJSON(w, 202, map[string]string{"job_id": jobID, "status": "queued"})
+	if h.workq == nil {
+		tmpDirOwned = true
+		go job(context.Background()) // dev/test fallback
+	} else {
+		if err := h.workq.Submit(job); err != nil {
+			if errors.Is(err, workq.ErrQueueFull) {
+				h.setProgress(jobID, "rejected: indexing queue full")
+				w.Header().Set("Retry-After", "30")
+				writeError(w, r, http.StatusServiceUnavailable, "indexing queue full; retry later", nil)
+				return
+			}
+			h.setProgress(jobID, "rejected: server unavailable")
+			writeError(w, r, http.StatusServiceUnavailable, "server shutting down", err)
+			return
+		}
+		tmpDirOwned = true
+	}
+
+	writeJSON(w, http.StatusAccepted, map[string]string{"job_id": jobID, "status": "accepted"})
 }
 
 func (h *handlers) setProgress(jobID, msg string) {
@@ -605,4 +640,32 @@ func intQuery(s string, def int) int {
 		return def
 	}
 	return n
+}
+
+// writeTooLarge emits a 413 JSON error describing the configured limit.
+// Callers must ensure w.WriteHeader has not already been committed.
+func writeTooLarge(w http.ResponseWriter, limit int64) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusRequestEntityTooLarge)
+	_, _ = fmt.Fprintf(w, `{"error":"request body exceeds maximum upload size of %d bytes"}`, limit)
+}
+
+// enforceUploadLimit checks Content-Length against limit and, if the
+// declared size is within bounds, wraps r.Body with http.MaxBytesReader
+// so that any overflow during parsing is caught. Returns false and writes
+// a 413 JSON response when the request is known to exceed the limit;
+// the caller must return immediately in that case.
+func enforceUploadLimit(w http.ResponseWriter, r *http.Request, limit int64) bool {
+	if limit <= 0 {
+		return true // unlimited (opt-in via 0 or negative)
+	}
+	// Fast path: Content-Length is declared and already exceeds the limit.
+	if r.ContentLength > limit {
+		slog.Warn("⚠️ upload: rejected oversize request", "content_length", r.ContentLength, "limit", limit)
+		writeTooLarge(w, limit)
+		return false
+	}
+	// Slow path: wrap body so overflow is caught during parsing.
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
+	return true
 }

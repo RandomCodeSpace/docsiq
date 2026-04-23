@@ -604,6 +604,62 @@ func (s *Store) AllEntities(ctx context.Context) ([]*Entity, error) {
 	return entities, rows.Err()
 }
 
+// EntitiesForDocs returns entities that participate (as source or target
+// of any relationship) in at least one of the given documents. This is
+// the "local" entity set for a scoped search — avoids the full-table
+// scan AllEntities performs.
+//
+// The IN-list is chunked at 900 (below SQLite's default 999 variable
+// limit) so caller-supplied doc sets of any size work transparently.
+func (s *Store) EntitiesForDocs(ctx context.Context, docIDs []string) ([]*Entity, error) {
+	if len(docIDs) == 0 {
+		return nil, nil
+	}
+	const chunkSize = 900
+	seen := make(map[string]struct{}, 128)
+	out := make([]*Entity, 0, 128)
+
+	for start := 0; start < len(docIDs); start += chunkSize {
+		end := start + chunkSize
+		if end > len(docIDs) {
+			end = len(docIDs)
+		}
+		chunk := docIDs[start:end]
+		placeholders := strings.Repeat("?,", len(chunk))
+		placeholders = placeholders[:len(placeholders)-1]
+		args := make([]any, len(chunk))
+		for i, id := range chunk {
+			args[i] = id
+		}
+		q := `SELECT DISTINCT e.id, e.name, e.type, e.description, e.rank, e.community_id, e.vector
+		      FROM entities e
+		      JOIN relationships r ON (r.source_id = e.id OR r.target_id = e.id)
+		      WHERE r.doc_id IN (` + placeholders + `)`
+		rows, err := s.db.QueryContext(ctx, q, args...)
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			e, err := scanEntityRow(rows)
+			if err != nil {
+				rows.Close()
+				return nil, err
+			}
+			if _, dup := seen[e.ID]; dup {
+				continue
+			}
+			seen[e.ID] = struct{}{}
+			out = append(out, e)
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		rows.Close()
+	}
+	return out, nil
+}
+
 func (s *Store) UpdateEntityCommunity(ctx context.Context, entityID, communityID string) error {
 	_, err := s.db.ExecContext(ctx, `UPDATE entities SET community_id=? WHERE id=?`, communityID, entityID)
 	return err
