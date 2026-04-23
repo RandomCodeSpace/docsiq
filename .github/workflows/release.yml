@@ -1,15 +1,29 @@
 name: release
 
-# Auto-cuts a signed beta prerelease on every main push.
-# Tag pushes are ignored so the workflow doesn't recurse on its own tag.
+# Manually-triggered stable release. Pick bump (patch/minor/major);
+# the next vX.Y.Z tag is computed from the latest stable tag.
+#
+# Beta auto-tagging was removed: the scorecard Signed-Releases check
+# ignores prereleases, and most users download the latest stable tag.
+# Tag pushes are not a trigger so the workflow cannot recurse on its
+# own tag.
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Semver bump (patch/minor/major)"
+        required: true
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
 
 permissions: read-all
 
 concurrency:
-  group: release-main
+  group: release-manual
   cancel-in-progress: false
 
 jobs:
@@ -25,22 +39,33 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Compute next beta tag
+      - name: Compute next stable tag
         id: ver
+        env:
+          BUMP: ${{ inputs.bump }}
         run: |
           set -eu
-          latest=$(git tag -l 'v0.0.0-beta.*' \
-            | grep -E 'v0\.0\.0-beta\.[0-9]+$' \
+          latest=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
             | sort -V \
             | tail -1)
           if [ -z "$latest" ]; then
-            next="v0.0.0-beta.1"
-          else
-            n=${latest##*.}
-            next="v0.0.0-beta.$((n+1))"
+            latest="v0.0.0"
           fi
+          ver="${latest#v}"
+          major="${ver%%.*}"
+          rest="${ver#*.}"
+          minor="${rest%%.*}"
+          patch="${rest##*.}"
+          case "$BUMP" in
+            major) major=$((major+1)); minor=0; patch=0 ;;
+            minor) minor=$((minor+1)); patch=0 ;;
+            patch) patch=$((patch+1)) ;;
+            *) echo "unknown bump: $BUMP" >&2; exit 1 ;;
+          esac
+          next="v${major}.${minor}.${patch}"
           echo "tag=$next" >> "$GITHUB_OUTPUT"
-          echo "Next tag: $next"
+          echo "Next tag: $next (from $latest, bump=$BUMP)"
 
   ui:
     name: build ui
@@ -178,7 +203,6 @@ jobs:
           git push origin "$tag"
           gh release create "$tag" \
             --target "${{ github.sha }}" \
-            --prerelease \
             --generate-notes \
             --title "$tag" \
             dist/*
