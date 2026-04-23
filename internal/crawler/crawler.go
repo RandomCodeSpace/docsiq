@@ -274,8 +274,7 @@ func extractLinks(client *http.Client, pageURL string, base *url.URL) []string {
 }
 
 func resolveURL(base, href string) string {
-	if strings.HasPrefix(href, "#") || strings.HasPrefix(href, "mailto:") ||
-		strings.HasPrefix(href, "javascript:") {
+	if strings.HasPrefix(href, "#") {
 		return ""
 	}
 	b, err := url.Parse(base)
@@ -285,6 +284,15 @@ func resolveURL(base, href string) string {
 	h, err := url.Parse(href)
 	if err != nil {
 		return ""
+	}
+	// Reject any href with an explicit scheme other than http/https.
+	// This allow-list covers mailto:, javascript:, data:, vbscript:,
+	// tel:, file:, blob:, and anything else we don't crawl.
+	if h.Scheme != "" {
+		s := strings.ToLower(h.Scheme)
+		if s != "http" && s != "https" {
+			return ""
+		}
 	}
 	resolved := b.ResolveReference(h)
 	resolved.Fragment = ""
