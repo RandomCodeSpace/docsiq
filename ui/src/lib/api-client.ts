@@ -15,13 +15,19 @@ function readOneShotBearerFromMeta(): string | null {
 }
 
 async function establishSession(bearer: string): Promise<void> {
-  await fetch("/api/session", {
+  const m = document.querySelector('meta[name="docsiq-api-key"]');
+  m?.parentElement?.removeChild(m);
+
+  const res = await fetch("/api/session", {
     method: "POST",
     credentials: "include",
     headers: { Authorization: `Bearer ${bearer}` },
   });
-  const m = document.querySelector('meta[name="docsiq-api-key"]');
-  m?.parentElement?.removeChild(m);
+  if (!res.ok) {
+    let body: ApiError = { error: `HTTP ${res.status}` };
+    try { body = await res.json(); } catch { /* non-json */ }
+    throw new ApiErrorResponse(res.status, body);
+  }
 }
 
 export function initAuth(): void {
