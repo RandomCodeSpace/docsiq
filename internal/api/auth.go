@@ -56,6 +56,16 @@ func bearerAuthMiddleware(apiKey string, next http.Handler) http.Handler {
 			return
 		}
 
+		// Defense-in-depth: reject immediately if the server has no key
+		// configured. This mirrors newSessionHandler's guard and keeps the
+		// middleware correct under future refactors (rather than relying on
+		// the no_token branch firing because keyBytes would also be empty).
+		if apiKey == "" {
+			slog.Warn("🔒 auth failure", "path", path, "remote_addr", r.RemoteAddr, "reason", "server_misconfigured")
+			writeJSON401(w)
+			return
+		}
+
 		token := extractToken(r)
 		if token == "" {
 			slog.Warn("🔒 auth failure",
@@ -96,8 +106,10 @@ func extractToken(r *http.Request) string {
 	if strings.HasPrefix(raw, prefix) {
 		return raw[len(prefix):]
 	}
-	if c, err := r.Cookie(sessionCookieName); err == nil && c.Value != "" {
-		return c.Value
+	if c, err := r.Cookie(sessionCookieName); err == nil {
+		if v := strings.TrimSpace(c.Value); v != "" {
+			return v
+		}
 	}
 	return ""
 }
