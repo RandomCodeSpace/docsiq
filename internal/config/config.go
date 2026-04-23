@@ -143,9 +143,10 @@ type CommunityConfig struct {
 }
 
 type ServerConfig struct {
-	Host   string `mapstructure:"host"`
-	Port   int    `mapstructure:"port"`
-	APIKey string `mapstructure:"api_key"`
+	Host           string `mapstructure:"host"`
+	Port           int    `mapstructure:"port"`
+	APIKey         string `mapstructure:"api_key"`
+	MaxUploadBytes int64  `mapstructure:"max_upload_bytes"`
 }
 
 func Load(cfgFile string) (*Config, error) {
@@ -208,6 +209,7 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetDefault("server.host", "127.0.0.1")
 	v.SetDefault("server.port", 8080)
 	v.SetDefault("server.api_key", "")
+	v.SetDefault("server.max_upload_bytes", int64(100*1024*1024)) // 100 MiB
 
 	// Config file search paths. Only ~/.docsiq and CWD are consulted.
 	newCfgDir := filepath.Join(home, ".docsiq")
@@ -230,6 +232,7 @@ func Load(cfgFile string) (*Config, error) {
 	// either form populates server.api_key. BindEnv names are matched
 	// verbatim (not prefixed), so we list the full env var name.
 	_ = v.BindEnv("server.api_key", "DOCSIQ_SERVER_API_KEY", "DOCSIQ_API_KEY")
+	_ = v.BindEnv("server.max_upload_bytes", "DOCSIQ_SERVER_MAX_UPLOAD_BYTES")
 
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {

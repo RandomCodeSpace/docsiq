@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -403,8 +404,20 @@ func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slug := ProjectFromContext(r.Context())
-	// TODO(docsiq): P2-1 wrap r.Body with http.MaxBytesReader before ParseMultipartForm
-	if err := r.ParseMultipartForm(128 << 20); err != nil {
+	if !enforceUploadLimit(w, r, h.cfg.Server.MaxUploadBytes) {
+		return
+	}
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		// MaxBytesReader translates overflow into an error here; the
+		// response header is already 413 when that happens. For other
+		// malformed-form errors we emit a 400.
+		var mbe *http.MaxBytesError
+		if errors.As(err, &mbe) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+			_, _ = fmt.Fprintf(w, `{"error":"request body exceeds maximum upload size of %d bytes"}`, mbe.Limit)
+			return
+		}
 		writeError(w, r, 400, "parse form: "+err.Error(), nil)
 		return
 	}
@@ -605,4 +618,25 @@ func intQuery(s string, def int) int {
 		return def
 	}
 	return n
+}
+
+// enforceUploadLimit checks Content-Length against limit and, if the
+// declared size is within bounds, wraps r.Body with http.MaxBytesReader
+// so that any overflow during parsing is caught. Returns false and writes
+// a 413 JSON response when the request is known to exceed the limit;
+// the caller must return immediately in that case.
+func enforceUploadLimit(w http.ResponseWriter, r *http.Request, limit int64) bool {
+	if limit <= 0 {
+		return true // unlimited (opt-in via 0 or negative)
+	}
+	// Fast path: Content-Length is declared and already exceeds the limit.
+	if r.ContentLength > limit {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusRequestEntityTooLarge)
+		_, _ = fmt.Fprintf(w, `{"error":"request body exceeds maximum upload size of %d bytes"}`, limit)
+		return false
+	}
+	// Slow path: wrap body so overflow is caught during parsing.
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
+	return true
 }
