@@ -100,8 +100,51 @@ func initRepo(notesDir string) error {
 	return nil
 }
 
+// allowedGitSubcommands is the closed set of git subcommands runGit
+// will invoke. This keeps future callers from accidentally passing a
+// user-controlled string in the subcommand slot, and gives CodeQL a
+// recognizable allow-list sanitizer for the go/command-injection rule.
+var allowedGitSubcommands = map[string]bool{
+	"init":   true,
+	"config": true,
+	"add":    true,
+	"log":    true,
+}
+
 // runGit invokes `git -C <notesDir> <args>` and returns combined output.
+//
+// Security:
+//   - No shell — exec.Command takes argv directly.
+//   - notesDir must be non-empty and must not begin with "-" (which
+//     would let it be parsed as a git top-level flag).
+//   - args[0] must be in allowedGitSubcommands.
+//   - Any arg that follows a literal "--" separator must satisfy
+//     filepath.IsLocal — it's expected to be an in-tree relative path.
+//
+// runGit deliberately does NOT handle `commit`. Commit messages come
+// from user input; they're routed through gitCommit which pipes the
+// message via stdin so it never touches argv (see gitCommit below).
 func runGit(notesDir string, args ...string) (string, error) {
+	if notesDir == "" || strings.HasPrefix(notesDir, "-") {
+		return "", fmt.Errorf("runGit: invalid notesDir")
+	}
+	if len(args) == 0 {
+		return "", fmt.Errorf("runGit: no subcommand")
+	}
+	if !allowedGitSubcommands[args[0]] {
+		return "", fmt.Errorf("runGit: disallowed subcommand %q", args[0])
+	}
+	seenDDash := false
+	for _, a := range args[1:] {
+		if a == "--" {
+			seenDDash = true
+			continue
+		}
+		if seenDDash && !filepath.IsLocal(a) {
+			return "", fmt.Errorf("runGit: non-local path arg %q", a)
+		}
+	}
+
 	full := append([]string{"-C", notesDir}, args...)
 	cmd := exec.Command("git", full...)
 	// Detach from any inherited GIT_* env — the caller's config must
@@ -110,6 +153,28 @@ func runGit(notesDir string, args ...string) (string, error) {
 		"GIT_CONFIG_GLOBAL=/dev/null",
 		"GIT_CONFIG_SYSTEM=/dev/null",
 	)
+	var buf bytes.Buffer
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
+	err := cmd.Run()
+	return buf.String(), err
+}
+
+// gitCommit runs `git commit` reading the message from stdin. The
+// message is never passed as a command-line argument, removing the
+// only path by which user-controlled bytes could have reached the git
+// argv. `--no-gpg-sign` keeps the commit unsigned (we rely on cosign
+// for release signing, not per-commit GPG).
+func gitCommit(notesDir, msg string) (string, error) {
+	if notesDir == "" || strings.HasPrefix(notesDir, "-") {
+		return "", fmt.Errorf("gitCommit: invalid notesDir")
+	}
+	cmd := exec.Command("git", "-C", notesDir, "commit", "--no-gpg-sign", "--allow-empty-message", "-F", "-")
+	cmd.Env = append(os.Environ(),
+		"GIT_CONFIG_GLOBAL=/dev/null",
+		"GIT_CONFIG_SYSTEM=/dev/null",
+	)
+	cmd.Stdin = strings.NewReader(msg)
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
@@ -216,10 +281,7 @@ func autoCommit(notesDir, key, author, subject string, deleted bool) {
 	// which is the desired behavior. `git commit` exits non-zero on
 	// "nothing to commit" — treat that as a silent no-op rather than
 	// a warning.
-	if out, err := runGit(notesDir, "commit",
-		"--no-gpg-sign",
-		"-m", msg,
-	); err != nil {
+	if out, err := gitCommit(notesDir, msg); err != nil {
 		if strings.Contains(out, "nothing to commit") ||
 			strings.Contains(out, "no changes added") {
 			return
