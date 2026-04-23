@@ -1,0 +1,56 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - go
+
+  - package-ecosystem: npm
+    directory: /ui
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - javascript
+    groups:
+      react:
+        patterns:
+          - react
+          - react-dom
+          - "@types/react*"
+      dev-tooling:
+        patterns:
+          - vite
+          - vitest
+          - "@vitejs/*"
+          - typescript
+          - eslint*
+          - "@eslint/*"
+          - prettier
+      d3:
+        patterns:
+          - "d3-*"
+          - "@types/d3-*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - ci
