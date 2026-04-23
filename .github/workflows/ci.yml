@@ -5,17 +5,18 @@ on:
     branches: [main]
   pull_request:
 
-permissions:
-  contents: read
+permissions: read-all
 
 jobs:
   ui:
     name: ui (build + test + budget)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: '22'
           cache: 'npm'
@@ -46,7 +47,7 @@ jobs:
           fi
 
       - name: Upload ui/dist
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ui-dist
           path: ui/dist
@@ -56,6 +57,8 @@ jobs:
   test:
     name: test (${{ matrix.os }})
     needs: ui
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -64,9 +67,9 @@ jobs:
     env:
       CGO_ENABLED: "1"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version-file: go.mod
 
@@ -75,7 +78,7 @@ jobs:
         run: clang --version
 
       - name: Go build cache
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: |
             ~/.cache/go-build
@@ -88,7 +91,7 @@ jobs:
       # Hydrate ui/dist with the build artifact produced by the `ui` job so
       # the //go:embed ui/dist directive has real assets to embed.
       - name: Download ui/dist
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ui-dist
           path: ui/dist
@@ -103,7 +106,7 @@ jobs:
         run: CGO_ENABLED=1 go build -tags sqlite_fts5 -o docsiq ./
 
       - name: Upload docsiq binary
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: docsiq-${{ matrix.os }}
           path: docsiq
@@ -114,15 +117,17 @@ jobs:
     name: integration tests (-race)
     needs: ui
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version-file: go.mod
 
       - name: cache go build
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: |
             ~/.cache/go-build
@@ -130,7 +135,7 @@ jobs:
           key: go-integ-${{ hashFiles('go.sum') }}
 
       - name: Download ui/dist
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ui-dist
           path: ui/dist
