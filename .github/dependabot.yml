@@ -34,6 +34,7 @@ updates:
           - vite
           - vitest
           - "@vitejs/*"
+          - "@vitest/*"
           - typescript
           - eslint*
           - "@eslint/*"
