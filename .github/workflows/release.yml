@@ -1,12 +1,8 @@
 name: release
 
-# Manually-triggered stable release. Pick bump (patch/minor/major);
-# the next vX.Y.Z tag is computed from the latest stable tag.
-#
-# Beta auto-tagging was removed: the scorecard Signed-Releases check
-# ignores prereleases, and most users download the latest stable tag.
-# Tag pushes are not a trigger so the workflow cannot recurse on its
-# own tag.
+# Manually-triggered stable release via goreleaser. Pick bump
+# (patch/minor/major); the next vX.Y.Z tag is computed from the
+# latest stable tag.
 on:
   workflow_dispatch:
     inputs:
@@ -92,7 +88,7 @@ jobs:
           if-no-files-found: error
 
   build:
-    name: build ${{ matrix.suffix }}
+    name: build ${{ matrix.goos }}-${{ matrix.goarch }}
     needs: [tag, ui]
     strategy:
       fail-fast: false
@@ -101,11 +97,9 @@ jobs:
           - runner: ubuntu-latest
             goos: linux
             goarch: amd64
-            suffix: linux-amd64
           - runner: macos-latest
             goos: darwin
             goarch: arm64
-            suffix: darwin-arm64
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -126,7 +120,6 @@ jobs:
           path: ui/dist
 
       - name: Build binary
-        id: build
         run: |
           set -eu
           tag="${{ needs.tag.outputs.tag }}"
@@ -134,69 +127,76 @@ jobs:
           date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           pkg="github.com/RandomCodeSpace/docsiq/cmd"
           ldflags="-s -w -X ${pkg}.Version=${tag} -X ${pkg}.Commit=${sha} -X ${pkg}.Date=${date}"
-          out="docsiq-${tag}-${{ matrix.suffix }}"
-          go build -tags sqlite_fts5 -trimpath -ldflags="${ldflags}" -o "${out}" ./
-          echo "binary=${out}" >> "$GITHUB_OUTPUT"
+          go build -tags sqlite_fts5 -trimpath -ldflags="${ldflags}" -o docsiq ./
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: binary-${{ matrix.suffix }}
-          path: ${{ steps.build.outputs.binary }}
+          name: binary-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: docsiq
           retention-days: 1
           if-no-files-found: error
 
   release:
-    name: sign + publish
+    name: goreleaser
     needs: [tag, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write       # required for cosign keyless signing
-      attestations: write   # required for actions/attest-build-provenance
+      id-token: write       # cosign keyless
+      attestations: write   # SLSA provenance
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
-          pattern: binary-*
-          merge-multiple: true
-          path: dist/
+          go-version-file: go.mod
 
       - uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
         with:
-          # Pin v2.x — v3 changed sign-blob defaults to emit a Sigstore
-          # bundle alongside, and our --output-signature/--output-certificate
-          # flags aren't compatible with that new behaviour. Revisit v3 once
-          # we're ready to switch to bundle-based attestations.
+          # v2.x — v3 broke our sign-blob flag compatibility.
           cosign-release: 'v2.6.3'
 
-      - name: Sign binaries
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: binary-*
+          path: downloaded/
+
+      - name: Lay out prebuilt/ for goreleaser
         run: |
           set -eu
-          cd dist
-          for f in docsiq-*; do
-            case "$f" in *.sig|*.pem|SHA256SUMS*) continue ;; esac
-            cosign sign-blob --yes \
-              --output-signature "${f}.sig" \
-              --output-certificate "${f}.pem" \
-              "$f"
+          mkdir -p prebuilt
+          for dir in downloaded/binary-*; do
+            rest=$(basename "$dir" | sed 's/^binary-//')
+            goos="${rest%-*}"
+            goarch="${rest##*-}"
+            target_dir="prebuilt/docsiq_${goos}_${goarch}"
+            mkdir -p "$target_dir"
+            cp "$dir/docsiq" "$target_dir/docsiq"
+            chmod +x "$target_dir/docsiq"
           done
+          ls -R prebuilt/
 
-      - name: Generate SHA256SUMS (+ signature)
+      - name: Create + push tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
-          cd dist
-          sha256sum docsiq-* > SHA256SUMS
-          cosign sign-blob --yes \
-            --output-signature SHA256SUMS.sig \
-            --output-certificate SHA256SUMS.pem \
-            SHA256SUMS
+          tag="${{ needs.tag.outputs.tag }}"
+          git tag "$tag"
+          git push origin "$tag"
 
-      # SLSA build provenance — scorecard's Signed-Releases check asks
-      # for in-toto attestations alongside the cosign sigs. The bundle
-      # covers both binaries and SHA256SUMS.
+      - name: Run goreleaser
+        uses: goreleaser/goreleaser-action@e24998b8b67b290c2fa8b7c14fcfa7de2c5c9b8c # v7.1.0
+        with:
+          distribution: goreleaser
+          version: 'v2.15.4'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ needs.tag.outputs.tag }}
+
       - name: Generate SLSA build provenance
         id: attest
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
@@ -206,22 +206,11 @@ jobs:
             dist/docsiq-*-darwin-arm64
             dist/SHA256SUMS
 
-      - name: Copy attestation into dist
+      - name: Upload provenance to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
-          cp "${{ steps.attest.outputs.bundle-path }}" \
-            dist/docsiq-${{ needs.tag.outputs.tag }}.intoto.jsonl
-
-      # softprops/action-gh-release is the pattern scorecard's Packaging
-      # check recognises, replacing our ad-hoc `gh release create`.
-      # Creates the tag on the triggering SHA when it doesn't yet exist.
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
-        with:
-          tag_name: ${{ needs.tag.outputs.tag }}
-          name: ${{ needs.tag.outputs.tag }}
-          target_commitish: ${{ github.sha }}
-          generate_release_notes: true
-          make_latest: 'true'
-          files: |
-            dist/*
+          tag="${{ needs.tag.outputs.tag }}"
+          cp "${{ steps.attest.outputs.bundle-path }}" "docsiq-${tag}.intoto.jsonl"
+          gh release upload "$tag" "docsiq-${tag}.intoto.jsonl"
