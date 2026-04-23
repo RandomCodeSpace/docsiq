@@ -140,7 +140,11 @@ jobs:
 
       - uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
         with:
-          cosign-release: 'v3.0.6'
+          # Pin v2.x — v3 changed sign-blob defaults to emit a Sigstore
+          # bundle alongside, and our --output-signature/--output-certificate
+          # flags aren't compatible with that new behaviour. Revisit v3 once
+          # we're ready to switch to bundle-based attestations.
+          cosign-release: 'v2.6.3'
 
       - name: Sign binaries
         run: |
