@@ -1,8 +1,9 @@
 name: release
 
-# Manually-triggered stable release via goreleaser. Pick bump
-# (patch/minor/major); the next vX.Y.Z tag is computed from the
-# latest stable tag.
+# Manually-triggered stable release. Pick a bump (patch/minor/major) —
+# the next vX.Y.Z tag is computed from the latest stable tag. The `notes`
+# input is used verbatim as the release body and is also attached to the
+# release as `CHANGELOG.md`. Nothing is committed back to the repo.
 on:
   workflow_dispatch:
     inputs:
@@ -15,6 +16,10 @@ on:
           - patch
           - minor
           - major
+      notes:
+        description: "Release notes in Markdown. Becomes the release body and the attached CHANGELOG.md asset. Use \\n for newlines if passing via CLI."
+        required: true
+        type: string
 
 permissions: read-all
 
@@ -159,47 +164,28 @@ jobs:
           pattern: binary-*
           path: downloaded/
 
-      - name: Resolve release notes from CHANGELOG.md
+      - name: Prepare release notes
         id: notes
         env:
           TAG: ${{ needs.tag.outputs.tag }}
+          NOTES: ${{ inputs.notes }}
         run: |
           set -eu
 
-          # Extract the block under `## [<heading>]` up to the next `## [` heading.
-          # The heading may be `## [vX.Y.Z] — YYYY-MM-DD` or `## [X.Y.Z] — YYYY-MM-DD`;
-          # we match the prefix `## [<heading>]` regardless of trailing date.
-          extract_section() {
-            awk -v h="$1" '
-              $0 ~ "^## \\[" h "\\]" { found=1; next }
-              found && /^## \[/           { exit }
-              found                       { print }
-            ' CHANGELOG.md
-          }
-
-          has_content() { printf '%s' "$1" | grep -Eq '[^[:space:]]'; }
-
-          # The tag arrives as vX.Y.Z; CHANGELOG convention is [X.Y.Z] (no v prefix).
-          TAG_STRIPPED="${TAG#v}"
-
-          body=""
-          for candidate in "$TAG" "$TAG_STRIPPED"; do
-            body=$(extract_section "$candidate")
-            if has_content "$body"; then break; fi
-          done
-
-          if ! has_content "$body"; then
-            echo "::error::CHANGELOG.md has no '## [${TAG}]' or '## [${TAG_STRIPPED}]' section."
-            echo "::error::Release flow: open a PR that adds"
-            echo "::error::    ## [${TAG_STRIPPED}] — $(date -u +%Y-%m-%d)"
-            echo "::error::with curated bullets to CHANGELOG.md, merge it, then fire this workflow again."
+          if ! printf '%s' "$NOTES" | grep -Eq '[^[:space:]]'; then
+            echo "::error::The 'notes' workflow input is empty. Fire release.yml again with curated Markdown notes."
             exit 1
           fi
 
-          # Emit to GITHUB_OUTPUT (heredoc form for multi-line).
+          mkdir -p dist
+          # CHANGELOG.md attached to the release as-is (same bytes as the body).
+          printf '# %s\n\n%s\n' "$TAG" "$NOTES" > dist/CHANGELOG.md
+
+          # Emit the body to GITHUB_OUTPUT for the next step. The Verify
+          # footer is appended in the create-release step.
           {
             echo 'body<<__RN_EOF__'
-            printf '%s' "$body"
+            printf '%s' "$NOTES"
             echo
             echo '__RN_EOF__'
           } >> "$GITHUB_OUTPUT"
@@ -266,7 +252,7 @@ jobs:
           gh release create "$TAG" \
             --title "$TAG" \
             --notes-file release-notes.md \
-            dist/docsiq-* dist/SHA256SUMS dist/SHA256SUMS.sig dist/SHA256SUMS.pem
+            dist/docsiq-* dist/SHA256SUMS dist/SHA256SUMS.sig dist/SHA256SUMS.pem dist/CHANGELOG.md
 
       - name: Generate SLSA build provenance
         id: attest
