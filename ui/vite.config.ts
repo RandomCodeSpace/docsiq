@@ -16,10 +16,10 @@ export default defineConfig({
     sourcemap: false,
     rollupOptions: {
       output: {
-        manualChunks: {
-          "markdown": ["markdown-it", "shiki"],
-          "graph": ["d3-force"],
-          "editor": ["codemirror", "@codemirror/view", "@codemirror/state", "@codemirror/commands", "@codemirror/lang-markdown"],
+        manualChunks(id) {
+          if (/node_modules[\\/](markdown-it|shiki)[\\/]/.test(id)) return "markdown";
+          if (/node_modules[\\/]d3-force[\\/]/.test(id)) return "graph";
+          if (/node_modules[\\/](codemirror|@codemirror[\\/])/.test(id)) return "editor";
         },
       },
     },
