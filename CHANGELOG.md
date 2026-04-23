@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Each release ships signed binaries (cosign keyless + Rekor), a signed
 `SHA256SUMS`, and SLSA build provenance.
 
+> **Contributors:** add bullets under `## [Unreleased]` as part of any
+> PR worth mentioning in release notes. When the release workflow runs,
+> it promotes `[Unreleased]` → `[vX.Y.Z] — YYYY-MM-DD` automatically and
+> uses that section as the GitHub release body. If no non-empty
+> `[Unreleased]` section exists at release time, the workflow fails.
+
 ## [Unreleased]
 
 ### Added

@@ -159,6 +159,72 @@ jobs:
           pattern: binary-*
           path: downloaded/
 
+      - name: Resolve release notes from CHANGELOG.md
+        id: notes
+        env:
+          TAG: ${{ needs.tag.outputs.tag }}
+        run: |
+          set -eu
+
+          # Extract the block under `## [<heading>]` up to the next `## [` heading.
+          extract_section() {
+            awk -v h="$1" '
+              $0 ~ "^## \\[" h "\\]" { found=1; next }
+              found && /^## \[/           { exit }
+              found                       { print }
+            ' CHANGELOG.md
+          }
+
+          has_content() { printf '%s' "$1" | grep -Eq '[^[:space:]]'; }
+
+          # The tag arrives as vX.Y.Z; CHANGELOG convention is [X.Y.Z] (no v).
+          TAG_STRIPPED="${TAG#v}"
+
+          body=""
+          for candidate in "$TAG" "$TAG_STRIPPED"; do
+            body=$(extract_section "$candidate")
+            if has_content "$body"; then break; fi
+          done
+
+          if ! has_content "$body"; then
+            # Promote [Unreleased] → [TAG_STRIPPED] — YYYY-MM-DD and insert a fresh empty Unreleased.
+            unreleased=$(extract_section 'Unreleased')
+            if ! has_content "$unreleased"; then
+              echo "::error::CHANGELOG.md has neither a '## [${TAG}]' / '## [${TAG_STRIPPED}]' section nor a non-empty '## [Unreleased]' section."
+              echo "::error::Add a '## [${TAG_STRIPPED}] — YYYY-MM-DD' section (or populate Unreleased) before releasing."
+              exit 1
+            fi
+
+            echo "Promoting [Unreleased] → [${TAG_STRIPPED}] in CHANGELOG.md"
+            date_iso=$(date -u +%Y-%m-%d)
+            python3 - <<PY
+          import pathlib
+          p = pathlib.Path('CHANGELOG.md')
+          t = p.read_text()
+          needle = '## [Unreleased]'
+          replacement = f'## [Unreleased]\n\n## [${TAG_STRIPPED}] — ${date_iso}'
+          if needle not in t:
+              raise SystemExit("no '## [Unreleased]' heading in CHANGELOG.md")
+          p.write_text(t.replace(needle, replacement, 1))
+          PY
+
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git config user.name  'github-actions[bot]'
+            git add CHANGELOG.md
+            git commit -m "docs: release ${TAG}"
+            git push origin HEAD:main
+
+            body=$(extract_section "$TAG_STRIPPED")
+          fi
+
+          # Emit to GITHUB_OUTPUT (heredoc form for multi-line).
+          {
+            echo 'body<<__RN_EOF__'
+            printf '%s' "$body"
+            echo
+            echo '__RN_EOF__'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Assemble versioned binaries + SHA256SUMS
         env:
           TAG: ${{ needs.tag.outputs.tag }}
@@ -201,19 +267,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.tag.outputs.tag }}
+          NOTES_BODY: ${{ steps.notes.outputs.body }}
         run: |
           set -eu
-          # Draft first so we can get the auto-generated body, then edit
-          # the body to append the cosign Verify footer before publishing.
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --generate-notes \
-            --draft \
-            dist/docsiq-* dist/SHA256SUMS dist/SHA256SUMS.sig dist/SHA256SUMS.pem
-
-          body=$(gh release view "$TAG" --json body -q .body)
           {
-            printf '%s\n\n' "$body"
+            printf '%s\n\n' "$NOTES_BODY"
             printf '### Verify\n\n'
             printf 'All artifacts are signed with [cosign](https://github.com/sigstore/cosign) keyless via Sigstore.\n\n'
             printf '```sh\n'
@@ -226,7 +284,10 @@ jobs:
             printf '```\n'
           } > release-notes.md
 
-          gh release edit "$TAG" --notes-file release-notes.md --draft=false
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file release-notes.md \
+            dist/docsiq-* dist/SHA256SUMS dist/SHA256SUMS.sig dist/SHA256SUMS.pem
 
       - name: Generate SLSA build provenance
         id: attest
