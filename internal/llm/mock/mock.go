@@ -37,8 +37,9 @@ func New(dims int) *Provider {
 	return &Provider{Dims: dims}
 }
 
-func (p *Provider) Name() string    { return "mock" }
-func (p *Provider) ModelID() string { return "mock-llm" }
+func (p *Provider) Name() string        { return "mock" }
+func (p *Provider) ModelID() string     { return "mock-llm" }
+func (p *Provider) BatchCeiling() int   { return 64 }
 
 // Complete returns a deterministic response chosen by prompt substring.
 // Schema must match what internal/extractor and internal/community
