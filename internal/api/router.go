@@ -86,9 +86,40 @@ func NewRouter(prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, re
 
 	mux := http.NewServeMux()
 
-	// Public liveness probe — registered on the mux itself. The auth
-	// middleware also explicitly bypasses /health as defense-in-depth.
-	mux.HandleFunc("GET /health", h.health)
+	// Public liveness + readiness probes. /healthz is dependency-free
+	// (process-is-running); /readyz aggregates a SQLite ping + LLM reach
+	// check with a 10s in-memory cache. Both are registered on the mux
+	// and also explicitly bypassed by bearerAuthMiddleware.
+	mux.Handle("GET /healthz", healthzHandler())
+	{
+		// Default-project store is the representative SQLite shard — a
+		// failure here means the whole server is hosed. Resolve lazily
+		// at handler-build time so tests that pass nil stores still work.
+		defaultSlug := cfg.DefaultProject
+		if defaultSlug == "" {
+			defaultSlug = "_default"
+		}
+		var sq healthPinger
+		if stores != nil {
+			if st, err := stores.Get(defaultSlug); err == nil && st != nil {
+				sq = sqlDBPinger{db: st.DB()}
+			}
+		}
+		if sq == nil {
+			// Fall back to a "no-op OK" probe when there is no default
+			// store (tests, or pre-registration boot sequence).
+			sq = healthPingerFuncForRouter(func(_ context.Context) error { return nil })
+		}
+		var llmp llmPinger
+		if prov != nil {
+			llmp = providerPinger{prov: prov}
+		}
+		mux.Handle("GET /readyz", readyzHandler(sq, llmp))
+	}
+
+	// Back-compat alias: GET /health was the pre-Block-4 probe. Clients
+	// that haven't migrated to /healthz still get a 200.
+	mux.Handle("GET /health", healthzHandler())
 
 	// Prometheus scrape endpoint — public, NOT gated by auth or project
 	// middleware (auth/project explicitly bypass /metrics below).

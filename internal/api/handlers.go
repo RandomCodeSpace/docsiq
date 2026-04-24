@@ -90,13 +90,6 @@ func writeError(w http.ResponseWriter, r *http.Request, status int, msg string, 
 	writeJSON(w, status, body)
 }
 
-// health is a trivially-always-200 liveness probe. No store/config
-// dependency so it works even if the backend is degraded, and the
-// auth middleware explicitly whitelists /health.
-func (h *handlers) health(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, 200, map[string]string{"status": "ok"})
-}
-
 // projectsHandler is a thin read-only JSON shim around registry.List()
 // so the Phase-4 UI can populate its project-selector dropdown.
 type projectsHandler struct {
