@@ -124,8 +124,10 @@ func LocalSearch(ctx context.Context, st *store.Store, emb *embedder.Embedder, i
 			seenEntities[es.e.ID] = true
 			result.Entities = append(result.Entities, es.e)
 
-			// Walk relationships
-			rels, err := st.RelationshipsForEntity(ctx, es.e.ID, graphDepth)
+			// Walk relationships scoped to the top-hit doc set so the
+			// graph expansion cannot leak edges from unrelated
+			// documents into a scoped local-search result.
+			rels, err := st.RelationshipsForEntityInDocs(ctx, es.e.ID, graphDepth, docIDList)
 			if err != nil {
 				continue
 			}
