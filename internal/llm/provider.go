@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/RandomCodeSpace/docsiq/internal/config"
+	"github.com/RandomCodeSpace/docsiq/internal/obs"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
@@ -125,7 +126,17 @@ func (p *lcProvider) Complete(ctx context.Context, prompt string, opts ...Option
 	if o.jsonMode {
 		callOpts = append(callOpts, llms.WithJSONMode())
 	}
-	return llms.GenerateFromSinglePrompt(ctx, p.llm, prompt, callOpts...)
+	resp, err := llms.GenerateFromSinglePrompt(ctx, p.llm, prompt, callOpts...)
+	if obs.LLM != nil {
+		// Approximation: 1 token ~= 4 bytes of UTF-8 for English prose.
+		// This is a coarse fallback until langchaingo's GenerationInfo
+		// usage data is threaded through the Provider interface
+		// (tracked as follow-up). Using "total" kind since we cannot
+		// split prompt vs completion here without the usage payload.
+		approx := (len(prompt) + len(resp)) / 4
+		obs.LLM.RecordTokens(p.name, "total", approx)
+	}
+	return resp, err
 }
 
 func (p *lcProvider) Embed(ctx context.Context, text string) ([]float32, error) {

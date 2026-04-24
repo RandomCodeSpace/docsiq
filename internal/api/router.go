@@ -15,6 +15,7 @@ import (
 	"github.com/RandomCodeSpace/docsiq/internal/embedder"
 	"github.com/RandomCodeSpace/docsiq/internal/llm"
 	"github.com/RandomCodeSpace/docsiq/internal/mcp"
+	"github.com/RandomCodeSpace/docsiq/internal/obs"
 	"github.com/RandomCodeSpace/docsiq/internal/project"
 	"github.com/RandomCodeSpace/docsiq/internal/workq"
 	"github.com/RandomCodeSpace/docsiq/ui"
@@ -307,8 +308,17 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		// /metrics itself is noisy and self-referential — skip recording it
 		// as an observed request so a tight Prometheus scrape loop doesn't
 		// dominate the time series.
-		if r.URL.Path != "/metrics" {
-			recordRequest(r.Method, r.URL.Path, rw.status, duration.Seconds())
+		if r.URL.Path != "/metrics" && obs.HTTP != nil {
+			// Use the Go 1.22 ServeMux route pattern (set on the request
+			// by the mux after a route match) rather than r.URL.Path —
+			// raw paths have unbounded cardinality (e.g.
+			// /api/documents/{id} would produce one time series per
+			// document).
+			route := r.Pattern
+			if route == "" {
+				route = "unknown"
+			}
+			obs.HTTP.Observe(route, r.Method, rw.status, duration)
 		}
 
 		level := slog.LevelInfo
