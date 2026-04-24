@@ -92,6 +92,14 @@ jobs:
       - name: go vet (cgo + fts5)
         run: CGO_ENABLED=1 go vet -tags sqlite_fts5 $(go list ./... | grep -v /ui/node_modules/)
 
+      - name: govulncheck
+        run: |
+          set -eu
+          # govulncheck is a first-party golang.org/x module; @latest is
+          # acceptable here and dependabot can bump the install target.
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          CGO_ENABLED=1 govulncheck -tags sqlite_fts5 ./...
+
       - name: go test (cgo + fts5)
         run: CGO_ENABLED=1 go test -tags sqlite_fts5 -timeout 300s $(go list ./... | grep -v /ui/node_modules/)
 
