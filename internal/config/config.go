@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -50,6 +51,13 @@ type LLMConfig struct {
 	Azure    AzureConfig  `mapstructure:"azure"`
 	Ollama   OllamaConfig `mapstructure:"ollama"`
 	OpenAI   OpenAIConfig `mapstructure:"openai"`
+
+	// CallTimeout caps the end-to-end duration of a single provider
+	// call (Complete / Embed / EmbedBatch). Any retry wrapper counts
+	// against this deadline — the timeout is NOT reset between
+	// attempts. Zero disables the per-call cap (caller's ctx is
+	// authoritative). Default 60s. Block 3.3.
+	CallTimeout time.Duration `mapstructure:"call_timeout"`
 }
 
 // OpenAIConfig configures the direct OpenAI (api.openai.com) provider,
@@ -152,6 +160,16 @@ type ServerConfig struct {
 	WorkqWorkers   int    `mapstructure:"workq_workers"`    // 0 → runtime.NumCPU()
 	WorkqDepth     int    `mapstructure:"workq_depth"`      // 0 → 64
 	HSTSEnabled    bool   `mapstructure:"hsts_enabled"`     // emits Strict-Transport-Security when true
+
+	// RequestTimeout caps the duration of every HTTP handler except
+	// the carve-outs listed in isUploadRoute. Block 3.2 default 30s.
+	// Zero disables the cap (not recommended in production).
+	RequestTimeout time.Duration `mapstructure:"request_timeout"`
+
+	// UploadTimeout caps long-running upload / import endpoints
+	// (POST /api/upload, POST /api/projects/{project}/import). Block
+	// 3.2 default 10m.
+	UploadTimeout time.Duration `mapstructure:"upload_timeout"`
 }
 
 func Load(cfgFile string) (*Config, error) {
@@ -197,6 +215,10 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetDefault("llm.openai.embed_model", "text-embedding-3-small")
 	v.SetDefault("llm.openai.organization", "")
 
+	// LLM — per-call timeout (Block 3.3). Default 60s caps every
+	// Complete / Embed / EmbedBatch invocation.
+	v.SetDefault("llm.call_timeout", 60*time.Second)
+
 	// Indexing
 	v.SetDefault("indexing.chunk_size", 512)
 	v.SetDefault("indexing.chunk_overlap", 50)
@@ -218,6 +240,8 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetDefault("server.workq_workers", 0)                       // 0 → runtime.NumCPU()
 	v.SetDefault("server.workq_depth", 64)
 	v.SetDefault("server.hsts_enabled", false)
+	v.SetDefault("server.request_timeout", 30*time.Second)
+	v.SetDefault("server.upload_timeout", 10*time.Minute)
 
 	// Config file search paths. Only ~/.docsiq and CWD are consulted.
 	newCfgDir := filepath.Join(home, ".docsiq")
@@ -244,6 +268,9 @@ func Load(cfgFile string) (*Config, error) {
 	_ = v.BindEnv("server.workq_workers", "DOCSIQ_SERVER_WORKQ_WORKERS")
 	_ = v.BindEnv("server.workq_depth", "DOCSIQ_SERVER_WORKQ_DEPTH")
 	_ = v.BindEnv("server.hsts_enabled", "DOCSIQ_SERVER_HSTS_ENABLED")
+	_ = v.BindEnv("llm.call_timeout", "DOCSIQ_LLM_CALL_TIMEOUT")
+	_ = v.BindEnv("server.request_timeout", "DOCSIQ_SERVER_REQUEST_TIMEOUT")
+	_ = v.BindEnv("server.upload_timeout", "DOCSIQ_SERVER_UPLOAD_TIMEOUT")
 
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {

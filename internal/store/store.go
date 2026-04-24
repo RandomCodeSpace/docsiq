@@ -28,20 +28,48 @@ type Store struct {
 // open is the low-level SQLite opener. It is unexported — the only public
 // factory is OpenForProject. Kept as a helper because the project registry
 // and the per-project store both use the same DSN+migrate recipe.
+//
+// Block 3.6 hardening:
+//   - PRAGMAs set explicitly via Exec after sql.Open (driver-portable).
+//   - PRAGMA synchronous=NORMAL — the WAL-safe sweet spot that cuts two
+//     fsyncs per commit to one.
+//   - MaxOpenConns=4 + MaxIdleConns=2 allows concurrent readers under
+//     WAL; the writer is already serialized by SQLite itself.
+//   - ConnMaxLifetime=1h guards against stale connections in long-lived
+//     server processes.
 func open(path string) (*Store, error) {
 	if path == "" {
 		return nil, fmt.Errorf("open db: path is empty")
 	}
-	// P1-2: _busy_timeout lets SQLite wait-and-retry on SQLITE_BUSY
-	// rather than failing instantly. With MaxOpenConns=1 this prevents
-	// spurious "database is locked" errors under concurrent load.
-	db, err := sql.Open("sqlite3", path+"?_journal_mode=WAL&_foreign_keys=on&_busy_timeout=5000")
+	// _busy_timeout retained in the DSN as a belt-and-braces default:
+	// the explicit PRAGMA below is the authoritative setting, but the
+	// DSN form protects against an early query landing before the
+	// PRAGMA Exec completes.
+	db, err := sql.Open("sqlite3", path+"?_busy_timeout=5000")
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
-	db.SetMaxOpenConns(1) // SQLite WAL allows 1 writer
+
+	pragmas := []string{
+		`PRAGMA journal_mode=WAL`,
+		`PRAGMA busy_timeout=5000`,
+		`PRAGMA synchronous=NORMAL`,
+		`PRAGMA foreign_keys=ON`,
+	}
+	for _, p := range pragmas {
+		if _, err := db.Exec(p); err != nil {
+			_ = db.Close()
+			return nil, fmt.Errorf("open db: %s: %w", p, err)
+		}
+	}
+
+	db.SetMaxOpenConns(4)
+	db.SetMaxIdleConns(2)
+	db.SetConnMaxLifetime(1 * time.Hour)
+
 	s := &Store{db: db}
 	if err := s.migrate(); err != nil {
+		_ = db.Close()
 		return nil, err
 	}
 	return s, nil
@@ -79,6 +107,13 @@ func OpenForProject(dataDir, slug string) (*Store, error) {
 }
 
 func (s *Store) Close() error { return s.db.Close() }
+
+// Ping verifies the database connection is alive. Uses PingContext so
+// a cancelled ctx surfaces as ctx.Err(); callers (e.g. /readyz) can
+// differentiate "request cancelled" from "SQLite broken".
+func (s *Store) Ping(ctx context.Context) error {
+	return s.db.PingContext(ctx)
+}
 
 func (s *Store) DB() *sql.DB { return s.db }
 

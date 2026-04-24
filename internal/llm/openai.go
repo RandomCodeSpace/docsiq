@@ -45,10 +45,16 @@ func newOpenAIProvider(cfg *config.LLMConfig) (Provider, error) {
 		embedModel = defaultOpenAIEmbedModel
 	}
 
+	// Block 3.5: one pooled *http.Client shared across chat + embed
+	// langchaingo handles. Same connection pool for every outbound
+	// request the lcProvider makes.
+	httpClient := newHTTPClient()
+
 	chatOpts := []openai.Option{
 		openai.WithToken(oc.APIKey),
 		openai.WithBaseURL(baseURL),
 		openai.WithModel(chatModel),
+		openai.WithHTTPClient(httpClient),
 	}
 	if oc.Organization != "" {
 		chatOpts = append(chatOpts, openai.WithOrganization(oc.Organization))
@@ -66,6 +72,7 @@ func newOpenAIProvider(cfg *config.LLMConfig) (Provider, error) {
 		// even for an embedding-only client — it refuses to build
 		// without a chat model set. Reuse the same model here.
 		openai.WithModel(chatModel),
+		openai.WithHTTPClient(httpClient),
 	}
 	if oc.Organization != "" {
 		embedOpts = append(embedOpts, openai.WithOrganization(oc.Organization))
@@ -82,9 +89,12 @@ func newOpenAIProvider(cfg *config.LLMConfig) (Provider, error) {
 	// care about for vector-dimension consistency — mirroring the
 	// Azure provider's convention.
 	return &lcProvider{
-		llm:     chatLLM,
-		emb:     emb,
-		name:    "openai",
-		modelID: embedModel,
+		llm:          chatLLM,
+		emb:          emb,
+		name:         "openai",
+		modelID:      embedModel,
+		httpClient:   httpClient,
+		callTimeout:  cfg.CallTimeout,
+		batchCeiling: 2048,
 	}, nil
 }

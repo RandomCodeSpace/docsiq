@@ -17,12 +17,20 @@ type Embedder struct {
 
 // New creates a new Embedder. If provider is nil (LLM disabled via
 // provider=none), New returns nil. Callers must check for nil before use.
+//
+// Block 3.4: the caller-supplied batchSize is clamped to the provider's
+// declared batch ceiling (OpenAI 2048, Azure 16, Ollama 128). A
+// batchSize exceeding the ceiling would cause silent truncation or
+// explicit 400s depending on the provider.
 func New(provider llm.Provider, batchSize int) *Embedder {
 	if provider == nil {
 		return nil
 	}
 	if batchSize <= 0 {
 		batchSize = 20
+	}
+	if ceiling := provider.BatchCeiling(); ceiling > 0 && batchSize > ceiling {
+		batchSize = ceiling
 	}
 	return &Embedder{provider: provider, batchSize: batchSize, concurrency: 4}
 }

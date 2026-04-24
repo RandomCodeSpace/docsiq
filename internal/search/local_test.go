@@ -21,8 +21,9 @@ type mockProvider struct {
 	embedCalls    int
 }
 
-func (m *mockProvider) Name() string    { return "mock" }
-func (m *mockProvider) ModelID() string { return m.modelID }
+func (m *mockProvider) Name() string      { return "mock" }
+func (m *mockProvider) ModelID() string   { return m.modelID }
+func (m *mockProvider) BatchCeiling() int { return 0 }
 func (m *mockProvider) Complete(ctx context.Context, prompt string, opts ...llm.Option) (string, error) {
 	m.completeCalls++
 	return "answer: " + prompt[:min(len(prompt), 32)], nil
