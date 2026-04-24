@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/RandomCodeSpace/docsiq/internal/config"
+	"github.com/RandomCodeSpace/docsiq/internal/obs"
 	"github.com/spf13/cobra"
 )
 
@@ -41,7 +42,7 @@ func init() {
 }
 
 func initConfig() {
-	// Set up structured logger
+	// Set up structured logger. Level comes from --log-level only.
 	var level slog.Level
 	switch logLevel {
 	case "debug":
@@ -53,20 +54,21 @@ func initConfig() {
 	default:
 		level = slog.LevelInfo
 	}
-	// Log format: --log-format wins, else DOCSIQ_LOG_FORMAT, else "text".
+
+	// Format resolution order (highest wins):
+	//   1. --log-format flag
+	//   2. DOCSIQ_LOG_FORMAT env var
+	//   3. config file log.format
+	//   4. default "text"
+	// (3) requires config.Load() to have run; install a temporary
+	// handler first so config-load errors land somewhere, then
+	// upgrade once the final format is known.
 	format := strings.ToLower(strings.TrimSpace(logFormat))
 	if format == "" {
 		format = strings.ToLower(strings.TrimSpace(os.Getenv("DOCSIQ_LOG_FORMAT")))
 	}
-	handlerOpts := &slog.HandlerOptions{Level: level}
-	var handler slog.Handler
-	switch format {
-	case "json":
-		handler = slog.NewJSONHandler(os.Stderr, handlerOpts)
-	default:
-		handler = slog.NewTextHandler(os.Stderr, handlerOpts)
-	}
-	slog.SetDefault(slog.New(handler))
+
+	slog.SetDefault(slog.New(buildLogHandler(level, format)))
 
 	var err error
 	cfg, err = config.Load(cfgFile)
@@ -74,11 +76,29 @@ func initConfig() {
 		slog.Error("❌ config error", "err", err)
 		os.Exit(1)
 	}
-	if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
+	if err := os.MkdirAll(cfg.DataDir, 0o755); err != nil {
 		slog.Error("❌ failed to create data directory", "path", cfg.DataDir, "err", err)
 		os.Exit(1)
 	}
+
+	// If neither flag nor env specified format, use the value from
+	// the loaded config (falls back to default "text").
+	if format == "" && cfg.Log.Format != "" {
+		format = strings.ToLower(strings.TrimSpace(cfg.Log.Format))
+		slog.SetDefault(slog.New(buildLogHandler(level, format)))
+	}
 }
 
-
-
+// buildLogHandler assembles the slog handler chain. For "json" format
+// we wrap the JSON handler in obs.NewProductionHandler to strip emoji
+// prefixes from the message field (keeping them is harmless but noisy
+// for log aggregators). "text" keeps emoji for human readability.
+func buildLogHandler(level slog.Level, format string) slog.Handler {
+	opts := &slog.HandlerOptions{Level: level}
+	switch format {
+	case "json":
+		return obs.NewProductionHandler(slog.NewJSONHandler(os.Stderr, opts))
+	default:
+		return slog.NewTextHandler(os.Stderr, opts)
+	}
+}

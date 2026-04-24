@@ -18,12 +18,23 @@ type Config struct {
 	Indexing       IndexingConfig  `mapstructure:"indexing"`
 	Community      CommunityConfig `mapstructure:"community"`
 	Server         ServerConfig    `mapstructure:"server"`
+	Log            LogConfig       `mapstructure:"log"`
 
 	// Phase-5: per-project LLM overrides. Keyed by project slug.
 	// When a slug is missing from the map, callers fall back to the
 	// top-level LLM field. Not bound to env vars — configure via
 	// YAML only (env flat-string rewriting doesn't nest well).
 	LLMOverrides map[string]LLMConfig `mapstructure:"llm_overrides"`
+}
+
+// LogConfig controls structured-log emission format. Lowest-priority
+// source of truth — `--log-format` flag and `DOCSIQ_LOG_FORMAT` env
+// var both outrank this value in cmd/root.go.
+type LogConfig struct {
+	// Format chooses the slog handler. "text" (default) emits a
+	// human-readable single-line format with emoji prefixes; "json"
+	// strips emoji and emits machine-parseable JSON objects.
+	Format string `mapstructure:"format"`
 }
 
 // LLMConfigForProject returns the override for slug if present, otherwise
@@ -243,6 +254,9 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetDefault("server.request_timeout", 30*time.Second)
 	v.SetDefault("server.upload_timeout", 10*time.Minute)
 
+	// Log format: "text" for human dev output, "json" for production.
+	v.SetDefault("log.format", "text")
+
 	// Config file search paths. Only ~/.docsiq and CWD are consulted.
 	newCfgDir := filepath.Join(home, ".docsiq")
 	if cfgFile != "" {
@@ -271,6 +285,7 @@ func Load(cfgFile string) (*Config, error) {
 	_ = v.BindEnv("llm.call_timeout", "DOCSIQ_LLM_CALL_TIMEOUT")
 	_ = v.BindEnv("server.request_timeout", "DOCSIQ_SERVER_REQUEST_TIMEOUT")
 	_ = v.BindEnv("server.upload_timeout", "DOCSIQ_SERVER_UPLOAD_TIMEOUT")
+	_ = v.BindEnv("log.format", "DOCSIQ_LOG_FORMAT")
 
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
