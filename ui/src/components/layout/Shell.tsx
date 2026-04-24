@@ -2,6 +2,7 @@ import { type ReactNode, useCallback, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
+import { AuthRequiredBanner } from "./AuthRequiredBanner";
 import { SkipLink } from "./SkipLink";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useHotkey } from "@/hooks/useHotkey";
@@ -60,6 +61,7 @@ export function Shell({ children }: { children: ReactNode }) {
           tabIndex={-1}
           className="flex flex-1 flex-col"
         >
+          <AuthRequiredBanner />
           {children}
         </main>
       </SidebarInset>

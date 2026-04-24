@@ -1,12 +1,26 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { BrowserRouter } from "react-router-dom";
 import { useUIStore } from "@/stores/ui";
+import { useAuthStore } from "@/stores/auth";
 
 export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(
     () =>
       new QueryClient({
+        // Global 401 gate: any /api/* fetch that throws an
+        // ApiErrorResponse with status === 401 flips the auth store so
+        // AuthRequiredBanner can render a visible "Sign in required"
+        // affordance. We subscribe the store at module load so this
+        // works for queries that don't individually declare onError.
+        queryCache: new QueryCache({
+          onError: (error) => {
+            const status = (error as { status?: number })?.status ?? 0;
+            if (status === 401) {
+              useAuthStore.getState().signalUnauthorized();
+            }
+          },
+        }),
         defaultOptions: {
           queries: {
             staleTime: 30_000,
