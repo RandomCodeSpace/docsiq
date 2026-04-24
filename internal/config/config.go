@@ -62,7 +62,7 @@ type LLMConfig struct {
 //	                                 text-embedding-3-small
 //	DOCSIQ_LLM_OPENAI_ORGANIZATION — optional org header
 type OpenAIConfig struct {
-	APIKey       string `mapstructure:"api_key"`
+	APIKey       string `mapstructure:"api_key" secret:"true"`
 	BaseURL      string `mapstructure:"base_url"`
 	ChatModel    string `mapstructure:"chat_model"`
 	EmbedModel   string `mapstructure:"embed_model"`
@@ -87,7 +87,7 @@ type OpenAIConfig struct {
 type AzureConfig struct {
 	// Shared defaults — used when chat/embed-specific values are not set.
 	Endpoint   string `mapstructure:"endpoint"`
-	APIKey     string `mapstructure:"api_key"`
+	APIKey     string `mapstructure:"api_key" secret:"true"`
 	APIVersion string `mapstructure:"api_version"`
 
 	Chat  AzureServiceConfig `mapstructure:"chat"`
@@ -96,21 +96,23 @@ type AzureConfig struct {
 
 type AzureServiceConfig struct {
 	Endpoint   string `mapstructure:"endpoint"`
-	APIKey     string `mapstructure:"api_key"`
+	APIKey     string `mapstructure:"api_key" secret:"true"`
 	APIVersion string `mapstructure:"api_version"`
 	Model      string `mapstructure:"model"`
 }
 
 // Resolved accessors — per-service value with shared fallback.
 
-func (a *AzureConfig) ChatEndpoint() string    { return firstNonEmpty(a.Chat.Endpoint, a.Endpoint) }
-func (a *AzureConfig) ChatAPIKey() string      { return firstNonEmpty(a.Chat.APIKey, a.APIKey) }
-func (a *AzureConfig) ChatAPIVersion() string  { return firstNonEmpty(a.Chat.APIVersion, a.APIVersion) }
-func (a *AzureConfig) ChatModel() string       { return a.Chat.Model }
-func (a *AzureConfig) EmbedEndpoint() string   { return firstNonEmpty(a.Embed.Endpoint, a.Endpoint) }
-func (a *AzureConfig) EmbedAPIKey() string     { return firstNonEmpty(a.Embed.APIKey, a.APIKey) }
-func (a *AzureConfig) EmbedAPIVersion() string { return firstNonEmpty(a.Embed.APIVersion, a.APIVersion) }
-func (a *AzureConfig) EmbedModel() string      { return a.Embed.Model }
+func (a *AzureConfig) ChatEndpoint() string   { return firstNonEmpty(a.Chat.Endpoint, a.Endpoint) }
+func (a *AzureConfig) ChatAPIKey() string     { return firstNonEmpty(a.Chat.APIKey, a.APIKey) }
+func (a *AzureConfig) ChatAPIVersion() string { return firstNonEmpty(a.Chat.APIVersion, a.APIVersion) }
+func (a *AzureConfig) ChatModel() string      { return a.Chat.Model }
+func (a *AzureConfig) EmbedEndpoint() string  { return firstNonEmpty(a.Embed.Endpoint, a.Endpoint) }
+func (a *AzureConfig) EmbedAPIKey() string    { return firstNonEmpty(a.Embed.APIKey, a.APIKey) }
+func (a *AzureConfig) EmbedAPIVersion() string {
+	return firstNonEmpty(a.Embed.APIVersion, a.APIVersion)
+}
+func (a *AzureConfig) EmbedModel() string { return a.Embed.Model }
 
 func firstNonEmpty(values ...string) string {
 	for _, v := range values {
@@ -145,10 +147,11 @@ type CommunityConfig struct {
 type ServerConfig struct {
 	Host           string `mapstructure:"host"`
 	Port           int    `mapstructure:"port"`
-	APIKey         string `mapstructure:"api_key"`
+	APIKey         string `mapstructure:"api_key" secret:"true"`
 	MaxUploadBytes int64  `mapstructure:"max_upload_bytes"` // 0 or negative disables the cap
 	WorkqWorkers   int    `mapstructure:"workq_workers"`    // 0 → runtime.NumCPU()
 	WorkqDepth     int    `mapstructure:"workq_depth"`      // 0 → 64
+	HSTSEnabled    bool   `mapstructure:"hsts_enabled"`     // emits Strict-Transport-Security when true
 }
 
 func Load(cfgFile string) (*Config, error) {
@@ -214,6 +217,7 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetDefault("server.max_upload_bytes", int64(100*1024*1024)) // 100 MiB
 	v.SetDefault("server.workq_workers", 0)                       // 0 → runtime.NumCPU()
 	v.SetDefault("server.workq_depth", 64)
+	v.SetDefault("server.hsts_enabled", false)
 
 	// Config file search paths. Only ~/.docsiq and CWD are consulted.
 	newCfgDir := filepath.Join(home, ".docsiq")
@@ -239,6 +243,7 @@ func Load(cfgFile string) (*Config, error) {
 	_ = v.BindEnv("server.max_upload_bytes", "DOCSIQ_SERVER_MAX_UPLOAD_BYTES")
 	_ = v.BindEnv("server.workq_workers", "DOCSIQ_SERVER_WORKQ_WORKERS")
 	_ = v.BindEnv("server.workq_depth", "DOCSIQ_SERVER_WORKQ_DEPTH")
+	_ = v.BindEnv("server.hsts_enabled", "DOCSIQ_SERVER_HSTS_ENABLED")
 
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
@@ -253,8 +258,12 @@ func Load(cfgFile string) (*Config, error) {
 	}
 
 	var cfg Config
-	if err := v.Unmarshal(&cfg); err != nil {
+	if err := v.UnmarshalExact(&cfg); err != nil {
 		return nil, fmt.Errorf("unmarshaling config: %w", err)
+	}
+
+	if err := validateLLM(&cfg); err != nil {
+		return nil, fmt.Errorf("config validation: %w", err)
 	}
 
 	// "none" is an explicit opt-out of LLM; treat it as valid and log clearly.
@@ -270,6 +279,45 @@ func Load(cfgFile string) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// validateLLM enforces that the selected LLM provider has the minimum
+// fields needed to make any request. Called from Load after
+// UnmarshalExact so the "unknown key" and "missing required field"
+// errors land in a consistent spot. Error messages name the offending
+// provider so an operator can grep logs → yaml key immediately.
+func validateLLM(cfg *Config) error {
+	switch cfg.LLM.Provider {
+	case "", "none":
+		// Empty provider or explicit "none" — search paths that don't
+		// need an LLM (e.g. pure-FTS search) still work. Fail only if
+		// someone later tries to construct an LLM client with an empty
+		// or "none" provider string.
+		return nil
+	case "azure":
+		a := cfg.LLM.Azure
+		chatOK := a.Chat.Endpoint != "" || a.Endpoint != ""
+		chatOK = chatOK && (a.Chat.APIKey != "" || a.APIKey != "")
+		embedOK := a.Embed.Endpoint != "" || a.Endpoint != ""
+		embedOK = embedOK && (a.Embed.APIKey != "" || a.APIKey != "")
+		if !chatOK && !embedOK {
+			return fmt.Errorf("llm.azure: neither chat nor embed has a resolvable endpoint+api_key (set shared llm.azure.{endpoint,api_key} or per-service overrides)")
+		}
+		if a.APIVersion == "" && a.Chat.APIVersion == "" && a.Embed.APIVersion == "" {
+			return fmt.Errorf("llm.azure.api_version: required (shared or per-service)")
+		}
+	case "openai":
+		if cfg.LLM.OpenAI.APIKey == "" {
+			return fmt.Errorf("llm.openai.api_key: required when llm.provider=openai")
+		}
+	case "ollama":
+		if cfg.LLM.Ollama.BaseURL == "" {
+			return fmt.Errorf("llm.ollama.base_url: required when llm.provider=ollama")
+		}
+	default:
+		return fmt.Errorf("llm.provider: unknown value %q (valid: azure, openai, ollama)", cfg.LLM.Provider)
+	}
+	return nil
 }
 
 // ProjectDBPath returns the per-project SQLite path for the given slug:

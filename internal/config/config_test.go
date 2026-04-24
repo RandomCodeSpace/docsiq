@@ -160,7 +160,8 @@ func TestLoad(t *testing.T) {
 		isolateEnv(t, home)
 
 		yamlPath := filepath.Join(home, "cfg.yaml")
-		content := []byte("server:\n  host: 0.0.0.0\n  port: 4321\nllm:\n  provider: azure\n  azure:\n    chat:\n      model: gpt-fancy\n")
+		// endpoint + api_key required by validateLLM when provider=azure.
+		content := []byte("server:\n  host: 0.0.0.0\n  port: 4321\nllm:\n  provider: azure\n  azure:\n    endpoint: https://x.openai.azure.com\n    api_key: k\n    chat:\n      model: gpt-fancy\n")
 		if err := os.WriteFile(yamlPath, content, 0o644); err != nil {
 			t.Fatalf("write yaml: %v", err)
 		}
@@ -470,6 +471,119 @@ func TestProviderNone(t *testing.T) {
 			t.Errorf("LLM.Provider = %q, want \"none\"", cfg.LLM.Provider)
 		}
 	})
+}
+
+func TestLoad_RejectsUnknownKey(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	f := filepath.Join(home, "config.yaml")
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	// provider=none keeps validateLLM passive; the unknown key is the
+	// real assertion target here.
+	must(os.WriteFile(f, []byte("server:\n  api_key: s3cret\n  unknown_key: oops\nllm:\n  provider: none\n"), 0o600))
+
+	_, err := Load(f)
+	if err == nil {
+		t.Fatal("Load should reject unknown_key")
+	}
+	if !strings.Contains(err.Error(), "unknown_key") {
+		t.Fatalf("error should name the offending key; got %q", err)
+	}
+}
+
+func TestLoad_ValidatesLLMProvider(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		yaml    string
+		wantErr string
+	}{
+		{
+			name:    "unknown_provider",
+			yaml:    "llm:\n  provider: not_a_real_one\n",
+			wantErr: "provider",
+		},
+		{
+			name:    "azure_missing_endpoint",
+			yaml:    "llm:\n  provider: azure\n  azure:\n    api_key: k\n",
+			wantErr: "azure",
+		},
+		{
+			name:    "openai_missing_api_key",
+			yaml:    "llm:\n  provider: openai\n  openai:\n    base_url: https://api.openai.com/v1\n",
+			wantErr: "openai",
+		},
+		{
+			name:    "ollama_missing_base_url",
+			yaml:    "llm:\n  provider: ollama\n  ollama:\n    base_url: \"\"\n",
+			wantErr: "ollama",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			home := t.TempDir()
+			isolateEnv(t, home)
+			f := filepath.Join(home, "config.yaml")
+			must := func(err error) {
+				t.Helper()
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			must(os.WriteFile(f, []byte("server:\n  api_key: s3cret\n"+tc.yaml), 0o600))
+
+			_, err := Load(f)
+			if err == nil {
+				t.Fatalf("Load should have rejected %s", tc.name)
+			}
+			if !strings.Contains(strings.ToLower(err.Error()), tc.wantErr) {
+				t.Fatalf("error should mention %q; got %q", tc.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestLoad_AcceptsValidProviders(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		yaml string
+	}{
+		{"azure", "llm:\n  provider: azure\n  azure:\n    endpoint: https://x.openai.azure.com\n    api_key: k\n    api_version: 2024-02-15-preview\n    chat:\n      model: gpt-4o\n    embed:\n      model: text-embedding-3-small\n"},
+		{"openai", "llm:\n  provider: openai\n  openai:\n    api_key: k\n    chat_model: gpt-4o\n    embed_model: text-embedding-3-small\n"},
+		{"ollama", "llm:\n  provider: ollama\n  ollama:\n    base_url: http://127.0.0.1:11434\n    chat_model: llama3\n    embed_model: nomic-embed-text\n"},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			home := t.TempDir()
+			isolateEnv(t, home)
+			f := filepath.Join(home, "config.yaml")
+			must := func(err error) {
+				t.Helper()
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			must(os.WriteFile(f, []byte("server:\n  api_key: s3cret\n"+tc.yaml), 0o600))
+
+			cfg, err := Load(f)
+			if err != nil {
+				t.Fatalf("valid %s config should load: %v", tc.name, err)
+			}
+			if cfg.LLM.Provider != tc.name {
+				t.Fatalf("provider not round-tripped: got %q", cfg.LLM.Provider)
+			}
+		})
+	}
 }
 
 func TestProjectDBPath(t *testing.T) {
