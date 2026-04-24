@@ -25,6 +25,9 @@ import (
 //     goroutine blocks in a select on a channel that is not drained
 //     synchronously by *DB.Close(); go-sqlite3's docs acknowledge a
 //     brief post-Close window. Tolerated as a stdlib artifact.
+//   - database/sql.connectionCleaner — spawned by SetConnMaxLifetime
+//     (Block 3.6 sets this to 1h on every store). Exits when the
+//     *sql.DB is closed; same post-Close window as connectionOpener.
 //
 // goleak.IgnoreCurrent() baselines out any stdlib goroutines that
 // predate test start (Go runtime housekeeping, test framework, etc.).
@@ -34,6 +37,7 @@ func TestShutdown_NoGoroutineLeaks(t *testing.T) {
 		goleak.IgnoreAnyFunction("net/http.(*persistConn).readLoop"),
 		goleak.IgnoreAnyFunction("net/http.(*persistConn).writeLoop"),
 		goleak.IgnoreAnyFunction("database/sql.(*DB).connectionOpener"),
+		goleak.IgnoreAnyFunction("database/sql.(*DB).connectionCleaner"),
 		goleak.IgnoreAnyFunction("internal/poll.runtime_pollWait"),
 	)
 

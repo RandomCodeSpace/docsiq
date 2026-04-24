@@ -188,22 +188,29 @@ var serveCmd = &cobra.Command{
 		}()
 
 		<-ctx.Done()
-		slog.Info("🛑 shutting down...")
-		shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		// Block 3.7: explicit per-phase log lines so operators can see
+		// exactly where a stuck shutdown is hung. Deadline raised from
+		// 10s to 30s to match the workq drain phase and the spec.
+		slog.Info("🛑 shutting down HTTP server...")
+		shutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if err := srv.Shutdown(shutCtx); err != nil {
-			slog.Error("❌ shutdown error", "err", err)
+			slog.Error("❌ HTTP server shutdown error", "err", err)
 			return err
 		}
+		slog.Info("✅ HTTP server shutdown complete")
 
 		// Drain workq within its own 30s deadline. Server.Shutdown has already
 		// stopped accepting new HTTP requests, so no new jobs can be submitted;
 		// all that remains is letting in-flight pipelines finish or honour the
 		// cancelled ctx.
+		slog.Info("🛑 draining workq...")
 		drainCtx, drainCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer drainCancel()
 		if err := pool.Close(drainCtx); err != nil {
 			slog.Warn("⚠️ workq drain timeout; some indexing jobs were cancelled mid-flight", "err", err)
+		} else {
+			slog.Info("✅ workq drained")
 		}
 
 		slog.Info("✅ shutdown complete")

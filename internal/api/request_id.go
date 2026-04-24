@@ -10,6 +10,12 @@ import (
 // struct keeps the key collision-free with other packages.
 type ctxRequestIDKey struct{}
 
+// ctxUserKey is the typed context key for the authenticated user ID.
+// Reserved for future auth integration; today only the panic
+// recoveryMiddleware reads it. Empty string means the request is
+// unauthenticated (allowed on public routes). Block 3.7.
+type ctxUserKey struct{}
+
 // RequestIDFromContext returns the ID attached by loggingMiddleware. Empty
 // string when called from a context that never hit the middleware (e.g.
 // a direct handler call from a test that skips the router wrapper).

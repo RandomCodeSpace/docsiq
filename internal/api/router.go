@@ -2,10 +2,12 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"net/http"
 	"path"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -208,12 +210,38 @@ func spaHandler(assets fs.FS, _ *config.Config) http.Handler {
 	})
 }
 
-// recoveryMiddleware catches panics in handlers and returns a 500 response.
+// recoveryMiddleware catches panics in handlers, logs them with
+// request context (req_id, route, method, user if authed) plus the
+// full stack, then returns a 500 response. The enriched log surface
+// is Block 3.7's requirement: during a production panic you need
+// enough context to reconstruct the request without tailing raw
+// stderr.
 func recoveryMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if rec := recover(); rec != nil {
-				slog.Error("❌ panic recovered", "path", r.URL.Path, "panic", rec)
+				// Gather every piece of request context that exists on
+				// the ctx — any absent value surfaces as "" and gets
+				// filtered from the attr list.
+				rid := RequestIDFromContext(r.Context())
+				user, _ := r.Context().Value(ctxUserKey{}).(string)
+
+				stack := debug.Stack()
+
+				attrs := []any{
+					"route", r.URL.Path,
+					"method", r.Method,
+					"panic", fmt.Sprint(rec),
+					"stack", string(stack),
+				}
+				if rid != "" {
+					attrs = append(attrs, "req_id", rid)
+				}
+				if user != "" {
+					attrs = append(attrs, "user", user)
+				}
+
+				slog.Error("❌ panic recovered", attrs...)
 				http.Error(w, "internal server error", http.StatusInternalServerError)
 			}
 		}()
