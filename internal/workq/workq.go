@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 )
 
 // ErrQueueFull is returned by Submit when the job queue is saturated.
@@ -41,6 +42,12 @@ type Pool struct {
 	mu        sync.RWMutex
 	closeOnce sync.Once
 	closed    chan struct{}
+
+	// rejectedTotal counts Submit calls that returned ErrQueueFull
+	// over the pool's lifetime. ErrClosed is NOT counted — it's a
+	// shutdown condition, not a capacity condition. Atomic so
+	// readers (Stats scrapers) never block senders.
+	rejectedTotal atomic.Int64
 }
 
 // New constructs and starts a Pool.
@@ -83,7 +90,25 @@ func (p *Pool) Submit(job Job) error {
 	case p.jobs <- job:
 		return nil
 	default:
+		p.rejectedTotal.Add(1)
 		return ErrQueueFull
+	}
+}
+
+// Stats is a point-in-time snapshot of pool utilisation. Depth is the
+// count of jobs currently queued but not yet picked up by a worker;
+// Rejected is the monotonic count of Submit calls that returned
+// ErrQueueFull since process start. Safe to call concurrently.
+type Stats struct {
+	Depth    int64
+	Rejected int64
+}
+
+// Stats returns a snapshot of pool utilisation.
+func (p *Pool) Stats() Stats {
+	return Stats{
+		Depth:    int64(len(p.jobs)),
+		Rejected: p.rejectedTotal.Load(),
 	}
 }
 

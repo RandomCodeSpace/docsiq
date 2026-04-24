@@ -116,3 +116,71 @@ func TestIsUploadRoute_Classification(t *testing.T) {
 		})
 	}
 }
+
+// TestIsStreamingRoute_Classification: SSE / long-poll routes must
+// bypass TimeoutHandler so http.Flusher propagates to the handler.
+func TestIsStreamingRoute_Classification(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		method, path string
+		want         bool
+	}{
+		{http.MethodGet, "/api/upload/progress", true},
+		{http.MethodGet, "/mcp", true},
+		{http.MethodPost, "/mcp", false}, // POST /mcp is a short JSON-RPC call
+		{http.MethodPost, "/api/upload/progress", false},
+		{http.MethodGet, "/api/stats", false},
+		{http.MethodGet, "/api/upload", false},
+	}
+	for _, c := range cases {
+		c := c
+		t.Run(c.method+" "+c.path, func(t *testing.T) {
+			req := httptest.NewRequest(c.method, c.path, nil)
+			got := isStreamingRoute(req)
+			if got != c.want {
+				t.Fatalf("isStreamingRoute(%s %s) = %v; want %v", c.method, c.path, got, c.want)
+			}
+		})
+	}
+}
+
+// TestRequestTimeoutMiddleware_StreamingRouteBypassesTimeout: an SSE
+// handler that streams with http.Flusher must not be wrapped by
+// TimeoutHandler (which buffers and drops Flusher). Without the
+// bypass, flusher.Flush() is a no-op and the client stalls.
+func TestRequestTimeoutMiddleware_StreamingRouteBypassesTimeout(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{}
+	cfg.Server.RequestTimeout = 50 * time.Millisecond
+	cfg.Server.UploadTimeout = 1 * time.Second
+
+	streamed := make(chan struct{}, 1)
+	sse := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "no flusher", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: hello\n\n"))
+		f.Flush()
+		streamed <- struct{}{}
+	})
+	handler := requestTimeoutMiddleware(cfg)(sse)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/upload/progress", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	select {
+	case <-streamed:
+	default:
+		t.Fatalf("handler did not observe Flusher — SSE would stall behind TimeoutHandler")
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d; want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "data: hello") {
+		t.Fatalf("body = %q; want SSE event", rec.Body.String())
+	}
+}

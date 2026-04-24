@@ -22,10 +22,22 @@ import (
 	"github.com/RandomCodeSpace/docsiq/internal/extractor"
 	"github.com/RandomCodeSpace/docsiq/internal/llm"
 	"github.com/RandomCodeSpace/docsiq/internal/loader"
+	"github.com/RandomCodeSpace/docsiq/internal/obs"
 	"github.com/RandomCodeSpace/docsiq/internal/store"
 	"github.com/google/uuid"
 	"github.com/schollz/progressbar/v3"
 )
+
+// timeStage is a nil-safe wrapper around obs.Pipeline.TimeStage. The
+// indexer CLI does not initialise obs (obs.Init is only called from
+// cmd/serve.go), so the CLI path must not blow up on a nil
+// obs.Pipeline.
+func timeStage(stage string, fn func() error) error {
+	if obs.Pipeline == nil {
+		return fn()
+	}
+	return obs.Pipeline.TimeStage(stage, fn)
+}
 
 // ProgressEvent sent over progress channel.
 type ProgressEvent struct {
@@ -69,6 +81,12 @@ type IndexOptions struct {
 
 // IndexPath indexes a file or directory.
 func (p *Pipeline) IndexPath(ctx context.Context, path string, opts IndexOptions) error {
+	return timeStage("index_path", func() error {
+		return p.indexPath(ctx, path, opts)
+	})
+}
+
+func (p *Pipeline) indexPath(ctx context.Context, path string, opts IndexOptions) error {
 	workers := opts.Workers
 	if workers <= 0 {
 		workers = p.cfg.Indexing.Workers
@@ -123,6 +141,12 @@ func (p *Pipeline) IndexPath(ctx context.Context, path string, opts IndexOptions
 
 // IndexURL crawls a documentation website and indexes all discovered pages.
 func (p *Pipeline) IndexURL(ctx context.Context, rootURL string, opts IndexOptions) error {
+	return timeStage("index_url", func() error {
+		return p.indexURL(ctx, rootURL, opts)
+	})
+}
+
+func (p *Pipeline) indexURL(ctx context.Context, rootURL string, opts IndexOptions) error {
 	workers := opts.Workers
 	if workers <= 0 {
 		workers = p.cfg.Indexing.Workers
@@ -570,6 +594,12 @@ func (p *Pipeline) structureDocument(ctx context.Context, docID, content string)
 // If force is true, the graph fingerprint cache is ignored and communities
 // are always regenerated.
 func (p *Pipeline) Finalize(ctx context.Context, verbose bool, force ...bool) error {
+	return timeStage("finalize", func() error {
+		return p.finalize(ctx, verbose, force...)
+	})
+}
+
+func (p *Pipeline) finalize(ctx context.Context, verbose bool, force ...bool) error {
 	slog.Info("🧩 Phase 3: loading entities and relationships")
 	entities, err := p.store.AllEntities(ctx)
 	if err != nil {

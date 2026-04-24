@@ -15,9 +15,11 @@ import (
 	"time"
 
 	"github.com/RandomCodeSpace/docsiq/internal/api"
+	"github.com/RandomCodeSpace/docsiq/internal/buildinfo"
 	"github.com/RandomCodeSpace/docsiq/internal/config"
 	"github.com/RandomCodeSpace/docsiq/internal/embedder"
 	"github.com/RandomCodeSpace/docsiq/internal/llm"
+	"github.com/RandomCodeSpace/docsiq/internal/obs"
 	"github.com/RandomCodeSpace/docsiq/internal/project"
 	"github.com/RandomCodeSpace/docsiq/internal/sqlitevec"
 	"github.com/RandomCodeSpace/docsiq/internal/vectorindex"
@@ -153,6 +155,19 @@ var serveCmd = &cobra.Command{
 			depth = 64
 		}
 		pool := workq.New(workq.Config{Workers: workers, QueueDepth: depth})
+
+		// Observability — initialise the Prometheus registry once per
+		// process and bind the workq stats provider so the /metrics
+		// scrape can read live queue depth + rejection count.
+		obs.Init()
+		obs.Workq.BindStatsProvider(func() obs.WorkqStats {
+			s := pool.Stats()
+			return obs.WorkqStats{Depth: s.Depth, Rejected: s.Rejected}
+		})
+		{
+			info := buildinfo.Resolve(false)
+			api.SetBuildInfo(info.Version, info.Commit)
+		}
 
 		router := api.NewRouter(prov, emb, cfg, registry,
 			api.WithProjectStores(stores),

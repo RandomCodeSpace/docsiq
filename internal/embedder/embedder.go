@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/RandomCodeSpace/docsiq/internal/llm"
+	"github.com/RandomCodeSpace/docsiq/internal/obs"
 )
 
 // Embedder batches text → []float32 vectors using an LLM provider.
@@ -72,7 +74,11 @@ func (e *Embedder) EmbedTexts(ctx context.Context, texts []string) ([][]float32,
 			defer wg.Done()
 			defer func() { <-sem }()
 
+			start := time.Now()
 			vecs, err := e.provider.EmbedBatch(ctx, work.texts)
+			if obs.Embed != nil {
+				obs.Embed.Observe(e.provider.Name(), time.Since(start))
+			}
 			if err != nil {
 				errs[batchIdx] = fmt.Errorf("embed batch [%d:%d]: %w",
 					work.idx, work.idx+len(work.texts), err)

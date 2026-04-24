@@ -35,7 +35,7 @@ func TestMetrics_EndpointReturns200PublicNoAuth(t *testing.T) {
 func TestMetrics_IsPrometheusText(t *testing.T) {
 	e := itest.New(t)
 	// Warm up at least one counter so multiple metric lines exist.
-	resp, _ := e.GET(t, "/health")
+	resp, _ := e.GET(t, "/healthz")
 	resp.Body.Close()
 
 	req, _ := http.NewRequest(http.MethodGet, e.URL("/metrics"), nil)
@@ -46,19 +46,19 @@ func TestMetrics_IsPrometheusText(t *testing.T) {
 	re := regexp.MustCompile(`(?m)^docsiq_\w+(?:\{[^}]*\})?\s+\S`)
 	matches := re.FindAllString(string(body), -1)
 	if len(matches) < 3 {
-		t.Fatalf("expected ≥3 docsiq_* metric lines, got %d. body=%s", len(matches), string(body))
+		t.Fatalf("expected >=3 docsiq_* metric lines, got %d. body=%s", len(matches), string(body))
 	}
 }
 
-// TestMetrics_RequestsCounterIncrements fires N /health requests then
-// scrapes /metrics and asserts the docsiq_requests_total counter for
-// /health saw at least N increments.
-func TestMetrics_RequestsCounterIncrements(t *testing.T) {
+// TestMetrics_HTTPRequestsCounterIncrements fires N /healthz requests
+// then scrapes /metrics and asserts the docsiq_http_requests_total
+// counter for the matching route saw at least N increments.
+func TestMetrics_HTTPRequestsCounterIncrements(t *testing.T) {
 	e := itest.New(t)
 
 	const n = 5
 	for i := 0; i < n; i++ {
-		req, _ := http.NewRequest(http.MethodGet, e.URL("/health"), nil)
+		req, _ := http.NewRequest(http.MethodGet, e.URL("/healthz"), nil)
 		resp := e.Do(t, req)
 		io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
@@ -69,14 +69,11 @@ func TestMetrics_RequestsCounterIncrements(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 
-	// Find every docsiq_requests_total line mentioning /health and sum
-	// the trailing integer values — multiple rows differ by status
-	// label but all count toward /health traffic.
-	// Format: docsiq_requests_total{method="GET",path="/health",status="200"} 7
-	re := regexp.MustCompile(`(?m)^docsiq_requests_total\{[^}]*path="/health"[^}]*\}\s+(\d+)`)
+	// Format: docsiq_http_requests_total{method="GET",route="GET /healthz",status="2xx"} 7
+	re := regexp.MustCompile(`(?m)^docsiq_http_requests_total\{[^}]*route="GET /healthz"[^}]*\}\s+(\d+)`)
 	matches := re.FindAllStringSubmatch(string(body), -1)
 	if len(matches) == 0 {
-		t.Fatalf("no docsiq_requests_total row for /health. body=\n%s", string(body))
+		t.Fatalf("no docsiq_http_requests_total row for /healthz. body=\n%s", string(body))
 	}
 	total := 0
 	for _, m := range matches {
@@ -87,7 +84,7 @@ func TestMetrics_RequestsCounterIncrements(t *testing.T) {
 		total += v
 	}
 	if total < n {
-		t.Fatalf("/health counter %d < %d fired requests. matches=%v body_head=%s",
+		t.Fatalf("/healthz counter %d < %d fired requests. matches=%v body_head=%s",
 			total, n, matches, firstLines(string(body), 20))
 	}
 }

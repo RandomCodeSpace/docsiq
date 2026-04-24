@@ -670,3 +670,52 @@ func captureSlog(t *testing.T) *syncBuffer {
 	t.Cleanup(func() { slog.SetDefault(prev) })
 	return buf
 }
+
+func TestLoad_LogFormatDefaultText(t *testing.T) {
+	// NOT parallel — mutates env + HOME.
+	dir := t.TempDir()
+	isolateEnv(t, dir)
+	// Empty cfgFile → Load searches ~/.docsiq (empty) + cwd, falls
+	// through to defaults.
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Log.Format != "text" {
+		t.Errorf("default Log.Format=%q want text", cfg.Log.Format)
+	}
+}
+
+func TestLoad_LogFormatFromYAML(t *testing.T) {
+	// NOT parallel — mutates env + HOME.
+	dir := t.TempDir()
+	isolateEnv(t, dir)
+	f := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(f, []byte("log:\n  format: json\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(f)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Log.Format != "json" {
+		t.Errorf("Log.Format=%q want json", cfg.Log.Format)
+	}
+}
+
+func TestLoad_LogFormatFromEnv(t *testing.T) {
+	// NOT parallel — mutates env + HOME.
+	dir := t.TempDir()
+	isolateEnv(t, dir)
+	if err := os.Setenv("DOCSIQ_LOG_FORMAT", "json"); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Unsetenv("DOCSIQ_LOG_FORMAT")
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Log.Format != "json" {
+		t.Errorf("env Log.Format=%q want json", cfg.Log.Format)
+	}
+}

@@ -28,6 +28,25 @@ func isUploadRoute(r *http.Request) bool {
 	return false
 }
 
+// isStreamingRoute reports whether r serves an SSE / long-poll stream
+// that must not be wrapped by http.TimeoutHandler. TimeoutHandler
+// buffers the response and does not propagate http.Flusher, so any
+// stream wrapped by it stalls until the handler returns — at which
+// point the client has already timed out reading the body.
+//
+// Streaming routes rely on ctx cancellation (client disconnect or
+// server shutdown) for teardown rather than a per-request wall clock.
+func isStreamingRoute(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	switch r.URL.Path {
+	case "/api/upload/progress", "/mcp":
+		return true
+	}
+	return false
+}
+
 // requestTimeoutMiddleware wraps inner in http.TimeoutHandler with
 // cfg.Server.RequestTimeout as the default bound, bumped to
 // cfg.Server.UploadTimeout for upload routes.
@@ -55,6 +74,10 @@ func requestTimeoutMiddleware(cfg *config.Config) func(http.Handler) http.Handle
 		}
 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if isStreamingRoute(r) {
+				inner.ServeHTTP(w, r)
+				return
+			}
 			if isUploadRoute(r) {
 				uploadTO.ServeHTTP(w, r)
 				return

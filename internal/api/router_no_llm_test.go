@@ -154,4 +154,24 @@ func TestRouterNoLLM(t *testing.T) {
 			t.Errorf("GET /api/projects status = %d, want 200", rec.Code)
 		}
 	})
+
+	t.Run("version_returns_200_no_auth", func(t *testing.T) {
+		h, _ := newNoLLMRouter(t)
+		req := httptest.NewRequest(http.MethodGet, "/api/version", nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET /api/version status = %d, want 200; body=%s",
+				rec.Code, rec.Body.String())
+		}
+		var body map[string]any
+		if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+			t.Fatalf("GET /api/version body not JSON: %v", err)
+		}
+		for _, k := range []string{"version", "commit", "build_date", "go_version"} {
+			if _, ok := body[k]; !ok {
+				t.Errorf("GET /api/version missing key %q", k)
+			}
+		}
+	})
 }
