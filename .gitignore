@@ -69,3 +69,9 @@ Thumbs.db
 *.tmp
 *.bak
 .superpowers/
+
+# Internal planning/brainstorming scaffolding. Plans and specs written
+# by the superpowers skills are development-workflow artifacts, not
+# public docs — they go stale the moment features merge. Commit
+# messages and PR descriptions carry the durable record.
+docs/superpowers/
