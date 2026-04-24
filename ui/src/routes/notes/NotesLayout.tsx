@@ -5,6 +5,7 @@ import { LinkPanel } from "@/components/notes/LinkPanel";
 import { useProjectStore } from "@/stores/project";
 import { useHotkey } from "@/hooks/useHotkey";
 import { useNotes } from "@/hooks/api/useNotes";
+import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/empty";
 
 export default function NotesLayout() {
   const project = useProjectStore((s) => s.slug);
@@ -26,7 +27,8 @@ export default function NotesLayout() {
 }
 
 function NotesIndex({ project }: { project: string }) {
-  const { data, isLoading } = useNotes(project);
+  const { data, isLoading, error, refetch } = useNotes(project);
+  const err = error as Error | null | undefined;
   const groups = useMemo(() => {
     const byFolder: Record<string, string[]> = {};
     for (const n of data ?? []) {
@@ -50,24 +52,39 @@ function NotesIndex({ project }: { project: string }) {
         Open tree <kbd className="kbd">⌘/</kbd>
         &nbsp;· search <kbd className="kbd">⌘K</kbd>
       </p>
-      <div className="notes-index-grid">
-        {groups.map(([folder, keys]) => (
-          <section key={folder} className="notes-folder">
-            <h2 className="notes-folder-head">
-              {folder} <span className="notes-folder-count">· {keys.length}</span>
-            </h2>
-            <ul className="notes-folder-list">
-              {keys.map((k) => (
-                <li key={k} className="notes-folder-item">
-                  <Link to={`/notes/${encodeURIComponent(k)}`} className="notes-folder-link">
-                    {k.split("/").pop()}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
-      </div>
+      {isLoading ? (
+        <LoadingSkeleton label="Loading notes" rows={6} />
+      ) : err ? (
+        <ErrorState
+          title="Notes failed to load"
+          message={err.message || "Unknown error"}
+          onRetry={() => refetch()}
+        />
+      ) : groups.length === 0 ? (
+        <EmptyState
+          title="No notes yet"
+          description="Create your first note to see it here."
+        />
+      ) : (
+        <div className="notes-index-grid">
+          {groups.map(([folder, keys]) => (
+            <section key={folder} className="notes-folder">
+              <h2 className="notes-folder-head">
+                {folder} <span className="notes-folder-count">· {keys.length}</span>
+              </h2>
+              <ul className="notes-folder-list">
+                {keys.map((k) => (
+                  <li key={k} className="notes-folder-item">
+                    <Link to={`/notes/${encodeURIComponent(k)}`} className="notes-folder-link">
+                      {k.split("/").pop()}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

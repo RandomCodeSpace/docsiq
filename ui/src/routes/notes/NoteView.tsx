@@ -3,20 +3,39 @@ import { MarkdownView } from "@/components/notes/MarkdownView";
 import { useNote } from "@/hooks/api/useNotes";
 import { useProjectStore } from "@/stores/project";
 import { formatRelativeTime } from "@/lib/format";
+import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/empty";
 
 export default function NoteView() {
   const { key } = useParams();
   const project = useProjectStore((s) => s.slug);
-  const { data: note, isLoading, error } = useNote(project, key);
+  const { data: note, isLoading, error, refetch } = useNote(project, key);
+  const err = error as Error | null | undefined;
 
   if (isLoading) {
-    return <div className="p-8 text-muted-foreground text-sm">Loading…</div>;
-  }
-  if (error || !note) {
     return (
       <div className="p-8 max-w-[620px] mx-auto">
-        <h1 className="text-xl font-semibold">Note not found</h1>
-        <p className="text-sm text-muted-foreground mt-2 font-mono">{key}</p>
+        <LoadingSkeleton label="Loading note" rows={5} />
+      </div>
+    );
+  }
+  if (err) {
+    return (
+      <div className="p-8 max-w-[620px] mx-auto">
+        <ErrorState
+          title="Note failed to load"
+          message={err.message || "Unknown error"}
+          onRetry={() => refetch()}
+        />
+      </div>
+    );
+  }
+  if (!note) {
+    return (
+      <div className="p-8 max-w-[620px] mx-auto">
+        <EmptyState
+          title="Note not found"
+          description="The note may have been deleted or the link is stale."
+        />
       </div>
     );
   }
