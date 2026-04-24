@@ -3,8 +3,11 @@
 package api_test
 
 import (
+	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -53,29 +56,51 @@ func uploadDoc(t *testing.T, e *itest.Env, slug, filename, content string) strin
 	return out.JobID
 }
 
-// waitUploadDone polls /api/upload/progress until the job is "done" or
-// an error message appears. Returns the final status string. Bails on
-// timeout so the test can skip or fail with context.
+// waitUploadDone opens the /api/upload/progress SSE stream and returns
+// the first terminal message ("done" or "error:..."). On timeout it
+// returns "" so the caller can skip. The stream is long-lived; we
+// parse "data: X\n\n" events incrementally and cancel via ctx when the
+// caller deadline fires.
 func waitUploadDone(t *testing.T, e *itest.Env, jobID string, timeout time.Duration) string {
 	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		resp, body := e.GET(t, "/api/upload/progress?job_id="+jobID)
-		if resp.StatusCode != http.StatusOK {
-			time.Sleep(100 * time.Millisecond)
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		e.URL("/api/upload/progress?job_id="+jobID), nil)
+	if err != nil {
+		t.Fatalf("itest: build progress req: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+e.APIKey)
+	req.Header.Set("Accept", "text/event-stream")
+
+	client := &http.Client{} // no per-request Timeout — SSE is long-lived; ctx bounds it.
+	resp, err := client.Do(req)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return ""
+		}
+		t.Fatalf("itest: open progress stream: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("itest: progress stream: status %d body=%s", resp.StatusCode, string(b))
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
 			continue
 		}
-		s := string(body)
-		if strings.Contains(s, `"done"`) || strings.Contains(s, `"status":"done"`) || strings.Contains(s, `done`) {
-			if strings.Contains(s, "done") && !strings.Contains(s, "error") {
-				return s
-			}
+		msg := strings.TrimPrefix(line, "data: ")
+		if msg == "done" || strings.HasPrefix(msg, "error:") {
+			return msg
 		}
-		if strings.Contains(s, "error:") {
-			return s
-		}
-		time.Sleep(150 * time.Millisecond)
 	}
+	// Scanner ended — either ctx timed out (empty return) or server closed the stream.
 	return ""
 }
 

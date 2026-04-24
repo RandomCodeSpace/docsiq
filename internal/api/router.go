@@ -100,17 +100,25 @@ func NewRouter(prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, re
 		if defaultSlug == "" {
 			defaultSlug = "_default"
 		}
-		var sq healthPinger
-		if stores != nil {
-			if st, err := stores.Get(defaultSlug); err == nil && st != nil {
-				sq = sqlDBPinger{db: st.DB()}
+		// Lazy SQLite pinger: resolve the default store at probe time, not
+		// at router-build time. This lets /readyz flip green once the
+		// default store becomes available without a restart, and — more
+		// importantly — surfaces a genuine Open failure (permissions,
+		// corrupt DB, disk full) as 503 instead of masking it with a
+		// hard-coded success.
+		sq := healthPingerFuncForRouter(func(ctx context.Context) error {
+			if stores == nil {
+				return fmt.Errorf("project stores not configured")
 			}
-		}
-		if sq == nil {
-			// Fall back to a "no-op OK" probe when there is no default
-			// store (tests, or pre-registration boot sequence).
-			sq = healthPingerFuncForRouter(func(_ context.Context) error { return nil })
-		}
+			st, err := stores.Get(defaultSlug)
+			if err != nil {
+				return fmt.Errorf("open default store %q: %w", defaultSlug, err)
+			}
+			if st == nil {
+				return fmt.Errorf("nil default store %q", defaultSlug)
+			}
+			return st.DB().PingContext(ctx)
+		})
 		var llmp llmPinger
 		if prov != nil {
 			llmp = providerPinger{prov: prov}

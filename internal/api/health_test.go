@@ -175,6 +175,42 @@ type healthPingerFunc func(ctx context.Context) error
 
 func (f healthPingerFunc) Ping(ctx context.Context) error { return f(ctx) }
 
+// TestReadyz_ProbeCtxDecoupledFromRequestCtx: if the probing client
+// cancels the request (disconnect or its own deadline), the probe must
+// still complete successfully so the cached result is not poisoned
+// with context.Canceled for the whole TTL window.
+func TestReadyz_ProbeCtxDecoupledFromRequestCtx(t *testing.T) {
+	t.Parallel()
+
+	var seenCancel atomic.Bool
+	// Pinger: check whether the ctx passed in has already been canceled
+	// by the caller. If the probe ctx was derived from the request ctx,
+	// it would inherit cancellation and this flag would flip.
+	sq := healthPingerFunc(func(ctx context.Context) error {
+		if err := ctx.Err(); err != nil {
+			seenCancel.Store(true)
+			return err
+		}
+		return nil
+	})
+	llm := &llmPingerStub{}
+	h := readyzHandler(sq, llm)
+
+	// Request ctx that is already canceled.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if seenCancel.Load() {
+		t.Errorf("probe saw caller's canceled ctx — readiness cache would be poisoned by client disconnects")
+	}
+	if rec.Code != http.StatusOK {
+		t.Errorf("status=%d; want 200 (probe succeeded despite canceled request ctx)", rec.Code)
+	}
+}
+
 // Guardrail: test clock advance simulation ensures cached result refreshes.
 func TestReadyz_RefreshesAfterTTL(t *testing.T) {
 	t.Parallel()

@@ -107,6 +107,15 @@ func (c *readyzCache) check(ctx context.Context, sq healthPinger, llmp llmPinger
 		return c.body, c.code
 	}
 
+	// Decouple probe lifetime from the caller's request ctx: if the
+	// probing client (Kubernetes, Prometheus, curl) disconnects or its
+	// own deadline expires, an in-flight Ping would otherwise return
+	// context.Canceled / DeadlineExceeded and poison the 10-second
+	// cache for every subsequent caller. WithoutCancel preserves any
+	// values on ctx (e.g. req_id, for logging adapters inside Ping
+	// implementations) while detaching its cancellation.
+	probeCtx := context.WithoutCancel(ctx)
+
 	body := readyzBody{
 		Status: "ready",
 		Checks: map[string]checkStatus{},
@@ -115,7 +124,7 @@ func (c *readyzCache) check(ctx context.Context, sq healthPinger, llmp llmPinger
 
 	// SQLite probe — mandatory. Failure fails readiness.
 	{
-		sqCtx, cancel := context.WithTimeout(ctx, sqliteCheckTimeout)
+		sqCtx, cancel := context.WithTimeout(probeCtx, sqliteCheckTimeout)
 		err := sq.Ping(sqCtx)
 		cancel()
 		if err != nil {
@@ -132,7 +141,7 @@ func (c *readyzCache) check(ctx context.Context, sq healthPinger, llmp llmPinger
 	case llmp == nil:
 		body.Checks["llm"] = checkStatus{Status: "skipped", Err: "provider=none"}
 	default:
-		llmCtx, cancel := context.WithTimeout(ctx, llmCheckTimeout)
+		llmCtx, cancel := context.WithTimeout(probeCtx, llmCheckTimeout)
 		err := llmp.Ping(llmCtx)
 		cancel()
 		if err != nil {
