@@ -1,0 +1,52 @@
+name: nightly
+
+# Runs scale-tagged tests (large payloads, 10k HNSW recall benchmark,
+# 1000-note scale) that are excluded from every PR's CI to keep the
+# feedback loop fast. Also usable via workflow_dispatch for one-off
+# checks after a perf-sensitive change.
+on:
+  schedule:
+    - cron: "0 6 * * *" # 06:00 UTC daily
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  scale-tests:
+    name: go scale tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: go.mod
+
+      - name: Go build cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-scale-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-scale-
+
+      # Scale tests need the embedded UI; build a minimal ui/dist so
+      # //go:embed is satisfied. We don't care about the frontend bundle
+      # contents here — just that something compiles.
+      - name: Seed ui/dist placeholder
+        run: |
+          mkdir -p ui/dist
+          printf '<!doctype html><title>nightly</title>' > ui/dist/index.html
+
+      - name: go test scale (no -race; workloads are sequential)
+        run: |
+          CGO_ENABLED=1 go test \
+            -tags "sqlite_fts5 scale" \
+            -timeout 1200s \
+            $(go list ./... | grep -v /ui/node_modules/)

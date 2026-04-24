@@ -225,27 +225,6 @@ func TestUnicodeKey(t *testing.T) {
 	}
 }
 
-func TestScale_1000Notes(t *testing.T) {
-	if testing.Short() {
-		// TODO(#63): 1000-note scale test skipped under -short; tracked in flake-register.
-		t.Skip("skipping 1000-note scale test in -short mode")
-	}
-	dir := t.TempDir()
-	for i := 0; i < 1000; i++ {
-		k := fmt.Sprintf("bucket%d/note%d", i%10, i)
-		if err := Write(dir, &Note{Key: k, Content: "x"}); err != nil {
-			t.Fatalf("write %d: %v", i, err)
-		}
-	}
-	keys, err := ListKeys(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(keys) != 1000 {
-		t.Errorf("expected 1000, got %d", len(keys))
-	}
-}
-
 func TestFrontmatterPreserved(t *testing.T) {
 	dir := t.TempDir()
 	n := &Note{

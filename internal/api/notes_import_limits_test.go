@@ -5,10 +5,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 )
 
@@ -73,49 +71,3 @@ func TestImportTar_EntryCountCap(t *testing.T) {
 	}
 }
 
-// TestImportTar_TotalBytesCap is a regression test for P0-3.
-// A tar whose total uncompressed bytes across entries exceed
-// MaxImportTotalBytes must be rejected with 413.
-func TestImportTar_TotalBytesCap(t *testing.T) {
-	if testing.Short() {
-		// TODO(#62): large-tar import test skipped under -short; tracked in flake-register.
-		t.Skip("skipping large-tar test in -short mode")
-	}
-	h, slug, _ := setupNotesRouter(t)
-
-	// Each entry is just under MaxNoteBytes (10 MB). Two 256 MB entries
-	// would still fit under MaxImportTotalBytes (500 MB); we need > 500
-	// MB total. Use 52 entries × 10 MB = 520 MB — exceeds the cap.
-	// Build each entry's body once and reuse.
-	perEntry := 10 * 1024 * 1024 // 10 MB, equal to MaxNoteBytes
-	// Use slightly less to satisfy per-entry cap but still accumulate
-	// fast.
-	body := make([]byte, perEntry-1)
-	for i := range body {
-		body[i] = 'x'
-	}
-	entriesNeeded := int(MaxImportTotalBytes/int64(perEntry-1)) + 3
-	entries := make([]tarEntry, entriesNeeded)
-	for i := range entriesNeeded {
-		entries[i] = tarEntry{
-			name: fmt.Sprintf("big-%03d.md", i),
-			body: body,
-		}
-	}
-	tarBytes := newTarGz(t, entries)
-	req := httptest.NewRequest(http.MethodPost,
-		"/api/projects/"+slug+"/import", bytes.NewReader(tarBytes))
-	req.Header.Set("Content-Type", "application/gzip")
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusRequestEntityTooLarge {
-		t.Fatalf("expected 413 for over-total-bytes tar, got %d body=%s",
-			rec.Code, rec.Body.String())
-	}
-	if !strings.Contains(strings.ToLower(rec.Body.String()), "total") &&
-		!strings.Contains(strings.ToLower(rec.Body.String()), "bytes") {
-		t.Logf("body=%s", rec.Body.String())
-	}
-	_ = io.EOF
-}

@@ -20,23 +20,6 @@ func randomVec(rng *rand.Rand, dim int) []float32 {
 	return v
 }
 
-// normalizeVec returns v scaled to unit L2 norm (new slice).
-func normalizeVec(v []float32) []float32 {
-	var s float32
-	for _, x := range v {
-		s += x * x
-	}
-	if s == 0 {
-		return v
-	}
-	n := sqrt32(s)
-	out := make([]float32, len(v))
-	for i := range v {
-		out[i] = v[i] / n
-	}
-	return out
-}
-
 // cosineSim computes cosine similarity, used by the brute-force oracle.
 func cosineSim(a, b []float32) float32 {
 	var dot, na, nb float32
@@ -208,66 +191,6 @@ func TestHNSW_Upsert(t *testing.T) {
 	_ = idx.Add("x", []float32{0, 1, 0})
 	if idx.Size() != 1 {
 		t.Fatalf("Size after upsert = %d, want 1", idx.Size())
-	}
-}
-
-func TestHNSW_Recall10k(t *testing.T) {
-	if testing.Short() {
-		// TODO(#64): 10k HNSW benchmark skipped under -short; tracked in flake-register.
-		t.Skip("skipping 10k benchmark in -short")
-	}
-	if raceEnabled {
-		// Workload is fully sequential (no goroutines), so the race
-		// detector has nothing to catch here — it just adds ~10× overhead
-		// that dominates CI. Concurrency correctness is covered by
-		// TestHNSW_ConcurrentAddSearch, which DOES run under -race.
-		// TODO(#64): 10k HNSW recall benchmark skipped under -race; tracked in flake-register.
-		t.Skip("skipping 10k recall benchmark under -race (sequential workload)")
-	}
-	const (
-		n   = 10_000
-		dim = 384
-		q   = 20 // number of query probes
-		k   = 10
-	)
-	rng := rand.New(rand.NewSource(7))
-	// Higher construction/search ef for a strong recall benchmark; the
-	// default (16/200/50) hits ~0.85 on random vectors which is noisy.
-	idx := NewHNSW(32, 400, 400)
-	vecs := make(map[string][]float32, n)
-	for i := 0; i < n; i++ {
-		id := fmt.Sprintf("v%d", i)
-		v := normalizeVec(randomVec(rng, dim))
-		vecs[id] = v
-		if err := idx.Add(id, v); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	var totalRecall float64
-	for qi := 0; qi < q; qi++ {
-		qv := normalizeVec(randomVec(rng, dim))
-		gold := bruteForceTopK(qv, vecs, k)
-		hits, err := idx.Search(qv, k)
-		if err != nil {
-			t.Fatal(err)
-		}
-		goldSet := map[string]bool{}
-		for _, id := range gold {
-			goldSet[id] = true
-		}
-		matches := 0
-		for _, h := range hits {
-			if goldSet[h.ID] {
-				matches++
-			}
-		}
-		totalRecall += float64(matches) / float64(k)
-	}
-	recall := totalRecall / float64(q)
-	t.Logf("HNSW recall@10 over %d queries (N=%d, dim=%d) = %.3f", q, n, dim, recall)
-	if recall < 0.95 {
-		t.Fatalf("recall@10 = %.3f, want >= 0.95", recall)
 	}
 }
 
