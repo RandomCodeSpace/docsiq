@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useCallback, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
@@ -10,10 +10,31 @@ import { CommandPalette } from "@/components/command/CommandPalette";
 
 export function Shell({ children }: { children: ReactNode }) {
   const [cmdOpen, setCmdOpen] = useState(false);
+  const invokerRef = useRef<HTMLElement | null>(null);
   const navigate = useNavigate();
   useDocumentTitle();
 
-  useHotkey("mod+k", () => setCmdOpen((v) => !v));
+  const openPalette = useCallback(() => {
+    const el = document.activeElement;
+    invokerRef.current = el instanceof HTMLElement ? el : null;
+    setCmdOpen(true);
+  }, []);
+
+  const handleOpenChange = useCallback((next: boolean) => {
+    setCmdOpen(next);
+    if (!next) {
+      // Wait one tick so Radix finishes its unmount animation before we
+      // restore focus, or the browser may re-steal it.
+      requestAnimationFrame(() => {
+        const target = invokerRef.current;
+        if (target && typeof target.focus === "function") {
+          target.focus();
+        }
+      });
+    }
+  }, []);
+
+  useHotkey("mod+k", () => (cmdOpen ? setCmdOpen(false) : openPalette()));
   useHotkey("g,h", () => navigate("/"));
   useHotkey("g,n", () => navigate("/notes"));
   useHotkey("g,d", () => navigate("/docs"));
@@ -32,7 +53,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <SkipLink />
       <AppSidebar variant="inset" />
       <SidebarInset>
-        <SiteHeader onCommandOpen={() => setCmdOpen(true)} />
+        <SiteHeader onCommandOpen={openPalette} />
         <main
           id="main"
           role="main"
@@ -42,7 +63,7 @@ export function Shell({ children }: { children: ReactNode }) {
           {children}
         </main>
       </SidebarInset>
-      <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} />
+      <CommandPalette open={cmdOpen} onOpenChange={handleOpenChange} />
     </SidebarProvider>
   );
 }
