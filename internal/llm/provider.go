@@ -3,6 +3,8 @@ package llm
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/RandomCodeSpace/docsiq/internal/config"
 	"github.com/tmc/langchaingo/embeddings"
@@ -74,6 +76,21 @@ type lcProvider struct {
 	emb     embeddings.Embedder
 	name    string
 	modelID string
+
+	// Block 3.5: pooled HTTP client shared with the langchaingo
+	// sub-clients. Stored here so tests can assert on it and so
+	// future work can swap it (e.g. for a tracing transport).
+	httpClient *http.Client
+
+	// Block 3.3: optional per-call timeout wrapped around ctx. Zero
+	// means "no timeout" (caller's ctx is authoritative); positive
+	// values trigger context.WithTimeout in Complete/Embed/EmbedBatch.
+	callTimeout time.Duration
+
+	// Block 3.4: provider-declared batch ceiling. EmbedBatch slices
+	// input to this size; caller-visible chunking also uses this
+	// value so the Embedder can construct correctly-sized jobs.
+	batchCeiling int
 }
 
 func (p *lcProvider) Name() string    { return p.name }
@@ -100,9 +117,13 @@ func (p *lcProvider) EmbedBatch(ctx context.Context, texts []string) ([][]float3
 }
 
 func newOllamaProvider(cfg *config.LLMConfig) (Provider, error) {
+	// Block 3.5: one pooled *http.Client shared across chat + embed handles.
+	httpClient := newHTTPClient()
+
 	chatLLM, err := ollama.New(
 		ollama.WithServerURL(cfg.Ollama.BaseURL),
 		ollama.WithModel(cfg.Ollama.ChatModel),
+		ollama.WithHTTPClient(httpClient),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("ollama chat LLM: %w", err)
@@ -110,6 +131,7 @@ func newOllamaProvider(cfg *config.LLMConfig) (Provider, error) {
 	embedLLM, err := ollama.New(
 		ollama.WithServerURL(cfg.Ollama.BaseURL),
 		ollama.WithModel(cfg.Ollama.EmbedModel),
+		ollama.WithHTTPClient(httpClient),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("ollama embed LLM: %w", err)
@@ -118,11 +140,21 @@ func newOllamaProvider(cfg *config.LLMConfig) (Provider, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ollama embedder: %w", err)
 	}
-	return &lcProvider{llm: chatLLM, emb: emb, name: "ollama", modelID: cfg.Ollama.EmbedModel}, nil
+	return &lcProvider{
+		llm:          chatLLM,
+		emb:          emb,
+		name:         "ollama",
+		modelID:      cfg.Ollama.EmbedModel,
+		httpClient:   httpClient,
+		batchCeiling: 128,
+	}, nil
 }
 
 func newAzureProvider(cfg *config.LLMConfig) (Provider, error) {
 	az := &cfg.Azure
+
+	// Block 3.5: one pooled *http.Client shared across chat + embed handles.
+	httpClient := newHTTPClient()
 
 	chatLLM, err := openai.New(
 		openai.WithBaseURL(az.ChatEndpoint()),
@@ -130,6 +162,7 @@ func newAzureProvider(cfg *config.LLMConfig) (Provider, error) {
 		openai.WithAPIVersion(az.ChatAPIVersion()),
 		openai.WithAPIType(openai.APITypeAzure),
 		openai.WithModel(az.ChatModel()),
+		openai.WithHTTPClient(httpClient),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("azure openai chat LLM: %w", err)
@@ -141,6 +174,7 @@ func newAzureProvider(cfg *config.LLMConfig) (Provider, error) {
 		openai.WithAPIVersion(az.EmbedAPIVersion()),
 		openai.WithAPIType(openai.APITypeAzure),
 		openai.WithEmbeddingModel(az.EmbedModel()),
+		openai.WithHTTPClient(httpClient),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("azure openai embed LLM: %w", err)
@@ -150,5 +184,12 @@ func newAzureProvider(cfg *config.LLMConfig) (Provider, error) {
 	if err != nil {
 		return nil, fmt.Errorf("azure openai embedder: %w", err)
 	}
-	return &lcProvider{llm: chatLLM, emb: emb, name: "azure", modelID: az.EmbedModel()}, nil
+	return &lcProvider{
+		llm:          chatLLM,
+		emb:          emb,
+		name:         "azure",
+		modelID:      az.EmbedModel(),
+		httpClient:   httpClient,
+		batchCeiling: 16,
+	}, nil
 }
