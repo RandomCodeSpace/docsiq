@@ -1,7 +1,15 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/msw";
-import { apiFetch, ApiErrorResponse, initAuth } from "../api-client";
+import { apiFetch, ApiErrorResponse, initAuth, mcpRequest } from "../api-client";
+import { useAuthStore } from "@/stores/auth";
+
+afterEach(() => {
+  // Auth store is module-level; reset after every test or a 401 in one
+  // case leaks `authRequired = true` into the next assertion. No render
+  // happens here, so we mutate the store directly without React.act.
+  useAuthStore.getState().clear();
+});
 
 describe("apiFetch", () => {
   it("returns parsed json on 200", async () => {
@@ -114,6 +122,17 @@ describe("apiFetch", () => {
     }
   });
 
+  it("flips the shared auth store on a 401 (so AuthRequiredBanner renders)", async () => {
+    server.use(
+      http.get("/api/expired", () =>
+        HttpResponse.json({ error: "no session" }, { status: 401 }),
+      ),
+    );
+    expect(useAuthStore.getState().authRequired).toBe(false);
+    await expect(apiFetch("/api/expired")).rejects.toBeInstanceOf(ApiErrorResponse);
+    expect(useAuthStore.getState().authRequired).toBe(true);
+  });
+
   it("does not set Authorization header on data-path fetch even when a key exists in a meta tag", async () => {
     const meta = document.createElement("meta");
     meta.setAttribute("name", "docsiq-api-key");
@@ -136,6 +155,53 @@ describe("apiFetch", () => {
     } finally {
       spy.mockRestore();
       if (meta.parentElement) document.head.removeChild(meta);
+    }
+  });
+});
+
+describe("mcpRequest", () => {
+  it("returns the raw Response so MCP can read Mcp-Session-Id and SSE bodies", async () => {
+    server.use(
+      http.post("/mcp", () =>
+        HttpResponse.json(
+          { jsonrpc: "2.0", id: 1, result: { ok: true } },
+          { headers: { "Mcp-Session-Id": "sess-42" } },
+        ),
+      ),
+    );
+    const res = await mcpRequest("/mcp", {
+      method: "POST",
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Mcp-Session-Id")).toBe("sess-42");
+    expect(useAuthStore.getState().authRequired).toBe(false);
+  });
+
+  it("flips the shared auth store on a 401 so the /mcp surface honours AuthRequiredBanner", async () => {
+    server.use(
+      http.post("/mcp", () =>
+        HttpResponse.json({ error: "session expired" }, { status: 401 }),
+      ),
+    );
+    expect(useAuthStore.getState().authRequired).toBe(false);
+    const res = await mcpRequest("/mcp", { method: "POST", body: "{}" });
+    expect(res.status).toBe(401);
+    expect(useAuthStore.getState().authRequired).toBe(true);
+  });
+
+  it("sends credentials: 'include' and defaults Content-Type for string bodies", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200, headers: { "content-type": "application/json" } }),
+    );
+    try {
+      await mcpRequest("/mcp", { method: "POST", body: JSON.stringify({}) });
+      const init = (spy.mock.calls[0][1] ?? {}) as RequestInit;
+      expect(init.credentials).toBe("include");
+      const hdrs = new Headers(init.headers);
+      expect(hdrs.get("Content-Type")).toBe("application/json");
+    } finally {
+      spy.mockRestore();
     }
   });
 });

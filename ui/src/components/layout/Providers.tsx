@@ -9,12 +9,13 @@ import { BrowserRouter } from "react-router-dom";
 import { useUIStore } from "@/stores/ui";
 import { useAuthStore } from "@/stores/auth";
 
-// Global 401 gate: any /api/* fetch that throws an ApiErrorResponse
-// with status === 401 flips the auth store so AuthRequiredBanner can
-// render a visible "Sign in required" affordance. Wired to BOTH
-// QueryCache and MutationCache — a 401 on a write action (note
-// create/update/delete) must surface the banner just the same as a
-// read-path failure.
+// Defensive 401 gate. The HTTP boundary (apiFetch / mcpRequest in
+// lib/api-client.ts) is the primary signal for AuthRequiredBanner — it
+// already flips the auth store on every 401 it sees. This React Query
+// hook is kept so any consumer that synthesises an ApiErrorResponse
+// outside the fetch path (e.g. tests, future non-HTTP transports) still
+// surfaces the banner. signalUnauthorized is idempotent, so the
+// double-signal on real /api/* 401s is harmless.
 function gateUnauthorized(error: unknown) {
   const status = (error as { status?: number })?.status ?? 0;
   if (status === 401) {
