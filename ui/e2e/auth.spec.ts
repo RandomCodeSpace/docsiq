@@ -34,34 +34,34 @@ const test = base.extend<{ unauthedPage: Page }>({
   },
 });
 
-// TODO(#66): re-enable these once the UI renders a visible "sign in" /
-// "authentication required" affordance on 401. Today apiFetch throws an
-// ApiErrorResponse that bubbles into React Query error states without a
-// recognisable auth-copy surface. See flake-register issue #66.
 test.describe("unauthed API", () => {
-  test.fixme(
-    "home surfaces an auth-required affordance when /api/* returns 401",
-    async ({ unauthedPage: page }) => {
-      await page.goto("/");
-      await expect(page.locator("main#main")).toBeVisible();
-      await expect(
-        page
-          .getByText(/sign in|authenticat|authori|session expired|please log in/i)
-          .first(),
-      ).toBeVisible({ timeout: 5_000 });
-    },
-  );
+  test("home surfaces an auth-required affordance when /api/* returns 401", async ({
+    unauthedPage: page,
+  }) => {
+    await page.goto("/");
+    await expect(page.locator("main#main")).toBeVisible();
+    await expect(page.getByTestId("auth-required-banner")).toBeVisible({
+      timeout: 5_000,
+    });
+    await expect(
+      page
+        .getByText(/sign in|authenticat|authori|session expired|please log in/i)
+        .first(),
+    ).toBeVisible();
+  });
 
-  test.fixme(
-    "navigating to /notes with 401 shows the same affordance",
-    async ({ unauthedPage: page }) => {
-      await page.goto("/notes");
-      await expect(page.locator("main#main")).toBeVisible();
-      await expect(
-        page
-          .getByText(/sign in|authenticat|authori|session expired|please log in/i)
-          .first(),
-      ).toBeVisible({ timeout: 5_000 });
-    },
-  );
+  test("navigating to /notes with 401 shows the same affordance", async ({
+    unauthedPage: page,
+  }) => {
+    await page.goto("/notes");
+    await expect(page.locator("main#main")).toBeVisible();
+    await expect(page.getByTestId("auth-required-banner")).toBeVisible({
+      timeout: 5_000,
+    });
+    await expect(
+      page
+        .getByText(/sign in|authenticat|authori|session expired|please log in/i)
+        .first(),
+    ).toBeVisible();
+  });
 });
