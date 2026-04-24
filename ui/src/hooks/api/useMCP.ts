@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { mcpRequest } from "@/lib/api-client";
 
 export interface MCPCallRecord {
   id: string;
@@ -25,14 +26,15 @@ async function rpc(
   body: unknown,
 ): Promise<{ json: unknown; sessionId: string | null }> {
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     "Accept": "application/json, text/event-stream",
   };
   if (sessionId) headers["Mcp-Session-Id"] = sessionId;
 
-  const res = await fetch("/mcp", {
+  // Routed through mcpRequest so 401s flip the shared auth store and
+  // surface the AuthRequiredBanner on /mcp instead of being swallowed
+  // into local toolsError / per-call error state.
+  const res = await mcpRequest("/mcp", {
     method: "POST",
-    credentials: "include",
     headers,
     body: JSON.stringify(body),
   });
