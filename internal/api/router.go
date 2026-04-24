@@ -95,6 +95,10 @@ func NewRouter(prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, re
 	// TODO(docsiq): P2-2 consider optional scrape token via cfg.Server.MetricsKey
 	mux.Handle("GET /metrics", metricsHandler(registry, stores, cfg))
 
+	// Version metadata — public, no auth. Used for operator diagnostics
+	// and CI tooling ("what's running in prod?"). No secrets exposed.
+	mux.Handle("GET /api/version", versionHandler())
+
 	// MCP Streamable HTTP transport (POST /mcp, GET /mcp for SSE stream).
 	// When prov is nil (provider=none) we omit the MCP server entirely and
 	// return 503 on /mcp — the notes/graph/tree tools inside the MCP server

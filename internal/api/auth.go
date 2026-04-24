@@ -38,8 +38,11 @@ func bearerAuthMiddleware(apiKey string, next http.Handler) http.Handler {
 
 		path := r.URL.Path
 
-		// /health is always public.
-		if path == "/health" {
+		// Observability + liveness probes are always public. Defense-in-
+		// depth even though /health, /healthz, /readyz, /metrics, and
+		// /api/version are registered on the mux directly.
+		switch path {
+		case "/health", "/healthz", "/readyz", "/metrics", "/api/version":
 			next.ServeHTTP(w, r)
 			return
 		}
