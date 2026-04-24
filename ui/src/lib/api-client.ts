@@ -45,13 +45,27 @@ export class ApiErrorResponse extends Error {
   }
 }
 
+// FormData/Blob/URLSearchParams/streams/buffers carry their own framing —
+// the browser sets Content-Type (with the multipart boundary, etc.) when
+// fetch builds the request. Defaulting to application/json here would clobber
+// that boundary and produce an unparseable body.
+function isBrowserManagedBody(body: BodyInit): boolean {
+  if (typeof FormData !== "undefined" && body instanceof FormData) return true;
+  if (typeof Blob !== "undefined" && body instanceof Blob) return true;
+  if (typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams) return true;
+  if (typeof ReadableStream !== "undefined" && body instanceof ReadableStream) return true;
+  if (body instanceof ArrayBuffer) return true;
+  if (ArrayBuffer.isView(body)) return true;
+  return false;
+}
+
 export async function apiFetch<T>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
   if (sessionReady) await sessionReady;
   const headers = new Headers(init.headers);
-  if (init.body && !headers.has("Content-Type")) {
+  if (init.body && !headers.has("Content-Type") && !isBrowserManagedBody(init.body)) {
     headers.set("Content-Type", "application/json");
   }
   const res = await fetch(path, { ...init, headers, credentials: "include" });
