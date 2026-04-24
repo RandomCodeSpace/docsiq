@@ -253,8 +253,12 @@ func Load(cfgFile string) (*Config, error) {
 	}
 
 	var cfg Config
-	if err := v.Unmarshal(&cfg); err != nil {
+	if err := v.UnmarshalExact(&cfg); err != nil {
 		return nil, fmt.Errorf("unmarshaling config: %w", err)
+	}
+
+	if err := validateLLM(&cfg); err != nil {
+		return nil, fmt.Errorf("config validation: %w", err)
 	}
 
 	// "none" is an explicit opt-out of LLM; treat it as valid and log clearly.
@@ -270,6 +274,45 @@ func Load(cfgFile string) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// validateLLM enforces that the selected LLM provider has the minimum
+// fields needed to make any request. Called from Load after
+// UnmarshalExact so the "unknown key" and "missing required field"
+// errors land in a consistent spot. Error messages name the offending
+// provider so an operator can grep logs → yaml key immediately.
+func validateLLM(cfg *Config) error {
+	switch cfg.LLM.Provider {
+	case "", "none":
+		// Empty provider or explicit "none" — search paths that don't
+		// need an LLM (e.g. pure-FTS search) still work. Fail only if
+		// someone later tries to construct an LLM client with an empty
+		// or "none" provider string.
+		return nil
+	case "azure":
+		a := cfg.LLM.Azure
+		chatOK := a.Chat.Endpoint != "" || a.Endpoint != ""
+		chatOK = chatOK && (a.Chat.APIKey != "" || a.APIKey != "")
+		embedOK := a.Embed.Endpoint != "" || a.Endpoint != ""
+		embedOK = embedOK && (a.Embed.APIKey != "" || a.APIKey != "")
+		if !chatOK && !embedOK {
+			return fmt.Errorf("llm.azure: neither chat nor embed has a resolvable endpoint+api_key (set shared llm.azure.{endpoint,api_key} or per-service overrides)")
+		}
+		if a.APIVersion == "" && a.Chat.APIVersion == "" && a.Embed.APIVersion == "" {
+			return fmt.Errorf("llm.azure.api_version: required (shared or per-service)")
+		}
+	case "openai":
+		if cfg.LLM.OpenAI.APIKey == "" {
+			return fmt.Errorf("llm.openai.api_key: required when llm.provider=openai")
+		}
+	case "ollama":
+		if cfg.LLM.Ollama.BaseURL == "" {
+			return fmt.Errorf("llm.ollama.base_url: required when llm.provider=ollama")
+		}
+	default:
+		return fmt.Errorf("llm.provider: unknown value %q (valid: azure, openai, ollama)", cfg.LLM.Provider)
+	}
+	return nil
 }
 
 // ProjectDBPath returns the per-project SQLite path for the given slug:
