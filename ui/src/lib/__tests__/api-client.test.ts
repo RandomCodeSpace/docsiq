@@ -43,6 +43,77 @@ describe("apiFetch", () => {
     spy.mockRestore();
   });
 
+  it("does NOT default Content-Type for FormData (browser must set the multipart boundary)", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200, headers: { "content-type": "application/json" } }),
+    );
+    try {
+      const fd = new FormData();
+      fd.append("files", new Blob(["hello"], { type: "text/plain" }), "hello.txt");
+      await apiFetch("/api/upload", { method: "POST", body: fd });
+      const init = (spy.mock.calls[0][1] ?? {}) as RequestInit;
+      const hdrs = new Headers(init.headers);
+      expect(hdrs.has("Content-Type")).toBe(false);
+      // The exact same FormData instance must reach fetch — passing through
+      // the spread/clone path or being re-serialized would also break uploads.
+      expect(init.body).toBe(fd);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("does NOT default Content-Type for Blob, URLSearchParams, ArrayBuffer, or typed arrays", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new HttpResponse(null, { status: 204 }));
+    try {
+      const bodies: BodyInit[] = [
+        new Blob(["x"], { type: "application/octet-stream" }),
+        new URLSearchParams({ a: "1" }),
+        new ArrayBuffer(4),
+        new Uint8Array([1, 2, 3]),
+      ];
+      for (const body of bodies) {
+        await apiFetch("/api/raw", { method: "POST", body });
+      }
+      for (let i = 0; i < bodies.length; i++) {
+        const init = (spy.mock.calls[i][1] ?? {}) as RequestInit;
+        const hdrs = new Headers(init.headers);
+        expect(hdrs.has("Content-Type")).toBe(false);
+      }
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("defaults Content-Type to application/json for string bodies", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200, headers: { "content-type": "application/json" } }),
+    );
+    try {
+      await apiFetch("/api/json", { method: "POST", body: JSON.stringify({ x: 1 }) });
+      const hdrs = new Headers(((spy.mock.calls[0][1] ?? {}) as RequestInit).headers);
+      expect(hdrs.get("Content-Type")).toBe("application/json");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("respects a caller-provided Content-Type and never overrides it", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200, headers: { "content-type": "application/json" } }),
+    );
+    try {
+      await apiFetch("/api/csv", {
+        method: "POST",
+        body: "a,b,c",
+        headers: { "Content-Type": "text/csv" },
+      });
+      const hdrs = new Headers(((spy.mock.calls[0][1] ?? {}) as RequestInit).headers);
+      expect(hdrs.get("Content-Type")).toBe("text/csv");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it("does not set Authorization header on data-path fetch even when a key exists in a meta tag", async () => {
     const meta = document.createElement("meta");
     meta.setAttribute("name", "docsiq-api-key");
