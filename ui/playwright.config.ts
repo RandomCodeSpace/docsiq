@@ -6,6 +6,11 @@ const isCI = !!process.env.CI;
 
 export default defineConfig({
   testDir: "./e2e",
+  // Screenshot regeneration is a manual task run against a live docsiq
+  // backend with seeded fixtures; it has no role in the CI smoke suite
+  // and fails fast when no backend is reachable. Gate behind the
+  // PLAYWRIGHT_SCREENSHOTS env var so the dedicated script opts in.
+  testIgnore: process.env.PLAYWRIGHT_SCREENSHOTS ? undefined : ["**/screenshots.spec.ts"],
   fullyParallel: true,
   forbidOnly: isCI,
   retries: isCI ? 1 : 0,
