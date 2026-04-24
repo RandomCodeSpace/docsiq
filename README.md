@@ -5,6 +5,7 @@
 [![OpenSSF Score](https://api.scorecard.dev/projects/github.com/RandomCodeSpace/docsiq/badge)](https://scorecard.dev/viewer/?uri=github.com/RandomCodeSpace/docsiq)
 [![Release](https://img.shields.io/github/v/release/RandomCodeSpace/docsiq?include_prereleases&sort=semver)](https://github.com/RandomCodeSpace/docsiq/releases)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/RandomCodeSpace/docsiq)](https://github.com/RandomCodeSpace/docsiq/blob/main/go.mod)
+[![SafeSkill 88/100](https://img.shields.io/badge/SafeSkill-88%2F100_Passes%20with%20Notes-yellow)](https://safeskill.dev/scan/randomcodespace-docsiq)
 
 docsiq is a GraphRAG-powered knowledge base that runs as a single Go binary.
 It ingests unstructured documents, builds a knowledge graph with
