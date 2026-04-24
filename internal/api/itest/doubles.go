@@ -38,6 +38,10 @@ func (p *FakeProvider) Name() string { return "fake" }
 // ModelID returns a stable model identifier that callers can log.
 func (p *FakeProvider) ModelID() string { return "fake-model-v1" }
 
+// BatchCeiling declares no ceiling — this fake accepts any batch size
+// since it never makes a real upstream call. Block 3.4.
+func (p *FakeProvider) BatchCeiling() int { return 0 }
+
 // Complete returns a deterministic string derived from the prompt. The
 // output embeds the sha256 prefix of the prompt so tests can assert the
 // provider actually saw what they sent.

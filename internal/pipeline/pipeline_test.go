@@ -18,8 +18,9 @@ import (
 // zero vector or an empty string — nothing reaches the network.
 type nopProvider struct{}
 
-func (nopProvider) Name() string    { return "nop" }
-func (nopProvider) ModelID() string { return "nop-0" }
+func (nopProvider) Name() string       { return "nop" }
+func (nopProvider) ModelID() string    { return "nop-0" }
+func (nopProvider) BatchCeiling() int  { return 0 }
 func (nopProvider) Complete(_ context.Context, _ string, _ ...llm.Option) (string, error) {
 	return "", nil
 }

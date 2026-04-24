@@ -41,6 +41,12 @@ type Provider interface {
 	EmbedBatch(ctx context.Context, texts []string) ([][]float32, error)
 	Name() string
 	ModelID() string
+	// BatchCeiling returns the maximum number of texts that can be
+	// passed to EmbedBatch in a single call. Callers that need to
+	// process larger inputs must slice to this ceiling. Zero means
+	// "no declared ceiling" (rare — only for providers that don't
+	// care). Block 3.4.
+	BatchCeiling() int
 }
 
 // NewProvider constructs the configured provider.
@@ -93,8 +99,9 @@ type lcProvider struct {
 	batchCeiling int
 }
 
-func (p *lcProvider) Name() string    { return p.name }
-func (p *lcProvider) ModelID() string { return p.modelID }
+func (p *lcProvider) Name() string       { return p.name }
+func (p *lcProvider) ModelID() string    { return p.modelID }
+func (p *lcProvider) BatchCeiling() int  { return p.batchCeiling }
 
 // withCallTimeout returns a child ctx bounded by p.callTimeout when
 // positive, plus its cancel. Zero/negative callTimeout returns the
@@ -127,10 +134,90 @@ func (p *lcProvider) Embed(ctx context.Context, text string) ([]float32, error) 
 	return p.emb.EmbedQuery(ctx, text)
 }
 
+// EmbedBatch embeds texts in provider-sized chunks. Input is sliced to
+// at-most p.batchCeiling per upstream request. Per-chunk results are
+// pushed through a buffered channel — a slow consumer backpressures
+// the producer once the buffer fills.
+//
+// The function assembles the final [][]float32 in input order. Errors
+// from any chunk short-circuit the whole call via ctx cancellation.
+//
+// When batchCeiling <= 0 we fall back to a single upstream call — no
+// chunking, no buffer. That path preserves behaviour for providers
+// that have not declared a ceiling. Block 3.4.
 func (p *lcProvider) EmbedBatch(ctx context.Context, texts []string) ([][]float32, error) {
 	ctx, cancel := p.withCallTimeout(ctx)
 	defer cancel()
-	return p.emb.EmbedDocuments(ctx, texts)
+
+	if len(texts) == 0 {
+		return nil, nil
+	}
+
+	// No declared ceiling — single pass, preserve old behaviour.
+	if p.batchCeiling <= 0 {
+		return p.emb.EmbedDocuments(ctx, texts)
+	}
+
+	ceiling := p.batchCeiling
+	if len(texts) <= ceiling {
+		return p.emb.EmbedDocuments(ctx, texts)
+	}
+
+	// Chunk boundaries (start, end) pairs — deterministic order.
+	type chunk struct {
+		start, end int
+	}
+	var chunks []chunk
+	for i := 0; i < len(texts); i += ceiling {
+		end := i + ceiling
+		if end > len(texts) {
+			end = len(texts)
+		}
+		chunks = append(chunks, chunk{start: i, end: end})
+	}
+
+	type chunkResult struct {
+		start int
+		vecs  [][]float32
+		err   error
+	}
+	// Buffer sized 2 chunks (equivalent to 2*ceiling vector slots). One
+	// chunk completed, one en route; a slow consumer backpressures the
+	// third. Concurrent multi-chunk dispatch is the Embedder's job.
+	results := make(chan chunkResult, 2)
+
+	// Producer: iterate chunks serially. Serial emission is intentional
+	// — the buffer provides headroom for a single slow consumer step.
+	go func() {
+		defer close(results)
+		for _, c := range chunks {
+			slice := texts[c.start:c.end]
+			vecs, err := p.emb.EmbedDocuments(ctx, slice)
+			select {
+			case results <- chunkResult{start: c.start, vecs: vecs, err: err}:
+			case <-ctx.Done():
+				return
+			}
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	out := make([][]float32, len(texts))
+	for r := range results {
+		if r.err != nil {
+			return nil, fmt.Errorf("embed batch [%d:%d]: %w", r.start, r.start+len(r.vecs), r.err)
+		}
+		for i, v := range r.vecs {
+			out[r.start+i] = v
+		}
+	}
+
+	// Defensive: every slot must be populated. If a chunk errored
+	// between buffer push and loop drain we'd have returned above;
+	// reaching here means every result arrived.
+	return out, ctx.Err()
 }
 
 func newOllamaProvider(cfg *config.LLMConfig) (Provider, error) {
