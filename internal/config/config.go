@@ -149,6 +149,7 @@ type ServerConfig struct {
 	MaxUploadBytes int64  `mapstructure:"max_upload_bytes"` // 0 or negative disables the cap
 	WorkqWorkers   int    `mapstructure:"workq_workers"`    // 0 → runtime.NumCPU()
 	WorkqDepth     int    `mapstructure:"workq_depth"`      // 0 → 64
+	HSTSEnabled    bool   `mapstructure:"hsts_enabled"`     // emits Strict-Transport-Security when true
 }
 
 func Load(cfgFile string) (*Config, error) {
@@ -214,6 +215,7 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetDefault("server.max_upload_bytes", int64(100*1024*1024)) // 100 MiB
 	v.SetDefault("server.workq_workers", 0)                       // 0 → runtime.NumCPU()
 	v.SetDefault("server.workq_depth", 64)
+	v.SetDefault("server.hsts_enabled", false)
 
 	// Config file search paths. Only ~/.docsiq and CWD are consulted.
 	newCfgDir := filepath.Join(home, ".docsiq")
@@ -239,6 +241,7 @@ func Load(cfgFile string) (*Config, error) {
 	_ = v.BindEnv("server.max_upload_bytes", "DOCSIQ_SERVER_MAX_UPLOAD_BYTES")
 	_ = v.BindEnv("server.workq_workers", "DOCSIQ_SERVER_WORKQ_WORKERS")
 	_ = v.BindEnv("server.workq_depth", "DOCSIQ_SERVER_WORKQ_DEPTH")
+	_ = v.BindEnv("server.hsts_enabled", "DOCSIQ_SERVER_HSTS_ENABLED")
 
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
