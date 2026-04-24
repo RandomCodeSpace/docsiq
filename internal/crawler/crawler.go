@@ -54,7 +54,7 @@ func Crawl(ctx context.Context, rootURL string, opts Options) ([]*Page, error) {
 	// Try sitemap first
 	var urls []string
 	if !opts.SkipSitemap {
-		urls, err = discoverSitemap(client, base)
+		urls, err = discoverSitemap(ctx, client, base)
 		if err != nil {
 			slog.Debug("🔍 sitemap not found, falling back to BFS", "url", rootURL, "reason", err)
 		} else {
@@ -131,7 +131,7 @@ type urlSet struct {
 	} `xml:"url"`
 }
 
-func discoverSitemap(client *http.Client, base *url.URL) ([]string, error) {
+func discoverSitemap(ctx context.Context, client *http.Client, base *url.URL) ([]string, error) {
 	candidates := []string{
 		base.Scheme + "://" + base.Host + "/sitemap.xml",
 		base.String() + "/sitemap.xml",
@@ -139,7 +139,7 @@ func discoverSitemap(client *http.Client, base *url.URL) ([]string, error) {
 	}
 
 	for _, candidate := range candidates {
-		urls, err := parseSitemap(client, candidate, base)
+		urls, err := parseSitemap(ctx, client, candidate, base)
 		if err == nil && len(urls) > 0 {
 			slog.Debug("🔍 sitemap parsed", "url", candidate, "entries", len(urls))
 			return urls, nil
@@ -148,9 +148,16 @@ func discoverSitemap(client *http.Client, base *url.URL) ([]string, error) {
 	return nil, fmt.Errorf("no sitemap found")
 }
 
-func parseSitemap(client *http.Client, sitemapURL string, base *url.URL) ([]string, error) {
-	resp, err := client.Get(sitemapURL)
+func parseSitemap(ctx context.Context, client *http.Client, sitemapURL string, base *url.URL) ([]string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sitemapURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("sitemap request: %w", err)
+	}
+	resp, err := client.Do(req)
 	if err != nil || resp.StatusCode != http.StatusOK {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
 		return nil, fmt.Errorf("sitemap not found")
 	}
 	defer resp.Body.Close()
@@ -166,7 +173,7 @@ func parseSitemap(client *http.Client, sitemapURL string, base *url.URL) ([]stri
 		slog.Debug("🔍 sitemap index found", "url", sitemapURL, "sub_sitemaps", len(idx.Sitemaps))
 		var all []string
 		for _, s := range idx.Sitemaps {
-			sub, err := parseSitemap(client, s.Loc, base)
+			sub, err := parseSitemap(ctx, client, s.Loc, base)
 			if err == nil {
 				all = append(all, sub...)
 			}
@@ -220,7 +227,7 @@ func bfsCrawl(ctx context.Context, client *http.Client, base *url.URL, opts Opti
 			continue
 		}
 
-		links := extractLinks(client, item.u, base)
+		links := extractLinks(ctx, client, item.u, base)
 		slog.Debug("🔗 BFS page links extracted", "url", item.u, "depth", item.depth, "links", len(links))
 		for _, l := range links {
 			if !visited[l] {
@@ -234,11 +241,19 @@ func bfsCrawl(ctx context.Context, client *http.Client, base *url.URL, opts Opti
 	return found
 }
 
-func extractLinks(client *http.Client, pageURL string, base *url.URL) []string {
-	resp, err := client.Get(pageURL)
+func extractLinks(ctx context.Context, client *http.Client, pageURL string, base *url.URL) []string {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageURL, nil)
+	if err != nil {
+		slog.Debug("⚠️ failed to build request for link extraction", "url", pageURL, "err", err)
+		return nil
+	}
+	resp, err := client.Do(req)
 	if err != nil || resp.StatusCode != http.StatusOK {
 		if err != nil {
 			slog.Debug("⚠️ failed to fetch page for link extraction", "url", pageURL, "err", err)
+		}
+		if resp != nil {
+			_ = resp.Body.Close()
 		}
 		return nil
 	}
