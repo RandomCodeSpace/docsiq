@@ -285,13 +285,15 @@ func recoveryMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// loggingMiddleware logs method, path, status code, and duration for every
-// request, assigns a request ID (X-Request-ID passthrough or new hex), and
-// feeds the Prometheus collector.
+// loggingMiddleware assigns a per-request ID, records Prometheus
+// metrics, and emits one structured "http" log line per request. The
+// log emission is deferred so that a panic escaping recoveryMiddleware
+// (e.g. a panic in securityHeadersMiddleware) is still observable.
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Request ID: header pass-through, otherwise generate fresh 16-hex
-		// (8 random bytes). Put on ctx + echo back as response header.
+		// Request ID: header pass-through, otherwise generate fresh
+		// 16-hex (8 random bytes). Put on ctx + echo back as response
+		// header.
 		rid := strings.TrimSpace(r.Header.Get("X-Request-ID"))
 		if rid == "" {
 			rid = newRequestID()
@@ -300,51 +302,112 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		r = r.WithContext(ctx)
 		w.Header().Set("X-Request-ID", rid)
 
-		start := time.Now()
 		rw := &responseWriter{ResponseWriter: w, status: http.StatusOK}
-		next.ServeHTTP(rw, r)
-		duration := time.Since(start)
+		start := time.Now()
 
-		// /metrics itself is noisy and self-referential — skip recording it
-		// as an observed request so a tight Prometheus scrape loop doesn't
-		// dominate the time series.
-		if r.URL.Path != "/metrics" && obs.HTTP != nil {
-			// Use the Go 1.22 ServeMux route pattern (set on the request
-			// by the mux after a route match) rather than r.URL.Path —
-			// raw paths have unbounded cardinality (e.g.
-			// /api/documents/{id} would produce one time series per
-			// document).
-			route := r.Pattern
-			if route == "" {
-				route = "unknown"
+		// Defer the access log + metric emission so a panic still
+		// produces an observation. recoveryMiddleware catches the panic
+		// and writes a 500; we then see status=500 in the log. If a
+		// panic escapes recoveryMiddleware, Go still unwinds through
+		// our deferred func before the goroutine dies, so the log is
+		// emitted with whatever status had been set.
+		defer func() {
+			duration := time.Since(start)
+			recErr := recover()
+
+			// /metrics is self-referential — exclude to avoid scraping
+			// feedback loops.
+			if r.URL.Path != "/metrics" && obs.HTTP != nil {
+				route := r.Pattern
+				if route == "" {
+					route = "unknown"
+				}
+				obs.HTTP.Observe(route, r.Method, rw.status, duration)
 			}
-			obs.HTTP.Observe(route, r.Method, rw.status, duration)
-		}
 
-		level := slog.LevelInfo
-		if rw.status >= 500 {
-			level = slog.LevelError
-		} else if rw.status >= 400 {
-			level = slog.LevelWarn
-		}
+			level := slog.LevelInfo
+			if rw.status >= 500 || recErr != nil {
+				level = slog.LevelError
+			} else if rw.status >= 400 {
+				level = slog.LevelWarn
+			}
 
-		slog.Log(r.Context(), level, "http",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"status", rw.status,
-			"duration_ms", duration.Milliseconds(),
-			"request_id", rid,
-		)
+			attrs := []any{
+				"req_id", rid,
+				"method", r.Method,
+				"path", r.URL.Path,
+				"route", r.Pattern,
+				"status", rw.status,
+				"duration_ms", duration.Milliseconds(),
+				"bytes_out", rw.bytes,
+				"auth", classifyAuth(r),
+			}
+			if project := ProjectFromContext(r.Context()); project != "" {
+				attrs = append(attrs, "project", project)
+			}
+			if recErr != nil {
+				attrs = append(attrs, "panic", recErr)
+			}
+
+			slog.Log(r.Context(), level, "http", attrs...)
+
+			if recErr != nil {
+				// Re-raise: let upstream recovery middleware (or the
+				// std library) handle the actual HTTP error response.
+				panic(recErr)
+			}
+		}()
+
+		next.ServeHTTP(rw, r)
 	})
 }
 
-// responseWriter wraps http.ResponseWriter to capture the status code.
+// classifyAuth reports a coarse auth-method label for the access log.
+// docsiq uses a single shared API key (no per-user identity), so we
+// emit the channel the client used rather than a user_id.
+func classifyAuth(r *http.Request) string {
+	if strings.HasPrefix(strings.TrimSpace(r.Header.Get("Authorization")), "Bearer ") {
+		return "bearer"
+	}
+	if c, err := r.Cookie(sessionCookieName); err == nil && c.Value != "" {
+		return "cookie"
+	}
+	return "anon"
+}
+
+// responseWriter wraps http.ResponseWriter to capture status code and
+// bytes written. Both are read by loggingMiddleware for the access log
+// and by Prometheus. bytes is tracked via Write; implicit 200-only
+// writes go through WriteHeader, so we default status to 200.
 type responseWriter struct {
 	http.ResponseWriter
-	status int
+	status      int
+	bytes       int64
+	wroteHeader bool
 }
 
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.status = code
+	rw.wroteHeader = true
 	rw.ResponseWriter.WriteHeader(code)
+}
+
+func (rw *responseWriter) Write(p []byte) (int, error) {
+	if !rw.wroteHeader {
+		// Implicit 200 per net/http contract.
+		rw.wroteHeader = true
+	}
+	n, err := rw.ResponseWriter.Write(p)
+	rw.bytes += int64(n)
+	return n, err
+}
+
+// Flush passes through to the underlying writer when it supports it —
+// required for SSE and streaming responses. Standard http.ResponseWriter
+// does NOT have Flush in its interface, so the type assertion is the
+// correct idiom.
+func (rw *responseWriter) Flush() {
+	if f, ok := rw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
