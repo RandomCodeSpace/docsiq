@@ -62,7 +62,7 @@ type LLMConfig struct {
 //	                                 text-embedding-3-small
 //	DOCSIQ_LLM_OPENAI_ORGANIZATION — optional org header
 type OpenAIConfig struct {
-	APIKey       string `mapstructure:"api_key"`
+	APIKey       string `mapstructure:"api_key" secret:"true"`
 	BaseURL      string `mapstructure:"base_url"`
 	ChatModel    string `mapstructure:"chat_model"`
 	EmbedModel   string `mapstructure:"embed_model"`
@@ -87,7 +87,7 @@ type OpenAIConfig struct {
 type AzureConfig struct {
 	// Shared defaults — used when chat/embed-specific values are not set.
 	Endpoint   string `mapstructure:"endpoint"`
-	APIKey     string `mapstructure:"api_key"`
+	APIKey     string `mapstructure:"api_key" secret:"true"`
 	APIVersion string `mapstructure:"api_version"`
 
 	Chat  AzureServiceConfig `mapstructure:"chat"`
@@ -96,7 +96,7 @@ type AzureConfig struct {
 
 type AzureServiceConfig struct {
 	Endpoint   string `mapstructure:"endpoint"`
-	APIKey     string `mapstructure:"api_key"`
+	APIKey     string `mapstructure:"api_key" secret:"true"`
 	APIVersion string `mapstructure:"api_version"`
 	Model      string `mapstructure:"model"`
 }
@@ -145,7 +145,7 @@ type CommunityConfig struct {
 type ServerConfig struct {
 	Host           string `mapstructure:"host"`
 	Port           int    `mapstructure:"port"`
-	APIKey         string `mapstructure:"api_key"`
+	APIKey         string `mapstructure:"api_key" secret:"true"`
 	MaxUploadBytes int64  `mapstructure:"max_upload_bytes"` // 0 or negative disables the cap
 	WorkqWorkers   int    `mapstructure:"workq_workers"`    // 0 → runtime.NumCPU()
 	WorkqDepth     int    `mapstructure:"workq_depth"`      // 0 → 64
