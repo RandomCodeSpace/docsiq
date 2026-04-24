@@ -160,14 +160,17 @@ func NewRouter(prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, re
 	mux.Handle("/", spaHandler(ui.Assets, cfg))
 
 	// Middleware ordering (outermost → innermost):
-	//   logging → recovery → auth → project → mux
-	// project scope sits BELOW auth (an unauthenticated caller never
-	// reaches the registry) and ABOVE the mux (so handlers and the MCP
-	// server see the resolved slug via ProjectFromContext).
-	return loggingMiddleware(
-		recoveryMiddleware(
-			bearerAuthMiddleware(cfg.Server.APIKey,
-				projectMiddleware(cfg, registry, mux))))
+	//   securityHeaders → logging → recovery → auth → project → mux
+	// securityHeaders sits outermost so CSP + baseline headers are
+	// applied to every response (including 401s, 404s, and panic
+	// recoveries). project scope sits BELOW auth (an unauthenticated
+	// caller never reaches the registry) and ABOVE the mux (so handlers
+	// and the MCP server see the resolved slug via ProjectFromContext).
+	return securityHeadersMiddleware(cfg)(
+		loggingMiddleware(
+			recoveryMiddleware(
+				bearerAuthMiddleware(cfg.Server.APIKey,
+					projectMiddleware(cfg, registry, mux)))))
 }
 
 func spaHandler(assets fs.FS, _ *config.Config) http.Handler {
