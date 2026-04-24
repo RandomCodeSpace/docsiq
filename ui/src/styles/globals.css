@@ -559,3 +559,34 @@ main#main {
     scroll-behavior: auto !important;
   }
 }
+
+/* Block 5.10 — mobile viewport pass ------------------------------------ */
+@media (max-width: 480px) {
+  .site-header button,
+  .site-header a[role="button"],
+  .site-header-reload,
+  .site-header-mobile-trigger,
+  .site-header-search {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  /* Command palette fills viewport under 480px */
+  [role="dialog"][data-slot="dialog-content"],
+  [cmdk-root] {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+  }
+}
+
+/* Tables scroll horizontally inside a scroll container, not the body */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+.table-scroll > table {
+  min-width: max-content;
+}

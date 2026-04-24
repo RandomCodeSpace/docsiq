@@ -36,30 +36,32 @@ export default function DocumentsList() {
           description="Upload a PDF, DOCX, or web page to get started."
         />
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Title</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Updated</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {docs.map((d) => (
-              <TableRow key={d.id}>
-                <TableCell>
-                  <Link to={`/docs/${d.id}`} className="text-foreground underline decoration-dotted">
-                    {d.title || d.path}
-                  </Link>
-                </TableCell>
-                <TableCell className="text-muted-foreground">{d.doc_type}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {formatRelativeTime(d.updated_at * 1000)}
-                </TableCell>
+        <div className="table-scroll">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Title</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Updated</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {docs.map((d) => (
+                <TableRow key={d.id}>
+                  <TableCell>
+                    <Link to={`/docs/${d.id}`} className="text-foreground underline decoration-dotted">
+                      {d.title || d.path}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{d.doc_type}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {formatRelativeTime(d.updated_at * 1000)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
     </div>
   );
