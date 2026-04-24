@@ -227,6 +227,7 @@ func TestUnicodeKey(t *testing.T) {
 
 func TestScale_1000Notes(t *testing.T) {
 	if testing.Short() {
+		// TODO(#63): 1000-note scale test skipped under -short; tracked in flake-register.
 		t.Skip("skipping 1000-note scale test in -short mode")
 	}
 	dir := t.TempDir()

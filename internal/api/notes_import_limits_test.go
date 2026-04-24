@@ -78,6 +78,7 @@ func TestImportTar_EntryCountCap(t *testing.T) {
 // MaxImportTotalBytes must be rejected with 413.
 func TestImportTar_TotalBytesCap(t *testing.T) {
 	if testing.Short() {
+		// TODO(#62): large-tar import test skipped under -short; tracked in flake-register.
 		t.Skip("skipping large-tar test in -short mode")
 	}
 	h, slug, _ := setupNotesRouter(t)

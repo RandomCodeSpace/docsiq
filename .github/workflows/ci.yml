@@ -109,6 +109,46 @@ jobs:
       - name: go build (cgo + fts5)
         run: CGO_ENABLED=1 go build -tags sqlite_fts5 -o docsiq ./
 
+      - name: flake-register (every t.Skip / test.skip has a tracked TODO)
+        run: |
+          set -euo pipefail
+          # Every skip must be either:
+          #   (a) on a line with an inline `// TODO(#N):` comment, OR
+          #   (b) immediately preceded by a `// TODO(#N):` comment line.
+          # Fuzz-callback skips (input filtering) are excluded: they are
+          # not flake-register entries and carry no issue.
+          echo "Scanning for t.Skip( without a tracked TODO..."
+          violations=0
+          # Go side
+          while IFS=: read -r file lineno _; do
+            if sed -n "${lineno}p" "$file" | grep -qE '// TODO\(#[0-9]+\):'; then
+              continue
+            fi
+            prev=$((lineno - 1))
+            if [ "$prev" -gt 0 ] && sed -n "${prev}p" "$file" | grep -qE '// TODO\(#[0-9]+\):'; then
+              continue
+            fi
+            echo "::error file=$file,line=$lineno::t.Skip without TODO(#N): annotation"
+            violations=$((violations + 1))
+          done < <(grep -rn 't\.Skip(' --include='*.go' . | grep -v '_fuzz_test\.go' | grep -v node_modules || true)
+          # TypeScript side
+          while IFS=: read -r file lineno _; do
+            if sed -n "${lineno}p" "$file" | grep -qE '// TODO\(#[0-9]+\):'; then
+              continue
+            fi
+            prev=$((lineno - 1))
+            if [ "$prev" -gt 0 ] && sed -n "${prev}p" "$file" | grep -qE '// TODO\(#[0-9]+\):'; then
+              continue
+            fi
+            echo "::error file=$file,line=$lineno::test.skip without TODO(#N): annotation"
+            violations=$((violations + 1))
+          done < <(grep -rn 'test\.skip(' --include='*.ts' --include='*.tsx' ui/ 2>/dev/null | grep -v node_modules || true)
+          if [ "$violations" -gt 0 ]; then
+            echo "::error::Found $violations skipped test(s) without a tracking issue. File a flake-register issue and add // TODO(#N): <why> adjacent to the skip."
+            exit 1
+          fi
+          echo "All skips accounted for."
+
       - name: Upload docsiq binary
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:

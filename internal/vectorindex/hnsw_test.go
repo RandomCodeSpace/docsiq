@@ -213,6 +213,7 @@ func TestHNSW_Upsert(t *testing.T) {
 
 func TestHNSW_Recall10k(t *testing.T) {
 	if testing.Short() {
+		// TODO(#64): 10k HNSW benchmark skipped under -short; tracked in flake-register.
 		t.Skip("skipping 10k benchmark in -short")
 	}
 	if raceEnabled {
@@ -220,6 +221,7 @@ func TestHNSW_Recall10k(t *testing.T) {
 		// detector has nothing to catch here — it just adds ~10× overhead
 		// that dominates CI. Concurrency correctness is covered by
 		// TestHNSW_ConcurrentAddSearch, which DOES run under -race.
+		// TODO(#64): 10k HNSW recall benchmark skipped under -race; tracked in flake-register.
 		t.Skip("skipping 10k recall benchmark under -race (sequential workload)")
 	}
 	const (
