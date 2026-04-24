@@ -77,7 +77,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeError(w http.ResponseWriter, r *http.Request, status int, msg string, err error) {
 	if status >= 500 && err != nil {
-		slog.ErrorContext(r.Context(), "❌ handler error", "path", r.URL.Path, "err", err)
+		ContextLogger(r.Context()).Error("❌ handler error", "path", r.URL.Path, "err", err)
 	}
 	// NF-P1-3: docs/rest-api.md promises error bodies of shape
 	// {"error":"...","request_id":"..."}. Echo the per-request ID into
@@ -457,7 +457,7 @@ func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
 		// absolute-path containment before creating the file.
 		name := filepath.Base(fh.Filename)
 		if name == "" || name == "." || name == ".." || strings.ContainsAny(name, "/\\") {
-			slog.Warn("⚠️ upload: skipping invalid filename", "filename", fh.Filename)
+			ContextLogger(r.Context()).Warn("⚠️ upload: skipping invalid filename", "filename", fh.Filename)
 			continue
 		}
 		dst := filepath.Join(tmpDir, name)
@@ -467,7 +467,7 @@ func (h *handlers) upload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !strings.HasPrefix(absDst, absTmp+string(os.PathSeparator)) {
-			slog.Warn("⚠️ upload: entry escapes tmp dir; skipping",
+			ContextLogger(r.Context()).Warn("⚠️ upload: entry escapes tmp dir; skipping",
 				"filename", fh.Filename, "resolved", absDst)
 			continue
 		}
@@ -661,7 +661,7 @@ func enforceUploadLimit(w http.ResponseWriter, r *http.Request, limit int64) boo
 	}
 	// Fast path: Content-Length is declared and already exceeds the limit.
 	if r.ContentLength > limit {
-		slog.Warn("⚠️ upload: rejected oversize request", "content_length", r.ContentLength, "limit", limit)
+		ContextLogger(r.Context()).Warn("⚠️ upload: rejected oversize request", "content_length", r.ContentLength, "limit", limit)
 		writeTooLarge(w, limit)
 		return false
 	}

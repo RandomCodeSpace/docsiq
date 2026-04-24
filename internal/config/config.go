@@ -103,14 +103,16 @@ type AzureServiceConfig struct {
 
 // Resolved accessors — per-service value with shared fallback.
 
-func (a *AzureConfig) ChatEndpoint() string    { return firstNonEmpty(a.Chat.Endpoint, a.Endpoint) }
-func (a *AzureConfig) ChatAPIKey() string      { return firstNonEmpty(a.Chat.APIKey, a.APIKey) }
-func (a *AzureConfig) ChatAPIVersion() string  { return firstNonEmpty(a.Chat.APIVersion, a.APIVersion) }
-func (a *AzureConfig) ChatModel() string       { return a.Chat.Model }
-func (a *AzureConfig) EmbedEndpoint() string   { return firstNonEmpty(a.Embed.Endpoint, a.Endpoint) }
-func (a *AzureConfig) EmbedAPIKey() string     { return firstNonEmpty(a.Embed.APIKey, a.APIKey) }
-func (a *AzureConfig) EmbedAPIVersion() string { return firstNonEmpty(a.Embed.APIVersion, a.APIVersion) }
-func (a *AzureConfig) EmbedModel() string      { return a.Embed.Model }
+func (a *AzureConfig) ChatEndpoint() string   { return firstNonEmpty(a.Chat.Endpoint, a.Endpoint) }
+func (a *AzureConfig) ChatAPIKey() string     { return firstNonEmpty(a.Chat.APIKey, a.APIKey) }
+func (a *AzureConfig) ChatAPIVersion() string { return firstNonEmpty(a.Chat.APIVersion, a.APIVersion) }
+func (a *AzureConfig) ChatModel() string      { return a.Chat.Model }
+func (a *AzureConfig) EmbedEndpoint() string  { return firstNonEmpty(a.Embed.Endpoint, a.Endpoint) }
+func (a *AzureConfig) EmbedAPIKey() string    { return firstNonEmpty(a.Embed.APIKey, a.APIKey) }
+func (a *AzureConfig) EmbedAPIVersion() string {
+	return firstNonEmpty(a.Embed.APIVersion, a.APIVersion)
+}
+func (a *AzureConfig) EmbedModel() string { return a.Embed.Model }
 
 func firstNonEmpty(values ...string) string {
 	for _, v := range values {
