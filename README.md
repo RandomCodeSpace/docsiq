@@ -1,8 +1,11 @@
 # docsiq
 
-[![Security Scan](https://github.com/RandomCodeSpace/docsiq/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/RandomCodeSpace/docsiq/actions/workflows/ci.yml)
+[![CI](https://github.com/RandomCodeSpace/docsiq/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/RandomCodeSpace/docsiq/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/RandomCodeSpace/docsiq/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/RandomCodeSpace/docsiq/actions/workflows/codeql.yml)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12628/badge)](https://www.bestpractices.dev/projects/12628)
-[![OpenSSF Score](https://api.scorecard.dev/projects/github.com/RandomCodeSpace/docsiq/badge)](https://scorecard.dev/viewer/?uri=github.com/RandomCodeSpace/docsiq)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/RandomCodeSpace/docsiq/badge)](https://scorecard.dev/viewer/?uri=github.com/RandomCodeSpace/docsiq)
+[![Go Report Card](https://goreportcard.com/badge/github.com/RandomCodeSpace/docsiq)](https://goreportcard.com/report/github.com/RandomCodeSpace/docsiq)
+[![License: MIT](https://img.shields.io/github/license/RandomCodeSpace/docsiq)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/RandomCodeSpace/docsiq?include_prereleases&sort=semver)](https://github.com/RandomCodeSpace/docsiq/releases)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/RandomCodeSpace/docsiq)](https://github.com/RandomCodeSpace/docsiq/blob/main/go.mod)
 
