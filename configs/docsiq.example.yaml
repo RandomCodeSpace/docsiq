@@ -1,0 +1,182 @@
+# docsiq example configuration
+#
+# Copy this file to one of the locations docsiq checks on startup:
+#   - ~/.docsiq/config.yaml         (global, per-user)
+#   - ./config.yaml                 (current working directory)
+#
+# Every key listed here can be overridden by an environment variable.
+# The rule is: prefix with DOCSIQ_, replace dots with underscores,
+# uppercase everything. For example:
+#   server.port                     → DOCSIQ_SERVER_PORT
+#   llm.azure.chat.endpoint         → DOCSIQ_LLM_AZURE_CHAT_ENDPOINT
+#   indexing.workers                → DOCSIQ_INDEXING_WORKERS
+#
+# Two convenience aliases exist:
+#   DOCSIQ_API_KEY                  → server.api_key
+#   DOCSIQ_SERVER_API_KEY           → server.api_key
+#
+# Fields are documented with: (default), purpose, env var.
+
+# ---------------------------------------------------------------------------
+# Storage
+# ---------------------------------------------------------------------------
+
+# Root directory for the per-project SQLite stores and notes.
+# Default: ~/.docsiq/data
+# Env:     DOCSIQ_DATA_DIR
+data_dir: ~/.docsiq/data
+
+# The project slug used when a request does not specify ?project= or
+# X-Project. Must match a slug registered via `docsiq projects register`.
+# Default: _default
+# Env:     DOCSIQ_DEFAULT_PROJECT
+default_project: _default
+
+# ---------------------------------------------------------------------------
+# LLM provider
+# ---------------------------------------------------------------------------
+
+llm:
+  # One of: azure | openai | ollama | none
+  # "none" disables all LLM-backed endpoints; notes/graph still work.
+  # Default: ollama
+  # Env:     DOCSIQ_LLM_PROVIDER
+  provider: ollama
+
+  # Azure OpenAI. Shared endpoint/api_key/api_version apply unless the
+  # chat.* or embed.* sub-blocks override them.
+  azure:
+    # Shared defaults — leave empty if you configure chat/embed separately.
+    endpoint: ""         # Env: DOCSIQ_LLM_AZURE_ENDPOINT
+    api_key: ""          # Env: DOCSIQ_LLM_AZURE_API_KEY
+    api_version: "2024-08-01"  # Env: DOCSIQ_LLM_AZURE_API_VERSION
+
+    chat:
+      endpoint: ""       # Env: DOCSIQ_LLM_AZURE_CHAT_ENDPOINT
+      api_key: ""        # Env: DOCSIQ_LLM_AZURE_CHAT_API_KEY
+      api_version: ""    # Env: DOCSIQ_LLM_AZURE_CHAT_API_VERSION
+      model: gpt-4o      # Env: DOCSIQ_LLM_AZURE_CHAT_MODEL
+
+    embed:
+      endpoint: ""       # Env: DOCSIQ_LLM_AZURE_EMBED_ENDPOINT
+      api_key: ""        # Env: DOCSIQ_LLM_AZURE_EMBED_API_KEY
+      api_version: ""    # Env: DOCSIQ_LLM_AZURE_EMBED_API_VERSION
+      model: text-embedding-3-small
+                         # Env: DOCSIQ_LLM_AZURE_EMBED_MODEL
+
+  # Direct OpenAI (api.openai.com), distinct from Azure OpenAI.
+  openai:
+    # Required when provider is "openai". Use env, not the YAML.
+    api_key: ""                         # Env: DOCSIQ_LLM_OPENAI_API_KEY
+
+    # For custom proxies or gateways; leave as default for api.openai.com.
+    base_url: https://api.openai.com/v1 # Env: DOCSIQ_LLM_OPENAI_BASE_URL
+
+    # Chat completion model.
+    chat_model: gpt-4o-mini             # Env: DOCSIQ_LLM_OPENAI_CHAT_MODEL
+
+    # Embedding model for vector search.
+    embed_model: text-embedding-3-small # Env: DOCSIQ_LLM_OPENAI_EMBED_MODEL
+
+    # Optional OpenAI-Organization header for billing routing.
+    organization: ""                    # Env: DOCSIQ_LLM_OPENAI_ORGANIZATION
+
+  # Ollama (self-hosted). Default when nothing else is configured.
+  ollama:
+    base_url: http://localhost:11434    # Env: DOCSIQ_LLM_OLLAMA_BASE_URL
+    chat_model: llama3.2                # Env: DOCSIQ_LLM_OLLAMA_CHAT_MODEL
+    embed_model: nomic-embed-text       # Env: DOCSIQ_LLM_OLLAMA_EMBED_MODEL
+
+# ---------------------------------------------------------------------------
+# Per-project LLM overrides (YAML only — env vars cannot nest like this)
+# ---------------------------------------------------------------------------
+# llm_overrides:
+#   my-project-slug:
+#     provider: openai
+#     openai:
+#       chat_model: gpt-4o
+#   another-slug:
+#     provider: ollama
+#     ollama:
+#       chat_model: mistral
+
+# ---------------------------------------------------------------------------
+# Indexing pipeline
+# ---------------------------------------------------------------------------
+
+indexing:
+  # Target size (in characters, not tokens) per chunk.
+  # Default: 512. Env: DOCSIQ_INDEXING_CHUNK_SIZE
+  chunk_size: 512
+
+  # Overlap between successive chunks, in characters.
+  # Default: 50. Env: DOCSIQ_INDEXING_CHUNK_OVERLAP
+  chunk_overlap: 50
+
+  # How many chunks to embed per LLM batch request.
+  # Default: 20. Env: DOCSIQ_INDEXING_BATCH_SIZE
+  batch_size: 20
+
+  # Parallel workers for document-level operations (load → chunk → embed).
+  # Default: 4. Env: DOCSIQ_INDEXING_WORKERS
+  workers: 4
+
+  # Run entity + relationship extraction during indexing.
+  # Set false to build vector-only index (faster, no graph queries).
+  # Default: true. Env: DOCSIQ_INDEXING_EXTRACT_GRAPH
+  extract_graph: true
+
+  # Extract covariates / claims associated with entity mentions.
+  # Default: true. Env: DOCSIQ_INDEXING_EXTRACT_CLAIMS
+  extract_claims: true
+
+  # Number of "continue extracting" passes over the same chunk. Higher
+  # values recover more entities at the cost of LLM tokens.
+  # Default: 1. Env: DOCSIQ_INDEXING_MAX_GLEANINGS
+  max_gleanings: 1
+
+# ---------------------------------------------------------------------------
+# Community detection
+# ---------------------------------------------------------------------------
+
+community:
+  # Minimum number of nodes in a detected community before it's reported.
+  # Default: 2. Env: DOCSIQ_COMMUNITY_MIN_COMMUNITY_SIZE
+  min_community_size: 2
+
+  # Depth of hierarchical Louvain clustering. Higher → more layers of
+  # nested communities, at the cost of longer indexing time.
+  # Default: 3. Env: DOCSIQ_COMMUNITY_MAX_LEVELS
+  max_levels: 3
+
+# ---------------------------------------------------------------------------
+# HTTP server (API + UI + MCP)
+# ---------------------------------------------------------------------------
+
+server:
+  # Bind address. Use 0.0.0.0 for LAN access. 127.0.0.1 binds loopback.
+  # Default: 127.0.0.1. Env: DOCSIQ_SERVER_HOST
+  host: 127.0.0.1
+
+  # Listen port.
+  # Default: 8080. Env: DOCSIQ_SERVER_PORT
+  port: 8080
+
+  # If set, every API + MCP request must carry
+  # "Authorization: Bearer <key>". Leave empty to disable.
+  # Default: "". Env: DOCSIQ_SERVER_API_KEY (alias: DOCSIQ_API_KEY)
+  api_key: ""
+
+  # Maximum upload size in bytes for POST /api/upload. 0 or negative
+  # disables the cap (not recommended).
+  # Default: 104857600 (100 MiB). Env: DOCSIQ_SERVER_MAX_UPLOAD_BYTES
+  max_upload_bytes: 104857600
+
+  # Number of background workers servicing the indexing work queue.
+  # 0 → runtime.NumCPU().
+  # Default: 0. Env: DOCSIQ_SERVER_WORKQ_WORKERS
+  workq_workers: 0
+
+  # Maximum queued jobs before /api/upload starts returning 429.
+  # Default: 64. Env: DOCSIQ_SERVER_WORKQ_DEPTH
+  workq_depth: 64
