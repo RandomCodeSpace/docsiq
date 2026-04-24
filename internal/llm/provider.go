@@ -96,7 +96,20 @@ type lcProvider struct {
 func (p *lcProvider) Name() string    { return p.name }
 func (p *lcProvider) ModelID() string { return p.modelID }
 
+// withCallTimeout returns a child ctx bounded by p.callTimeout when
+// positive, plus its cancel. Zero/negative callTimeout returns the
+// parent ctx unchanged and a no-op cancel — callers always defer
+// cancel() without branching. Block 3.3.
+func (p *lcProvider) withCallTimeout(parent context.Context) (context.Context, context.CancelFunc) {
+	if p.callTimeout <= 0 {
+		return parent, func() {}
+	}
+	return context.WithTimeout(parent, p.callTimeout)
+}
+
 func (p *lcProvider) Complete(ctx context.Context, prompt string, opts ...Option) (string, error) {
+	ctx, cancel := p.withCallTimeout(ctx)
+	defer cancel()
 	o := applyOptions(opts)
 	callOpts := []llms.CallOption{
 		llms.WithMaxTokens(o.maxTokens),
@@ -109,10 +122,14 @@ func (p *lcProvider) Complete(ctx context.Context, prompt string, opts ...Option
 }
 
 func (p *lcProvider) Embed(ctx context.Context, text string) ([]float32, error) {
+	ctx, cancel := p.withCallTimeout(ctx)
+	defer cancel()
 	return p.emb.EmbedQuery(ctx, text)
 }
 
 func (p *lcProvider) EmbedBatch(ctx context.Context, texts []string) ([][]float32, error) {
+	ctx, cancel := p.withCallTimeout(ctx)
+	defer cancel()
 	return p.emb.EmbedDocuments(ctx, texts)
 }
 
@@ -146,6 +163,7 @@ func newOllamaProvider(cfg *config.LLMConfig) (Provider, error) {
 		name:         "ollama",
 		modelID:      cfg.Ollama.EmbedModel,
 		httpClient:   httpClient,
+		callTimeout:  cfg.CallTimeout,
 		batchCeiling: 128,
 	}, nil
 }
@@ -190,6 +208,7 @@ func newAzureProvider(cfg *config.LLMConfig) (Provider, error) {
 		name:         "azure",
 		modelID:      az.EmbedModel(),
 		httpClient:   httpClient,
+		callTimeout:  cfg.CallTimeout,
 		batchCeiling: 16,
 	}, nil
 }

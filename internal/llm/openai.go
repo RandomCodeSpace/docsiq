@@ -94,6 +94,7 @@ func newOpenAIProvider(cfg *config.LLMConfig) (Provider, error) {
 		name:         "openai",
 		modelID:      embedModel,
 		httpClient:   httpClient,
+		callTimeout:  cfg.CallTimeout,
 		batchCeiling: 2048,
 	}, nil
 }

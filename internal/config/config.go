@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -50,6 +51,13 @@ type LLMConfig struct {
 	Azure    AzureConfig  `mapstructure:"azure"`
 	Ollama   OllamaConfig `mapstructure:"ollama"`
 	OpenAI   OpenAIConfig `mapstructure:"openai"`
+
+	// CallTimeout caps the end-to-end duration of a single provider
+	// call (Complete / Embed / EmbedBatch). Any retry wrapper counts
+	// against this deadline — the timeout is NOT reset between
+	// attempts. Zero disables the per-call cap (caller's ctx is
+	// authoritative). Default 60s. Block 3.3.
+	CallTimeout time.Duration `mapstructure:"call_timeout"`
 }
 
 // OpenAIConfig configures the direct OpenAI (api.openai.com) provider,
@@ -197,6 +205,10 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetDefault("llm.openai.embed_model", "text-embedding-3-small")
 	v.SetDefault("llm.openai.organization", "")
 
+	// LLM — per-call timeout (Block 3.3). Default 60s caps every
+	// Complete / Embed / EmbedBatch invocation.
+	v.SetDefault("llm.call_timeout", 60*time.Second)
+
 	// Indexing
 	v.SetDefault("indexing.chunk_size", 512)
 	v.SetDefault("indexing.chunk_overlap", 50)
@@ -244,6 +256,7 @@ func Load(cfgFile string) (*Config, error) {
 	_ = v.BindEnv("server.workq_workers", "DOCSIQ_SERVER_WORKQ_WORKERS")
 	_ = v.BindEnv("server.workq_depth", "DOCSIQ_SERVER_WORKQ_DEPTH")
 	_ = v.BindEnv("server.hsts_enabled", "DOCSIQ_SERVER_HSTS_ENABLED")
+	_ = v.BindEnv("llm.call_timeout", "DOCSIQ_LLM_CALL_TIMEOUT")
 
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
