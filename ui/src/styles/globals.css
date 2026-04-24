@@ -23,8 +23,11 @@
   --border: oklch(0.92 0.005 260);
   --input: oklch(0.92 0.005 260);
 
-  /* Brand — Supabase green, tuned for light bg */
-  --primary: oklch(0.68 0.16 152);
+  /* Brand — Supabase green, tuned for light bg.
+     Primary darkened from 0.68 to 0.52 for WCAG AA 4.5:1 contrast with
+     white primary-foreground (now ~5.1:1). Ring intentionally kept
+     brighter since ring color is a focus outline, not text. */
+  --primary: oklch(0.52 0.16 152);
   --primary-foreground: oklch(1 0 0);
   --ring: oklch(0.68 0.16 152);
 
