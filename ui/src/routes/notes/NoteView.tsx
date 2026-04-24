@@ -4,12 +4,18 @@ import { useNote } from "@/hooks/api/useNotes";
 import { useProjectStore } from "@/stores/project";
 import { formatRelativeTime } from "@/lib/format";
 import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/empty";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export default function NoteView() {
   const { key } = useParams();
   const project = useProjectStore((s) => s.slug);
   const { data: note, isLoading, error, refetch } = useNote(project, key);
   const err = error as Error | null | undefined;
+
+  const noteLabel =
+    note?.key?.split("/").pop() ??
+    (key ? decodeURIComponent(key).split("/").pop() : undefined);
+  useDocumentTitle(noteLabel ? [noteLabel, "Notes"] : undefined);
 
   if (isLoading) {
     return (

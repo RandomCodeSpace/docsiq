@@ -2,12 +2,16 @@ import { useParams } from "react-router-dom";
 import { useDoc } from "@/hooks/api/useDocs";
 import { useProjectStore } from "@/stores/project";
 import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/empty";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export default function DocumentView() {
   const { id } = useParams();
   const project = useProjectStore((s) => s.slug);
   const { data, isLoading, error, refetch } = useDoc(project, id);
   const err = error as Error | null | undefined;
+
+  const docLabel = data?.title || data?.path;
+  useDocumentTitle(docLabel ? [docLabel, "Documents"] : undefined);
 
   if (isLoading) {
     return (
