@@ -166,11 +166,15 @@ func NewRouter(prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, re
 	// recoveries). project scope sits BELOW auth (an unauthenticated
 	// caller never reaches the registry) and ABOVE the mux (so handlers
 	// and the MCP server see the resolved slug via ProjectFromContext).
+	// Block 3.2: requestTimeoutMiddleware sits INSIDE securityHeaders
+	// (so 503 timeouts still carry CSP) and OUTSIDE loggingMiddleware
+	// (so operators still see the latency spike in logs).
 	return securityHeadersMiddleware(cfg)(
-		loggingMiddleware(
-			recoveryMiddleware(
-				bearerAuthMiddleware(cfg.Server.APIKey,
-					projectMiddleware(cfg, registry, mux)))))
+		requestTimeoutMiddleware(cfg)(
+			loggingMiddleware(
+				recoveryMiddleware(
+					bearerAuthMiddleware(cfg.Server.APIKey,
+						projectMiddleware(cfg, registry, mux))))))
 }
 
 func spaHandler(assets fs.FS, _ *config.Config) http.Handler {
