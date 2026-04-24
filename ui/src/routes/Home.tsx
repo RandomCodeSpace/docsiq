@@ -10,6 +10,7 @@ import { useActivity } from "@/hooks/api/useActivity";
 import { useNotes } from "@/hooks/api/useNotes";
 import { useNotesGraph } from "@/hooks/api/useGraph";
 import { useLastVisit } from "@/hooks/useLastVisit";
+import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/empty";
 
 export default function Home() {
   const project = useProjectStore((s) => s.slug);
@@ -36,6 +37,9 @@ export default function Home() {
     return { ...base, notes: notesCount };
   }, [stats.data, notes.data]);
 
+  const activityError = activity.error as Error | null | undefined;
+  const graphError = graph.error as Error | null | undefined;
+
   return (
     <div className="page">
       <StatsStrip stats={mergedStats} delta={{ notes: newCount }} />
@@ -49,7 +53,22 @@ export default function Home() {
             </div>
           </div>
           <div className="page-body">
-            <ActivityFeed events={activity.data ?? []} lastVisit={lastVisit} />
+            {activity.isLoading ? (
+              <LoadingSkeleton label="Loading activity" rows={4} />
+            ) : activityError ? (
+              <ErrorState
+                title="Could not load activity"
+                message={activityError.message || "Unknown error"}
+                onRetry={() => activity.refetch()}
+              />
+            ) : (activity.data?.length ?? 0) === 0 ? (
+              <EmptyState
+                title="No recent activity"
+                description="Ingest a document or create a note to start the feed."
+              />
+            ) : (
+              <ActivityFeed events={activity.data ?? []} lastVisit={lastVisit} />
+            )}
           </div>
         </div>
 
@@ -62,7 +81,22 @@ export default function Home() {
               </Link>
             </div>
             <div className="graph-card">
-              <GlanceView data={graph.data} />
+              {graph.isLoading ? (
+                <LoadingSkeleton label="Loading graph preview" rows={3} />
+              ) : graphError ? (
+                <ErrorState
+                  title="Graph failed"
+                  message={graphError.message || "Unknown error"}
+                  onRetry={() => graph.refetch()}
+                />
+              ) : !graph.data || graph.data.nodes.length === 0 ? (
+                <EmptyState
+                  title="No graph yet"
+                  description="Run an index to see entities and edges."
+                />
+              ) : (
+                <GlanceView data={graph.data} />
+              )}
             </div>
           </section>
 
@@ -73,24 +107,30 @@ export default function Home() {
                 all <ArrowUpRight className="size-3" />
               </Link>
             </div>
-            <ul className="note-list">
-              {recentNotes.map((n) => {
-                const parts = n.key.split("/");
-                const name = parts.pop() ?? n.key;
-                const folder = parts.join("/");
-                return (
-                  <li key={n.key}>
-                    <Link to={`/notes/${encodeURIComponent(n.key)}`} className="note-row">
-                      <span className="note-row-name">{name}</span>
-                      {folder && <span className="note-row-folder">{folder}</span>}
-                    </Link>
-                  </li>
-                );
-              })}
-              {recentNotes.length === 0 && (
-                <li className="px-5 py-4 text-sm text-muted-foreground">No notes yet.</li>
-              )}
-            </ul>
+            {notes.isLoading ? (
+              <LoadingSkeleton label="Loading notes" rows={5} />
+            ) : recentNotes.length === 0 ? (
+              <EmptyState
+                title="No notes yet"
+                description="Create your first note to see it here."
+              />
+            ) : (
+              <ul className="note-list">
+                {recentNotes.map((n) => {
+                  const parts = n.key.split("/");
+                  const name = parts.pop() ?? n.key;
+                  const folder = parts.join("/");
+                  return (
+                    <li key={n.key}>
+                      <Link to={`/notes/${encodeURIComponent(n.key)}`} className="note-row">
+                        <span className="note-row-name">{name}</span>
+                        {folder && <span className="note-row-folder">{folder}</span>}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </section>
         </aside>
       </div>

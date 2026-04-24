@@ -2,6 +2,8 @@ import { lazy, Suspense, useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
 import { Providers } from "@/components/layout/Providers";
 import { Shell } from "@/components/layout/Shell";
+import { RouteBoundary } from "@/components/layout/RouteBoundary";
+import { LoadingSkeleton } from "@/components/empty";
 import { initAuth } from "@/lib/api-client";
 import Home from "@/routes/Home";
 
@@ -16,7 +18,11 @@ const Graph = lazy(() => import("@/routes/Graph"));
 const MCPConsole = lazy(() => import("@/routes/MCPConsole"));
 
 function RouteFallback() {
-  return <div className="p-6 text-sm text-muted-foreground">loading…</div>;
+  return (
+    <div className="p-6">
+      <LoadingSkeleton label="Loading view" rows={4} />
+    </div>
+  );
 }
 
 export default function App() {
@@ -24,21 +30,23 @@ export default function App() {
   return (
     <Providers>
       <Shell>
-        <Suspense fallback={<RouteFallback />}>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/notes" element={<NotesLayout />}>
-              <Route path="search" element={<NotesSearch />} />
-              <Route path=":key" element={<NoteView />} />
-              <Route path=":key/edit" element={<NoteEditor />} />
-            </Route>
-            <Route path="/docs" element={<DocumentsList />} />
-            <Route path="/docs/:id" element={<DocumentView />} />
-            <Route path="/graph" element={<Graph />} />
-            <Route path="/mcp" element={<MCPConsole />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Suspense>
+        <RouteBoundary>
+          <Suspense fallback={<RouteFallback />}>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/notes" element={<NotesLayout />}>
+                <Route path="search" element={<NotesSearch />} />
+                <Route path=":key" element={<NoteView />} />
+                <Route path=":key/edit" element={<NoteEditor />} />
+              </Route>
+              <Route path="/docs" element={<DocumentsList />} />
+              <Route path="/docs/:id" element={<DocumentView />} />
+              <Route path="/graph" element={<Graph />} />
+              <Route path="/mcp" element={<MCPConsole />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
+        </RouteBoundary>
       </Shell>
     </Providers>
   );

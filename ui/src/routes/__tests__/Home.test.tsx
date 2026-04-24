@@ -23,7 +23,11 @@ describe("Home route", () => {
       http.get("/api/projects/_default/graph", () => HttpResponse.json({ nodes: [], edges: [] })),
     );
     render(wrap()(<Home />));
-    await waitFor(() => expect(screen.getByText(/since your last visit|nothing new/i)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(
+        screen.getByText(/no recent activity|since your last visit|nothing new/i),
+      ).toBeInTheDocument(),
+    );
     expect(screen.getByRole("region", { name: /project statistics/i })).toBeInTheDocument();
   });
 });

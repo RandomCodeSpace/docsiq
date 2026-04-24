@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api-client";
 import { qk } from "@/hooks/api/keys";
 import { useProjectStore } from "@/stores/project";
 import type { NoteHit } from "@/types/api";
+import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/empty";
 
 export default function NotesSearch() {
   const project = useProjectStore((s) => s.slug);
@@ -16,7 +17,7 @@ export default function NotesSearch() {
     return () => clearTimeout(t);
   }, [q]);
 
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, error, refetch } = useQuery({
     queryKey: qk.notesSearch(project, debounced),
     enabled: debounced.length > 0,
     queryFn: () =>
@@ -24,6 +25,7 @@ export default function NotesSearch() {
         `/api/projects/${encodeURIComponent(project)}/search?q=${encodeURIComponent(debounced)}`,
       ),
   });
+  const err = error as Error | null | undefined;
 
   return (
     <div className="notes-search">
@@ -35,23 +37,39 @@ export default function NotesSearch() {
         className="notes-search-input"
         aria-label="Search notes"
       />
-      {isFetching && <p className="text-xs text-muted-foreground mt-2">searching…</p>}
-      <ul className="mt-6 space-y-1.5">
-        {data?.hits.map((h) => (
-          <li key={h.key}>
-            <Link
-              to={`/notes/${encodeURIComponent(h.key)}`}
-              className="notes-search-hit"
-            >
-              <div className="notes-search-hit-title">{h.key}</div>
-              <div
-                className="notes-search-hit-snippet"
-                dangerouslySetInnerHTML={{ __html: h.snippet }}
-              />
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <div className="mt-6">
+        {debounced.length === 0 ? null : isFetching ? (
+          <LoadingSkeleton label="Searching notes" rows={4} />
+        ) : err ? (
+          <ErrorState
+            title="Search failed"
+            message={err.message || "Unknown error"}
+            onRetry={() => refetch()}
+          />
+        ) : (data?.hits.length ?? 0) === 0 ? (
+          <EmptyState
+            title="No results"
+            description={`No notes match "${debounced}".`}
+          />
+        ) : (
+          <ul className="space-y-1.5">
+            {data?.hits.map((h) => (
+              <li key={h.key}>
+                <Link
+                  to={`/notes/${encodeURIComponent(h.key)}`}
+                  className="notes-search-hit"
+                >
+                  <div className="notes-search-hit-title">{h.key}</div>
+                  <div
+                    className="notes-search-hit-snippet"
+                    dangerouslySetInnerHTML={{ __html: h.snippet }}
+                  />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

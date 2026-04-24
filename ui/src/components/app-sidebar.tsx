@@ -85,7 +85,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
             Project
           </label>
           <Select value={slug} onValueChange={setSlug}>
-            <SelectTrigger className="w-full h-8 text-xs font-mono">
+            <SelectTrigger aria-label="Select project" className="w-full h-8 text-xs font-mono">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

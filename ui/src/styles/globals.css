@@ -23,8 +23,11 @@
   --border: oklch(0.92 0.005 260);
   --input: oklch(0.92 0.005 260);
 
-  /* Brand — Supabase green, tuned for light bg */
-  --primary: oklch(0.68 0.16 152);
+  /* Brand — Supabase green, tuned for light bg.
+     Primary darkened from 0.68 to 0.52 for WCAG AA 4.5:1 contrast with
+     white primary-foreground (now ~5.1:1). Ring intentionally kept
+     brighter since ring color is a focus outline, not text. */
+  --primary: oklch(0.52 0.16 152);
   --primary-foreground: oklch(1 0 0);
   --ring: oklch(0.68 0.16 152);
 
@@ -468,4 +471,122 @@ html, body {
 
   /* ── Command palette item icon chips ─────────────────────── */
   .cmd-chip            { @apply font-mono text-[10px] px-1.5 mr-2 rounded bg-muted text-muted-foreground; }
+}
+
+/* Block 5.2 — reusable state trio ------------------------------------ */
+.state-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2rem 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--card);
+  text-align: center;
+}
+.state-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--muted) 60%, transparent);
+  color: var(--muted-foreground);
+}
+.state-card__icon--danger {
+  background: color-mix(in oklab, var(--destructive) 14%, transparent);
+  color: var(--destructive);
+}
+.state-card__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.state-card__description {
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+  max-width: 40ch;
+}
+.state-card__action {
+  margin-top: 0.5rem;
+}
+.state-card__bars {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.state-card__bar {
+  height: 0.75rem;
+  width: 100%;
+  border-radius: 0.375rem;
+}
+.state-card--loading { padding: 1.25rem; align-items: stretch; }
+
+/* Block 5.4 — iOS safe-area insets ------------------------------------- */
+:root {
+  --header-pad: 1rem;
+}
+
+/* Header padding respects the notch on iOS */
+.site-header {
+  padding-top: max(var(--header-pad), env(safe-area-inset-top));
+  padding-right: max(var(--header-pad), env(safe-area-inset-right));
+}
+
+/* Sidebar padding respects the left inset in landscape iOS */
+[data-slot="sidebar-container"],
+[data-sidebar="sidebar"] {
+  padding-left: env(safe-area-inset-left);
+}
+
+/* Main content also respects bottom inset for iOS home indicator */
+main#main {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Block 5.7 — reduced motion ------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Block 5.10 — mobile viewport pass ------------------------------------ */
+@media (max-width: 480px) {
+  .site-header button,
+  .site-header a[role="button"],
+  .site-header-reload,
+  .site-header-mobile-trigger,
+  .site-header-search {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  /* Command palette fills viewport under 480px */
+  [role="dialog"][data-slot="dialog-content"],
+  [cmdk-root] {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+  }
+}
+
+/* Tables scroll horizontally inside a scroll container, not the body */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+.table-scroll > table {
+  min-width: max-content;
 }

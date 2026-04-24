@@ -2,6 +2,7 @@ import { useMCP, templateForTool, type MCPTool } from "@/hooks/api/useMCP";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/empty";
 
 type ParamType = "string" | "number" | "integer" | "boolean" | "array" | "object";
 
@@ -124,8 +125,21 @@ export default function MCPConsole() {
       </aside>
       <section className="mcp-main">
         {!selected ? (
-          <div className="mcp-content text-sm text-muted-foreground">
-            {tools.length ? "Pick a tool on the left." : "Connecting to MCP…"}
+          <div className="mcp-content">
+            {toolsError ? (
+              <ErrorState
+                title="MCP tools failed to load"
+                message={toolsError}
+                onRetry={() => void refreshTools()}
+              />
+            ) : tools.length === 0 ? (
+              <LoadingSkeleton label="Loading MCP tools" rows={4} />
+            ) : (
+              <EmptyState
+                title="Pick a tool"
+                description="Select a tool from the left sidebar to run it."
+              />
+            )}
           </div>
         ) : (
           <div className="mcp-content">
