@@ -22,7 +22,7 @@ type callOptions struct {
 	jsonMode    bool
 }
 
-func WithMaxTokens(n int) Option      { return func(o *callOptions) { o.maxTokens = n } }
+func WithMaxTokens(n int) Option       { return func(o *callOptions) { o.maxTokens = n } }
 func WithTemperature(t float64) Option { return func(o *callOptions) { o.temperature = t } }
 func WithJSONMode() Option             { return func(o *callOptions) { o.jsonMode = true } }
 
@@ -99,9 +99,9 @@ type lcProvider struct {
 	batchCeiling int
 }
 
-func (p *lcProvider) Name() string       { return p.name }
-func (p *lcProvider) ModelID() string    { return p.modelID }
-func (p *lcProvider) BatchCeiling() int  { return p.batchCeiling }
+func (p *lcProvider) Name() string      { return p.name }
+func (p *lcProvider) ModelID() string   { return p.modelID }
+func (p *lcProvider) BatchCeiling() int { return p.batchCeiling }
 
 // withCallTimeout returns a child ctx bounded by p.callTimeout when
 // positive, plus its cancel. Zero/negative callTimeout returns the
