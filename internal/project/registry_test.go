@@ -44,9 +44,11 @@ func TestOpenRegistry_CreatesDir(t *testing.T) {
 
 func TestOpenRegistry_ReadOnlyDir(t *testing.T) {
 	if runtime.GOOS == "windows" {
+		// TODO(#65): environmental skip (windows chmod semantics); tracked in flake-register.
 		t.Skip("chmod semantics differ on windows")
 	}
 	if os.Getuid() == 0 {
+		// TODO(#65): environmental skip (root bypasses chmod 0555); tracked in flake-register.
 		t.Skip("running as root; chmod 0555 does not block writes")
 	}
 	parent := t.TempDir()

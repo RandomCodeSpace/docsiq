@@ -262,6 +262,7 @@ func TestClaudeInstaller(t *testing.T) {
 
 	t.Run("symlinked_config_is_written_through", func(t *testing.T) {
 		if runtime.GOOS == "windows" {
+			// TODO(#65): environmental skip (windows symlink admin); tracked in flake-register.
 			t.Skip("symlink support requires admin on Windows")
 		}
 		home := fakeHome(t)

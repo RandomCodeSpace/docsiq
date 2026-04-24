@@ -27,6 +27,8 @@ jobs:
           targets=(
             "./internal/crawler::FuzzResolveURL"
             "./internal/chunker::FuzzChunker"
+            "./internal/store::FuzzSearchTokenize"
+            "./internal/mcp::FuzzMCPToolArgs"
           )
           for entry in "${targets[@]}"; do
             pkg="${entry%%::*}"

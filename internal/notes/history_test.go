@@ -13,6 +13,7 @@ import (
 func skipIfNoGit(t *testing.T) {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
+		// TODO(#65): environmental skip (git binary missing); tracked in flake-register.
 		t.Skip("git not available")
 	}
 }
