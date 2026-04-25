@@ -828,6 +828,104 @@ func (s *Store) RelationshipsForEntity(ctx context.Context, entityID string, dep
 	return all, nil
 }
 
+// RelationshipsForEntityInDocs is the doc-scoped variant of
+// RelationshipsForEntity. Each BFS hop only traverses relationships whose
+// doc_id is in the provided set, so callers doing a scoped local search
+// cannot leak edges from unrelated documents into the result set.
+//
+// Passing an empty docIDs slice returns no relationships — scoped search
+// with no anchor documents has no valid expansion.
+//
+// The doc_id IN-list is chunked at 900 (below SQLite's default 999
+// variable limit); combined with the frontier list, each hop may split
+// across multiple queries.
+func (s *Store) RelationshipsForEntityInDocs(ctx context.Context, entityID string, depth int, docIDs []string) ([]*Relationship, error) {
+	if len(docIDs) == 0 {
+		return nil, nil
+	}
+
+	visited := map[string]bool{entityID: true}
+	seenRel := make(map[string]struct{})
+	frontier := []string{entityID}
+	var all []*Relationship
+
+	const docChunkSize = 900
+	const frontierChunkSize = 900
+
+	for d := 0; d < depth && len(frontier) > 0; d++ {
+		var nextFrontier []string
+		for fStart := 0; fStart < len(frontier); fStart += frontierChunkSize {
+			fEnd := fStart + frontierChunkSize
+			if fEnd > len(frontier) {
+				fEnd = len(frontier)
+			}
+			fChunk := frontier[fStart:fEnd]
+			fPlaceholders := strings.Repeat("?,", len(fChunk))
+			fPlaceholders = fPlaceholders[:len(fPlaceholders)-1]
+
+			for dStart := 0; dStart < len(docIDs); dStart += docChunkSize {
+				dEnd := dStart + docChunkSize
+				if dEnd > len(docIDs) {
+					dEnd = len(docIDs)
+				}
+				dChunk := docIDs[dStart:dEnd]
+				dPlaceholders := strings.Repeat("?,", len(dChunk))
+				dPlaceholders = dPlaceholders[:len(dPlaceholders)-1]
+
+				args := make([]any, 0, len(fChunk)*2+len(dChunk))
+				for _, id := range fChunk {
+					args = append(args, id)
+				}
+				for _, id := range fChunk {
+					args = append(args, id)
+				}
+				for _, id := range dChunk {
+					args = append(args, id)
+				}
+
+				q := fmt.Sprintf(`SELECT id,source_id,target_id,predicate,description,weight,doc_id
+				                  FROM relationships
+				                  WHERE (source_id IN (%s) OR target_id IN (%s))
+				                    AND doc_id IN (%s)`,
+					fPlaceholders, fPlaceholders, dPlaceholders)
+				rows, err := s.db.QueryContext(ctx, q, args...)
+				if err != nil {
+					return nil, err
+				}
+				for rows.Next() {
+					var r Relationship
+					var docID sql.NullString
+					if err := rows.Scan(&r.ID, &r.SourceID, &r.TargetID, &r.Predicate, &r.Description, &r.Weight, &docID); err != nil {
+						rows.Close()
+						return nil, err
+					}
+					if docID.Valid {
+						r.DocID = docID.String
+					}
+					if _, dup := seenRel[r.ID]; dup {
+						continue
+					}
+					seenRel[r.ID] = struct{}{}
+					all = append(all, &r)
+					for _, nid := range []string{r.SourceID, r.TargetID} {
+						if !visited[nid] {
+							visited[nid] = true
+							nextFrontier = append(nextFrontier, nid)
+						}
+					}
+				}
+				if err := rows.Err(); err != nil {
+					rows.Close()
+					return nil, err
+				}
+				rows.Close()
+			}
+		}
+		frontier = nextFrontier
+	}
+	return all, nil
+}
+
 func (s *Store) FindRelationships(ctx context.Context, fromID, toID, predicate string) ([]*Relationship, error) {
 	q := `SELECT id,source_id,target_id,predicate,description,weight,doc_id FROM relationships WHERE 1=1`
 	args := []any{}
