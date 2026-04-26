@@ -1,4 +1,39 @@
 {
+  "$schema": "https://bestpractices.coreinfrastructure.org/projects.schema.json",
+  "_comment": "OpenSSF Best Practices self-assessment for RandomCodeSpace/docsiq. Project is registered (id 12628) and the badge currently displays 'passing' — see https://www.bestpractices.dev/en/projects/12628. The audit_* fields below mirror the per-criterion answers submitted to the OpenSSF Best Practices site; refresh them whenever criteria scoring changes.",
+  "project_id": 12628,
+  "name": "docsiq",
+  "description": "GraphRAG-powered documentation search tool — indexes PDF/DOCX/TXT/MD/web content into a knowledge graph with entity extraction, community detection, and vector embeddings, then answers queries via graph + vector search.",
+  "homepage_url": "https://github.com/RandomCodeSpace/docsiq",
+  "repo_url": "https://github.com/RandomCodeSpace/docsiq",
+  "license": "MIT",
+  "level": "passing",
+  "badge_url": "https://www.bestpractices.dev/projects/12628/badge",
+  "project_page_url": "https://www.bestpractices.dev/en/projects/12628",
+  "evidence": {
+    "vulnerability_report_process": "SECURITY.md",
+    "license_file": "LICENSE",
+    "code_of_conduct": "CODE_OF_CONDUCT.md",
+    "contributing_guide": "CONTRIBUTING.md",
+    "governance": "GOVERNANCE.md",
+    "build_reproducible": "go build -tags sqlite_fts5 ./...",
+    "ci_workflow": ".github/workflows/ci.yml",
+    "code_scanning": ".github/workflows/codeql.yml",
+    "supply_chain_scorecard": ".github/workflows/scorecard.yml",
+    "oss_cli_security_stack": ".github/workflows/security.yml",
+    "fuzz_testing": ".github/workflows/fuzz.yml",
+    "dependency_updates": ".github/dependabot.yml",
+    "secret_scanning": "GitHub repo setting (secret_scanning + push_protection enabled)",
+    "private_vulnerability_reporting": "GitHub repo setting (security advisories enabled)",
+    "signed_releases": "cosign keyless signing via .github/workflows/release.yml + Sigstore Rekor"
+  },
+  "audit": {
+    "self_assessment_date": "2026-04-26",
+    "self_assessment_author": "TechLead (RAN-51)",
+    "ran_50_lane": "RAN-51 (recipe validation; replicates to otelcontext, snipIT, vigil)",
+    "scorecard_dashboard": "https://scorecard.dev/viewer/?uri=github.com/RandomCodeSpace/docsiq"
+  },
+
   "description_good_status": "Met",
   "description_good_justification": "See README.md. docsiq is a GraphRAG-powered documentation search tool written in Go that indexes PDF/DOCX/TXT/MD/web content into a knowledge graph with entity extraction, community detection, and vector embeddings, then answers queries via graph + vector search. https://github.com/RandomCodeSpace/docsiq/blob/main/README.md",
 

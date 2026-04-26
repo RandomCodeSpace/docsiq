@@ -1,0 +1,185 @@
+name: Security (OSS-CLI)
+# OSS-CLI security stack — RAN-51 hardening lane.
+# Mirrors the codeiq RAN-46 (B) OSS-CLI stack
+# (Semgrep + osv-scanner + Trivy + Gitleaks + jscpd + sbom-action),
+# adapted for docsiq's Go + React/TS shape.
+#
+# Six independent jobs — fail-fast off so every signal surfaces on a
+# single run. All actions SHA-pinned per Scorecard `Pinned-Dependencies`.
+# Top-level `permissions: read-all` per Scorecard `Token-Permissions`;
+# jobs scope up only when needed (gitleaks needs full git history,
+# the sbom job uploads artifacts).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '21 4 * * 1'  # Mondays 04:21 UTC — catch newly-disclosed CVEs
+
+permissions: read-all
+
+jobs:
+  osv-scanner:
+    name: OSV-Scanner (SCA)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      OSV_SCANNER_VERSION: 2.3.5
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      # Install osv-scanner from the official GitHub release (binary, not
+      # the action — google/osv-scanner-action's `action.yml` is composite
+      # and fails when invoked as a job step). Using the preinstalled
+      # `gh` CLI avoids any external `curl`/`wget`.
+      - name: Install osv-scanner
+        run: |
+          gh release download "v${OSV_SCANNER_VERSION}" \
+            --repo google/osv-scanner \
+            --pattern 'osv-scanner_linux_amd64' \
+            --clobber
+          mv osv-scanner_linux_amd64 osv-scanner
+          chmod +x osv-scanner
+          ./osv-scanner --version
+      # Scan the Go module graph and the embedded React UI's npm lockfile.
+      # `--recursive` would also find ui/package-lock.json, but being
+      # explicit keeps the AC §3 ("Zero High/Critical CVEs") evidence
+      # trail clear: Go covered by go.mod, frontend by ui/package-lock.json,
+      # cross-ecosystem reactive coverage by Dependabot security updates.
+      - name: Run osv-scanner (Go modules)
+        run: ./osv-scanner --lockfile=go.mod
+      - name: Run osv-scanner (UI npm lockfile)
+        run: ./osv-scanner --lockfile=ui/package-lock.json
+
+  trivy:
+    name: Trivy (filesystem scan)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+
+  semgrep:
+    name: Semgrep (SAST)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.12'
+      - name: Install semgrep
+        run: python -m pip install --quiet --upgrade pip semgrep
+      - name: Run semgrep (security-audit + owasp-top-ten + golang + typescript)
+        # `p/golang` covers Go-specific patterns (unsafe.Pointer, errcheck
+        # families, taint flows). `p/typescript` covers the embedded React
+        # UI under ui/. `p/security-audit` and `p/owasp-top-ten` are
+        # language-agnostic. `--metrics off` keeps runs offline-friendly.
+        run: |
+          semgrep scan \
+            --error \
+            --config p/security-audit \
+            --config p/owasp-top-ten \
+            --config p/golang \
+            --config p/typescript \
+            --severity ERROR \
+            --metrics off
+
+  gitleaks:
+    name: Gitleaks (secret scan)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      GITLEAKS_VERSION: 8.30.1
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # The official `gitleaks/gitleaks-action` requires a paid licence for
+      # GitHub organisations. The underlying CLI is MIT-licensed; install
+      # it directly from the upstream release using the preinstalled `gh`.
+      - name: Install gitleaks
+        run: |
+          gh release download "v${GITLEAKS_VERSION}" \
+            --repo gitleaks/gitleaks \
+            --pattern "gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            --output gitleaks.tar.gz
+          tar -xzf gitleaks.tar.gz gitleaks
+          chmod +x gitleaks
+      - name: Run gitleaks (full git history)
+        run: ./gitleaks detect --source . --redact --no-banner --exit-code 1
+
+  jscpd:
+    name: jscpd (duplication < 3% on production code)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '20'
+      - name: Run jscpd
+        # Scope to production code only: cmd/ + internal/ (Go) and ui/src/
+        # (React/TS). Tests share fixture/assertion shape by design — that
+        # parallelism catches contract regressions and is not a refactor
+        # target. `--min-tokens 200` matches a meaningful method body, not
+        # language scaffolding (package + imports + struct headers).
+        run: |
+          npx --yes jscpd@4 \
+            --threshold 3 \
+            --min-tokens 200 \
+            --reporters consoleFull \
+            --format "go,javascript,typescript" \
+            --ignore "**/node_modules/**,**/dist/**,**/build/**,**/coverage/**,**/testdata/**,**/*_test.go,**/*.test.ts,**/*.spec.ts,**/e2e/**,**/.next/**,**/vendor/**" \
+            cmd internal ui/src
+
+  sbom:
+    name: SBOM (SPDX + CycloneDX)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - name: Generate SPDX SBOM
+        uses: anchore/sbom-action@fc46e51fd3cb168ffb36c6d1915723c47db58abb # v0.17.7
+        with:
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-artifact: false
+      - name: Generate CycloneDX SBOM
+        uses: anchore/sbom-action@fc46e51fd3cb168ffb36c6d1915723c47db58abb # v0.17.7
+        with:
+          format: cyclonedx-json
+          output-file: sbom.cdx.json
+          upload-artifact: false
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
+        with:
+          name: sbom
+          path: |
+            sbom.spdx.json
+            sbom.cdx.json
+          retention-days: 90
