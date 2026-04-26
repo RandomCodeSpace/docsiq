@@ -1,54 +1,68 @@
-name: scorecard
+# OpenSSF Scorecard supply-chain analysis.
+# RAN-51 hardening lane (mirrors codeiq RAN-46 recipe).
+# Best-effort target — Scorecard does not gate merge; the OpenSSF Best
+# Practices badge is the only hard gate per board.
+# Docs: https://github.com/ossf/scorecard-action
 
-# Triggers:
-#   - workflow_run on completed 'release' runs   → scan fresh release assets
-#   - weekly schedule (Mondays, 06:00 UTC)       → backstop against drift
-#   - branch_protection_rule changes             → re-score when policy moves
-#   - manual workflow_dispatch                   → on-demand
-# Not on every main push — most commits don't change release/scorecard-visible
-# state, so we were burning runner time publishing stale results.
+name: Scorecard supply-chain security
+
 on:
-  workflow_run:
-    workflows: [release]
-    types: [completed]
-  branch_protection_rule:
+  push:
+    branches: [main]
   schedule:
+    # Mondays 06:00 UTC
     - cron: '0 6 * * 1'
   workflow_dispatch:
 
+# Restrict the default GITHUB_TOKEN to read-only; the steps below request
+# the narrow scopes they actually need.
 permissions: read-all
 
 jobs:
   analysis:
-    name: scorecard analysis
+    name: Scorecard analysis
     runs-on: ubuntu-latest
     permissions:
+      # Required to upload to the code-scanning Security tab.
       security-events: write
+      # Required to read the OIDC token for publish_results.
       id-token: write
+      # Default scopes for actions/checkout.
       contents: read
       actions: read
 
     steps:
-      - name: checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Harden runner egress
+        # step-security/harden-runner v2.19.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40
+        with:
+          egress-policy: audit
+
+      - name: Checkout code
+        # actions/checkout v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           persist-credentials: false
 
-      - name: run scorecard
-        uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
+      - name: Run Scorecard analysis
+        # ossf/scorecard-action v2.4.3
+        uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a
         with:
           results_file: results.sarif
           results_format: sarif
+          # Publish so results appear on the public Scorecard dashboard.
           publish_results: true
 
-      - name: upload artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - name: Upload Scorecard SARIF (artifact)
+        # actions/upload-artifact v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: scorecard-results
+          name: scorecard-sarif
           path: results.sarif
           retention-days: 5
 
-      - name: upload sarif to code scanning
-        uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
+      - name: Upload SARIF to GitHub code-scanning
+        # github/codeql-action/upload-sarif v4.35.2
+        uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225
         with:
           sarif_file: results.sarif

@@ -107,3 +107,25 @@ publicly as [GitHub Issues](https://github.com/RandomCodeSpace/docsiq/issues).
 Security reports are archived as
 [GitHub Security Advisories](https://github.com/RandomCodeSpace/docsiq/security/advisories)
 after coordinated disclosure.
+
+## Hardening references
+
+The supply-chain and code-quality controls backing this policy:
+
+- [`.github/workflows/scorecard.yml`](.github/workflows/scorecard.yml) —
+  OpenSSF Scorecard analysis (push to `main` + weekly cron, SARIF
+  uploaded to the GitHub Security tab).
+- [`.github/workflows/security.yml`](.github/workflows/security.yml) —
+  OSS-CLI security stack: Semgrep (SAST), osv-scanner (SCA), Trivy
+  (filesystem CVE), Gitleaks (secrets), jscpd (duplication),
+  `anchore/sbom-action` (SPDX + CycloneDX SBOMs).
+- [`.github/workflows/codeql.yml`](.github/workflows/codeql.yml) —
+  GitHub CodeQL code scanning, SARIF in the Security tab.
+- [`.github/dependabot.yml`](.github/dependabot.yml) — automated
+  dependency, GitHub Actions, and npm bumps (weekly).
+- [`.bestpractices.json`](.bestpractices.json) — OpenSSF Best Practices
+  self-assessment (project
+  [12628](https://www.bestpractices.dev/en/projects/12628), badge
+  status: passing).
+- GitHub repo settings — secret scanning, push protection, and private
+  vulnerability reporting are enabled at the repo level.

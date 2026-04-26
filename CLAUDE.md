@@ -55,3 +55,27 @@ internal/
 - Error wrapping: `fmt.Errorf("context: %w", err)`
 - Concurrency: use semaphore channels (`make(chan struct{}, N)`) for limiting parallelism
 - Config: Viper with `mapstructure` tags, env prefix `DOCSIQ_`
+
+## Security & Supply-Chain
+
+docsiq is registered with the OpenSSF Best Practices programme as project
+[12628](https://www.bestpractices.dev/en/projects/12628) and runs the OpenSSF
+Scorecard alongside the OSS-CLI security stack on every push to `main` plus
+weekly.
+
+| Control | Source | Gate |
+|---|---|---|
+| OpenSSF Best Practices | [`.bestpractices.json`](.bestpractices.json) + project 12628 | **passing** badge — hard gate |
+| OpenSSF Scorecard | [`.github/workflows/scorecard.yml`](.github/workflows/scorecard.yml) (push + weekly cron) | Observational, baseline ≥ current published score, stretch ≥ 8.0/10 — does **not** block merge |
+| Semgrep / osv-scanner / Trivy / Gitleaks / jscpd / SBOM | [`.github/workflows/security.yml`](.github/workflows/security.yml) | High/Critical findings = block merge per `~/.claude/rules/security.md` |
+| CodeQL | [`.github/workflows/codeql.yml`](.github/workflows/codeql.yml) | High/Critical findings = block merge |
+| Signed commits on `main` | Branch protection (GitHub repo setting) | Verify required |
+| Dependency updates | [`.github/dependabot.yml`](.github/dependabot.yml) (gomod + npm + github-actions, weekly) | Reactive |
+
+Per the RAN-50 board ruling, the **OpenSSF Best Practices passing badge is the
+only hard supply-chain gate**; Scorecard is best-effort and tracked but does
+not block merge. Drops in the published Scorecard number trigger an
+investigation issue rather than a build failure.
+
+For the disclosure policy, fix SLAs, and the full hardening reference list
+see [`SECURITY.md`](SECURITY.md).
