@@ -313,15 +313,21 @@ func (p *Pipeline) indexFile(ctx context.Context, path string, opts IndexOptions
 		return fmt.Errorf("batch insert chunks: %w", err)
 	}
 
-	// Phase 1c: Embed chunks
-	vecs, err := p.embedder.EmbedTexts(ctx, texts)
-	if err != nil {
-		return fmt.Errorf("embed: %w", err)
-	}
-	slog.Debug("📊 chunks embedded", "path", path, "chunks", len(vecs))
+	// Phase 1c: Embed chunks. Skip when the embedder is nil (provider=none /
+	// graph-only flow); chunks are still persisted, downstream extraction
+	// uses raw text rather than vectors. CLAUDE.md guarantees this no-op path.
+	if p.embedder != nil {
+		vecs, err := p.embedder.EmbedTexts(ctx, texts)
+		if err != nil {
+			return fmt.Errorf("embed: %w", err)
+		}
+		slog.Debug("📊 chunks embedded", "path", path, "chunks", len(vecs))
 
-	if err := p.store.BatchUpsertEmbeddings(ctx, p.provider.ModelID(), chunkIDs, vecs); err != nil {
-		return fmt.Errorf("batch store embeddings: %w", err)
+		if err := p.store.BatchUpsertEmbeddings(ctx, p.provider.ModelID(), chunkIDs, vecs); err != nil {
+			return fmt.Errorf("batch store embeddings: %w", err)
+		}
+	} else {
+		slog.Debug("⏭️ skipping embedding (provider=none)", "path", path, "chunks", len(texts))
 	}
 
 	// Phase 2: Run graph extraction, claims, and structured doc in parallel

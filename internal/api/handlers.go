@@ -191,6 +191,88 @@ func (h *handlers) getDocument(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, doc)
 }
 
+func (h *handlers) getDocumentChunks(w http.ResponseWriter, r *http.Request) {
+	st, ok := h.resolveStore(w, r)
+	if !ok {
+		return
+	}
+	id := r.PathValue("id")
+	doc, err := st.GetDocument(r.Context(), id)
+	if err != nil {
+		writeError(w, r, 500, err.Error(), err)
+		return
+	}
+	if doc == nil {
+		writeError(w, r, 404, "document not found", nil)
+		return
+	}
+	chunks, err := st.ListChunksByDoc(r.Context(), id)
+	if err != nil {
+		writeError(w, r, 500, err.Error(), err)
+		return
+	}
+	out := make([]map[string]any, 0, len(chunks))
+	for _, c := range chunks {
+		out = append(out, map[string]any{
+			"id":          c.ID,
+			"chunk_index": c.ChunkIndex,
+			"content":     c.Content,
+			"token_count": c.TokenCount,
+		})
+	}
+	writeJSON(w, 200, out)
+}
+
+func (h *handlers) entityGraph(w http.ResponseWriter, r *http.Request) {
+	st, ok := h.resolveStore(w, r)
+	if !ok {
+		return
+	}
+	q := r.URL.Query()
+	limit := intQuery(q.Get("limit"), 500)
+	typ := q.Get("type")
+
+	entities, err := st.ListEntities(r.Context(), typ, limit, 0)
+	if err != nil {
+		writeError(w, r, 500, err.Error(), err)
+		return
+	}
+	rels, err := st.AllRelationships(r.Context())
+	if err != nil {
+		writeError(w, r, 500, err.Error(), err)
+		return
+	}
+
+	nodes := make([]map[string]any, 0, len(entities))
+	keep := make(map[string]bool, len(entities))
+	for _, e := range entities {
+		keep[e.ID] = true
+		nodes = append(nodes, map[string]any{
+			"id":          e.ID,
+			"label":       e.Name,
+			"kind":        "entity",
+			"type":        e.Type,
+			"description": e.Description,
+			"rank":        e.Rank,
+			"community":   e.CommunityID,
+		})
+	}
+	edges := make([]map[string]any, 0)
+	for _, rel := range rels {
+		if !keep[rel.SourceID] || !keep[rel.TargetID] {
+			continue
+		}
+		edges = append(edges, map[string]any{
+			"id":     rel.ID,
+			"source": rel.SourceID,
+			"target": rel.TargetID,
+			"label":  rel.Predicate,
+			"weight": rel.Weight,
+		})
+	}
+	writeJSON(w, 200, map[string]any{"nodes": nodes, "edges": edges})
+}
+
 type searchRequest struct {
 	Query          string `json:"query"`
 	Mode           string `json:"mode"` // local | global

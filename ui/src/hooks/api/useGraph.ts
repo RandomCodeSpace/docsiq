@@ -32,3 +32,29 @@ export function useNotesGraph(project: string) {
     },
   });
 }
+
+// Entity graph from the indexing pipeline (entities + relationships extracted
+// by the LLM). Distinct from useNotesGraph, which surfaces wikilinks between
+// hand-authored notes.
+export function useEntityGraph(project: string) {
+  return useQuery({
+    queryKey: qk.entityGraph(project),
+    queryFn: async (): Promise<GraphData> => {
+      const res = await apiFetch<RawGraphResponse | null>(
+        `/api/graph?project=${encodeURIComponent(project)}`,
+      );
+      const rawNodes = res?.nodes ?? [];
+      const rawEdges = res?.edges ?? [];
+      const nodes: GraphNode[] = rawNodes.map((n) => ({
+        id: n.id ?? "",
+        label: n.label ?? n.title ?? n.id ?? "",
+        kind: (n.kind as GraphNode["kind"]) ?? "entity",
+      }));
+      const ids = new Set(nodes.map((n) => n.id));
+      const edges: GraphEdge[] = rawEdges
+        .filter((e) => ids.has(e.source) && ids.has(e.target))
+        .map((e) => ({ source: e.source, target: e.target }));
+      return { nodes, edges };
+    },
+  });
+}

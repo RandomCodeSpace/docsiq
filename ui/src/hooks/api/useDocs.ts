@@ -3,6 +3,13 @@ import { apiFetch } from "@/lib/api-client";
 import { qk } from "./keys";
 import type { Document } from "@/types/api";
 
+export interface DocChunk {
+  id: string;
+  chunk_index: number;
+  content: string;
+  token_count: number;
+}
+
 export function useDocs(project: string) {
   return useQuery({
     queryKey: qk.docs(project),
@@ -20,5 +27,18 @@ export function useDoc(project: string, id: string | undefined) {
     queryKey: qk.doc(project, id ?? ""),
     enabled: !!id,
     queryFn: () => apiFetch<Document>(`/api/documents/${encodeURIComponent(id!)}?project=${encodeURIComponent(project)}`),
+  });
+}
+
+export function useDocChunks(project: string, id: string | undefined) {
+  return useQuery({
+    queryKey: qk.docChunks(project, id ?? ""),
+    enabled: !!id,
+    queryFn: async () => {
+      const res = await apiFetch<DocChunk[] | null>(
+        `/api/documents/${encodeURIComponent(id!)}/chunks?project=${encodeURIComponent(project)}`,
+      );
+      return Array.isArray(res) ? res : [];
+    },
   });
 }
