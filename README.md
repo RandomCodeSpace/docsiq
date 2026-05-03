@@ -177,6 +177,14 @@ embed or extract) return `503 {"code": "llm_disabled"}`.
 
 ## Build from source
 
+**Prerequisites:** Go ≥ 1.25, Node ≥ 22, and a working C toolchain
+(`build-essential` on Debian/Ubuntu, `xcode-select --install` on macOS,
+MinGW-w64 / MSYS2 on Windows). Without `gcc` on `PATH`, CGO is silently
+disabled and the build fails at the call site with a misleading
+`undefined: sqlitevec.LoadInto` rather than a clear toolchain error,
+because `internal/sqlitevec/load.go` is gated by `//go:build cgo`. Full
+list: [`docs/getting-started.md`](docs/getting-started.md#prerequisites).
+
 ```bash
 # First time on a connected machine
 npm --prefix ui ci                          # install UI deps
