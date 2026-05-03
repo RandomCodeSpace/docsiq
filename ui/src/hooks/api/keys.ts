@@ -14,4 +14,5 @@ export const qk = {
   entities: (project: string) => ["entities", project] as const,
   communities: (project: string) => ["communities", project] as const,
   activity: (project: string) => ["activity", project] as const,
+  uploadProgress: (jobId: string) => ["upload-progress", jobId] as const,
 };

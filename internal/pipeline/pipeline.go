@@ -40,11 +40,34 @@ func timeStage(stage string, fn func() error) error {
 }
 
 // ProgressEvent sent over progress channel.
+//
+// Phase is one of: "queued", "load", "chunk", "embed", "extract_entities",
+// "extract_relationships", "extract_claims", "structure", "finalize",
+// "done", "error". Done=true marks the terminal event for a job.
+//
+// ChunksDone / ChunksTotal are populated for the "embed" phase and any
+// chunk-aware phases; other phases leave them at 0. File is the basename
+// of the file currently being processed (empty for job-wide events).
 type ProgressEvent struct {
-	Phase   string
-	Message string
-	Done    bool
-	Error   error
+	Phase       string
+	Message     string
+	File        string
+	ChunksDone  int
+	ChunksTotal int
+	Done        bool
+	Error       error
+}
+
+// emit sends a non-blocking ProgressEvent on opts.Progress when the
+// channel is non-nil. A slow consumer never stalls the pipeline.
+func emit(opts IndexOptions, evt ProgressEvent) {
+	if opts.Progress == nil {
+		return
+	}
+	select {
+	case opts.Progress <- evt:
+	default:
+	}
 }
 
 // Pipeline orchestrates the 5-phase GraphRAG pipeline.
@@ -210,6 +233,8 @@ func (p *Pipeline) indexFile(ctx context.Context, path string, opts IndexOptions
 		return fmt.Errorf("resolve absolute path: %w", err)
 	}
 	path = absPath
+	fileBase := filepath.Base(path)
+	emit(opts, ProgressEvent{Phase: "load", File: fileBase, Message: "loading " + fileBase})
 
 	// Phase-5 cheap short-circuit: if mtime matches a previously-indexed
 	// snapshot, skip hashing AND reading the whole file. Only useful when
@@ -276,6 +301,12 @@ func (p *Pipeline) indexFile(ctx context.Context, path string, opts IndexOptions
 	}
 
 	slog.Debug("📄 indexing file", "path", path, "version", nextVersion, "chunks", len(chunks), "doc_type", doc.DocType)
+	emit(opts, ProgressEvent{
+		Phase:       "chunk",
+		File:        fileBase,
+		ChunksTotal: len(chunks),
+		Message:     fmt.Sprintf("split into %d chunks", len(chunks)),
+	})
 
 	docID := uuid.New().String()
 	if err := p.store.UpsertDocument(ctx, &store.Document{
@@ -317,17 +348,38 @@ func (p *Pipeline) indexFile(ctx context.Context, path string, opts IndexOptions
 	// graph-only flow); chunks are still persisted, downstream extraction
 	// uses raw text rather than vectors. CLAUDE.md guarantees this no-op path.
 	if p.embedder != nil {
+		emit(opts, ProgressEvent{
+			Phase:       "embed",
+			File:        fileBase,
+			ChunksDone:  0,
+			ChunksTotal: len(texts),
+			Message:     fmt.Sprintf("embedding 0/%d chunks", len(texts)),
+		})
 		vecs, err := p.embedder.EmbedTexts(ctx, texts)
 		if err != nil {
 			return fmt.Errorf("embed: %w", err)
 		}
 		slog.Debug("📊 chunks embedded", "path", path, "chunks", len(vecs))
+		emit(opts, ProgressEvent{
+			Phase:       "embed",
+			File:        fileBase,
+			ChunksDone:  len(vecs),
+			ChunksTotal: len(texts),
+			Message:     fmt.Sprintf("embedded %d/%d chunks", len(vecs), len(texts)),
+		})
 
 		if err := p.store.BatchUpsertEmbeddings(ctx, p.provider.ModelID(), chunkIDs, vecs); err != nil {
 			return fmt.Errorf("batch store embeddings: %w", err)
 		}
 	} else {
 		slog.Debug("⏭️ skipping embedding (provider=none)", "path", path, "chunks", len(texts))
+		emit(opts, ProgressEvent{
+			Phase:       "embed",
+			File:        fileBase,
+			ChunksDone:  len(texts),
+			ChunksTotal: len(texts),
+			Message:     "embedding skipped (no provider)",
+		})
 	}
 
 	// Phase 2: Run graph extraction, claims, and structured doc in parallel
@@ -339,25 +391,61 @@ func (p *Pipeline) indexFile(ctx context.Context, path string, opts IndexOptions
 	)
 
 	if p.cfg.Indexing.ExtractGraph {
+		emit(opts, ProgressEvent{
+			Phase:   "extract_entities",
+			File:    fileBase,
+			Message: "extracting entities and relationships",
+		})
 		wg2.Add(1)
 		go func() {
 			defer wg2.Done()
 			graphErr = p.extractGraph(ctx, docID, texts)
+			if graphErr == nil {
+				emit(opts, ProgressEvent{
+					Phase:   "extract_relationships",
+					File:    fileBase,
+					Message: "entities and relationships extracted",
+				})
+			}
 		}()
 	}
 
 	if p.cfg.Indexing.ExtractClaims {
+		emit(opts, ProgressEvent{
+			Phase:   "extract_claims",
+			File:    fileBase,
+			Message: "extracting claims",
+		})
 		wg2.Add(1)
 		go func() {
 			defer wg2.Done()
 			claimsErr = p.extractClaims(ctx, docID, texts)
+			if claimsErr == nil {
+				emit(opts, ProgressEvent{
+					Phase:   "extract_claims",
+					File:    fileBase,
+					Message: "claims extracted",
+				})
+			}
 		}()
 	}
 
+	emit(opts, ProgressEvent{
+		Phase:   "structure",
+		File:    fileBase,
+		Message: "summarising document structure",
+	})
 	wg2.Add(1)
 	go func() {
 		defer wg2.Done()
 		structureErr = p.structureDocument(ctx, docID, doc.Content)
+		if structureErr == nil {
+			emit(opts, ProgressEvent{
+				Phase:   "structure",
+				File:    fileBase,
+				Message: "structure summary complete",
+			})
+		}
 	}()
 
 	wg2.Wait()
