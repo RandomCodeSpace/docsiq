@@ -5,7 +5,7 @@ go 1.25.9
 require (
 	github.com/google/uuid v1.6.0
 	github.com/mark3labs/mcp-go v0.49.0
-	github.com/mattn/go-sqlite3 v1.14.42
+	github.com/mattn/go-sqlite3 v1.14.44
 	github.com/prometheus/client_golang v1.20.5
 	github.com/schollz/progressbar/v3 v3.19.0
 	github.com/spf13/cobra v1.10.2
