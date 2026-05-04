@@ -3,7 +3,11 @@ name: release
 # Manually-triggered stable release. Pick a bump (patch/minor/major) —
 # the next vX.Y.Z tag is computed from the latest stable tag. The `notes`
 # input is used verbatim as the release body and is also attached to the
-# release as `CHANGELOG.md`. Nothing is committed back to the repo.
+# release as `CHANGELOG.md`. An ephemeral release commit (with the built
+# ui/dist/ force-added past .gitignore) is created on a detached HEAD and
+# the new tag points to *that* commit, so `go install ...@vX.Y.Z` resolves
+# a tree containing the embedded UI assets. Main itself is never modified
+# — only the tag is pushed to origin.
 on:
   workflow_dispatch:
     inputs:
@@ -219,12 +223,29 @@ jobs:
           done
           ls -la
 
-      - name: Create + push tag
+      - name: Download ui-dist for release commit
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: ui-dist
+          path: ui/dist
+
+      - name: Bake ui/dist into release commit and tag it
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.tag.outputs.tag }}
         run: |
           set -eu
+          # ui/dist/ is gitignored on main, so a `go install ...@TAG`
+          # against the main tree would embed only a placeholder
+          # index.html and 404 on every /assets/* request. Create an
+          # ephemeral commit on a detached HEAD that force-includes the
+          # built ui/dist/, tag that commit as $TAG, and push the tag
+          # only — main itself is never modified.
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout --detach
+          git add -f ui/dist
+          git commit -m "release: bake ui/dist for ${TAG}"
           git tag "$TAG"
           git push origin "$TAG"
 
