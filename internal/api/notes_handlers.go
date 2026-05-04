@@ -485,8 +485,14 @@ func (h *notesHandlers) importTar(w http.ResponseWriter, r *http.Request) {
 				fmt.Sprintf("too many entries (cap %d)", MaxImportEntries), nil)
 			return
 		}
+		// Clean is for normalisation here, not the security boundary.
+		// The traversal defence is the explicit reject below (HasPrefix
+		// "/" + Contains "..") followed by an absolute-path containment
+		// check after filepath.Join into notesDir. All three layers must
+		// fail simultaneously for a traversal to land — Semgrep can't see
+		// the multi-statement defence, so the rule is suppressed inline.
+		// nosemgrep: go.lang.security.filepath-clean-misuse.filepath-clean-misuse
 		name := filepath.ToSlash(filepath.Clean(hdr.Name))
-		// Reject traversal / absolute paths in archive entries.
 		if strings.HasPrefix(name, "/") || strings.Contains(name, "..") {
 			writeError(w, r, http.StatusForbidden,
 				"tar entry traversal: "+hdr.Name, nil)
@@ -496,7 +502,6 @@ func (h *notesHandlers) importTar(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		dest := filepath.Join(notesDir, filepath.FromSlash(name))
-		// Double-check containment (defense in depth).
 		absDest, _ := filepath.Abs(dest)
 		absBase, _ := filepath.Abs(notesDir)
 		if !strings.HasPrefix(absDest, absBase+string(os.PathSeparator)) {

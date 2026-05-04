@@ -234,6 +234,13 @@ func spaHandler(assets fs.FS, _ *config.Config) http.Handler {
 			return
 		}
 
+		// path.Clean here normalises a URL path for SPA-vs-asset
+		// classification — it is not the security boundary. The handler
+		// only reads from `assets fs.FS`, which is fs.Sub(embed.FS, "dist"):
+		// io/fs rejects any path containing ".." via fs.ValidPath, and
+		// embed.FS holds only compile-time files. Path traversal cannot
+		// reach the host filesystem regardless of what cleanPath becomes.
+		// nosemgrep: go.lang.security.filepath-clean-misuse.filepath-clean-misuse
 		cleanPath := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
 		if cleanPath == "." || cleanPath == "" {
 			cleanPath = "index.html"
