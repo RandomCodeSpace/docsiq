@@ -24,8 +24,14 @@ project indexed and the MCP endpoint answering queries.
 ## Install
 
 ```bash
-go install github.com/RandomCodeSpace/docsiq@latest
+GOFLAGS='-tags=sqlite_fts5' go install github.com/RandomCodeSpace/docsiq@latest
 ```
+
+The `sqlite_fts5` build tag is required — docsiq uses SQLite's FTS5
+full-text-search extension. Without it the binary fails at runtime with
+`no such module: fts5` when opening a project store. `go install` does
+**not** pick up Makefile tags, so the flag has to come from `GOFLAGS`
+(or `-tags`) on the install command itself.
 
 This drops a `docsiq` binary into `$(go env GOPATH)/bin`. Make sure
 that path is on your `PATH`.
@@ -35,7 +41,7 @@ Alternatively, build from a checkout:
 ```bash
 git clone https://github.com/RandomCodeSpace/docsiq.git
 cd docsiq
-CGO_ENABLED=1 go build -o docsiq .
+CGO_ENABLED=1 go build -tags sqlite_fts5 -o docsiq .
 ```
 
 ## First project
