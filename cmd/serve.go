@@ -243,28 +243,46 @@ func init() {
 // empty AND the bind host is not loopback. An unauthenticated service
 // exposed on the network is almost never intentional; make it explicit.
 // Loopback with empty key gets a prominent warning at boot instead.
+//
+// The server.allow_unauthenticated config key (DOCSIQ_SERVER_ALLOW_UNAUTHENTICATED=true)
+// downgrades the non-loopback refusal to a loud warning. Intended for
+// trusted private networks and air-gapped lab setups where setting an
+// API key is impractical; the override is opt-in so default deploys
+// can never accidentally expose unauthenticated docsiq to the network.
 func validateServeSecurity(cfg *config.Config) error {
 	if cfg.Server.APIKey != "" {
 		return nil
 	}
 	host := strings.ToLower(strings.TrimSpace(cfg.Server.Host))
-	if host == "" {
-		return fmt.Errorf(
-			"server.api_key is empty and server.host is unset (binds all interfaces); refusing to start. " +
-				"Set DOCSIQ_SERVER_API_KEY or bind to 127.0.0.1/localhost for dev",
-		)
-	}
 	loopback := host == "localhost"
 	if ip := net.ParseIP(strings.Trim(host, "[]")); ip != nil {
 		loopback = loopback || ip.IsLoopback()
 	}
-	if !loopback {
+	if loopback {
+		slog.Warn("⚠️ auth disabled (empty server.api_key); only loopback bind allowed", "host", host)
+		return nil
+	}
+	if cfg.Server.AllowUnauthenticated {
+		exposure := host
+		if exposure == "" {
+			exposure = "all interfaces"
+		}
+		slog.Warn(
+			"⚠️ auth disabled and server.allow_unauthenticated=true — anyone reachable on this network can read all data and use the LLM proxy; do NOT enable on the public internet",
+			"host", exposure,
+			"port", cfg.Server.Port,
+		)
+		return nil
+	}
+	if host == "" {
 		return fmt.Errorf(
-			"server.api_key is empty and server.host=%q is not loopback; refusing to start. "+
-				"Set DOCSIQ_SERVER_API_KEY or bind to 127.0.0.1/localhost for dev",
-			cfg.Server.Host,
+			"server.api_key is empty and server.host is unset (binds all interfaces); refusing to start. " +
+				"Set DOCSIQ_SERVER_API_KEY, bind to 127.0.0.1/localhost for dev, or set DOCSIQ_SERVER_ALLOW_UNAUTHENTICATED=true to override (trusted networks only)",
 		)
 	}
-	slog.Warn("⚠️ auth disabled (empty server.api_key); only loopback bind allowed", "host", host)
-	return nil
+	return fmt.Errorf(
+		"server.api_key is empty and server.host=%q is not loopback; refusing to start. "+
+			"Set DOCSIQ_SERVER_API_KEY, bind to 127.0.0.1/localhost for dev, or set DOCSIQ_SERVER_ALLOW_UNAUTHENTICATED=true to override (trusted networks only)",
+		cfg.Server.Host,
+	)
 }

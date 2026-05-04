@@ -85,3 +85,37 @@ func TestValidateServeSecurity_AllowsNonLoopbackWithKey(t *testing.T) {
 		t.Fatalf("expected nil; got %v", err)
 	}
 }
+
+func TestValidateServeSecurity_AllowsNonLoopbackWithOverride(t *testing.T) {
+	t.Parallel()
+	hosts := []string{"", "0.0.0.0", "10.0.0.5", "192.168.1.42"}
+	for _, host := range hosts {
+		t.Run(host, func(t *testing.T) {
+			t.Parallel()
+			cfg := &config.Config{}
+			cfg.Server.Host = host
+			cfg.Server.Port = 8080
+			cfg.Server.APIKey = ""
+			cfg.Server.AllowUnauthenticated = true
+			if err := validateServeSecurity(cfg); err != nil {
+				t.Fatalf("host=%q: expected nil with allow_unauthenticated=true; got %v", host, err)
+			}
+		})
+	}
+}
+
+func TestValidateServeSecurity_OverrideHintAppearsInErrors(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{}
+	cfg.Server.Host = "0.0.0.0"
+	cfg.Server.APIKey = ""
+	cfg.Server.AllowUnauthenticated = false
+
+	err := validateServeSecurity(cfg)
+	if err == nil {
+		t.Fatal("expected error; got nil")
+	}
+	if !strings.Contains(err.Error(), "DOCSIQ_SERVER_ALLOW_UNAUTHENTICATED") {
+		t.Errorf("error should mention the override env var; got %v", err)
+	}
+}
