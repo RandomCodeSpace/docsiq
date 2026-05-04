@@ -11,10 +11,41 @@
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>docsiq — GraphRAG knowledge base</title>
-    <script type="module" crossorigin src="/assets/index-BYq_8sLj.js"></script>
+    <script>
+      // Block 5.9 — theme-flash guard. Applies the persisted theme class
+      // before React hydrates so there is no FOUC on first paint. Must run
+      // synchronously in <head>. Keep in sync with Zustand persist key
+      // `docsiq-ui` and the Providers.tsx effect that toggles .dark.
+      (function () {
+        try {
+          var raw = localStorage.getItem("docsiq-ui");
+          var theme = "system";
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            if (parsed && parsed.state && typeof parsed.state.theme === "string") {
+              theme = parsed.state.theme;
+            }
+          }
+          var effective = theme;
+          if (theme === "system") {
+            effective = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+          }
+          var root = document.documentElement;
+          root.dataset.theme = effective;
+          if (effective === "dark") root.classList.add("dark");
+        } catch (e) {
+          // If localStorage is unavailable (privacy mode) we simply let
+          // React decide after hydration; there is a brief FOUC but no
+          // crash. Do not log — this runs before any logger is attached.
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-Dtmrigu0.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-S-ySWqyJ.js">
     <link rel="modulepreload" crossorigin href="/assets/graph-YlRq3euP.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-DBMDkFdw.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-BZYFJ-vO.css">
   </head>
   <body>
     <div id="root"></div>
