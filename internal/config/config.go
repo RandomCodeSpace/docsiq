@@ -181,6 +181,13 @@ type ServerConfig struct {
 	// (POST /api/upload, POST /api/projects/{project}/import). Block
 	// 3.2 default 10m.
 	UploadTimeout time.Duration `mapstructure:"upload_timeout"`
+
+	// AllowUnauthenticated lets docsiq start with an empty server.api_key
+	// even when bound to a non-loopback host. Off by default — flipping it
+	// on exposes every indexed document and the LLM proxy to anyone who
+	// can reach the bind address. Intended for trusted private networks
+	// and air-gapped lab setups; never enable on the public internet.
+	AllowUnauthenticated bool `mapstructure:"allow_unauthenticated"`
 }
 
 func Load(cfgFile string) (*Config, error) {
@@ -253,6 +260,7 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetDefault("server.hsts_enabled", false)
 	v.SetDefault("server.request_timeout", 30*time.Second)
 	v.SetDefault("server.upload_timeout", 10*time.Minute)
+	v.SetDefault("server.allow_unauthenticated", false)
 
 	// Log format: "text" for human dev output, "json" for production.
 	v.SetDefault("log.format", "text")

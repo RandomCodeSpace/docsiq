@@ -761,3 +761,23 @@ func TestLoad_EnvOverridesLLM(t *testing.T) {
 		t.Errorf("DataDir = %q, want %q", got, want)
 	}
 }
+
+// TestLoad_EnvOverridesServerAllowUnauthenticated guards the security-
+// sensitive flag that downgrades the non-loopback boot refusal to a
+// warning. If env binding ever regresses for this key, deployments
+// expecting DOCSIQ_SERVER_ALLOW_UNAUTHENTICATED=true would silently
+// hit "refusing to start" — the regression must be loud.
+func TestLoad_EnvOverridesServerAllowUnauthenticated(t *testing.T) {
+	home := t.TempDir()
+	isolateEnv(t, home)
+
+	t.Setenv("DOCSIQ_SERVER_ALLOW_UNAUTHENTICATED", "true")
+
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.Server.AllowUnauthenticated {
+		t.Errorf("Server.AllowUnauthenticated = false, want true")
+	}
+}
