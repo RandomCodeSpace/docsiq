@@ -1,19 +1,24 @@
-import { useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { Trash2 } from "lucide-react";
 import MarkdownIt from "markdown-it";
 import { useDoc, useDocChunks } from "@/hooks/api/useDocs";
 import { useProjectStore } from "@/stores/project";
 import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/empty";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { Button } from "@/components/ui/button";
+import { DeleteDocumentDialog } from "./DeleteDocumentDialog";
 
 const md = new MarkdownIt({ html: false, linkify: true, breaks: false });
 
 export default function DocumentView() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const project = useProjectStore((s) => s.slug);
   const { data, isLoading, error, refetch } = useDoc(project, id);
   const { data: chunks, isLoading: chunksLoading } = useDocChunks(project, id);
   const err = error as Error | null | undefined;
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const docLabel = data?.title || data?.path;
   useDocumentTitle(docLabel ? [docLabel, "Documents"] : undefined);
@@ -61,13 +66,35 @@ export default function DocumentView() {
 
   return (
     <article className="doc-view p-8 max-w-[760px] mx-auto">
-      <header className="doc-view-header mb-6">
-        <h1 className="doc-view-title text-2xl font-semibold">{data.title || data.path}</h1>
-        <div className="doc-view-meta text-sm opacity-70 mt-1">
-          {data.doc_type} · v{data.version}
-          {orderedChunks.length > 0 && ` · ${orderedChunks.length} chunk${orderedChunks.length === 1 ? "" : "s"}`}
+      <header className="doc-view-header mb-6 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="doc-view-title text-2xl font-semibold">{data.title || data.path}</h1>
+          <div className="doc-view-meta text-sm opacity-70 mt-1">
+            {data.doc_type} · v{data.version}
+            {orderedChunks.length > 0 && ` · ${orderedChunks.length} chunk${orderedChunks.length === 1 ? "" : "s"}`}
+          </div>
         </div>
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          onClick={() => setDeleteOpen(true)}
+          aria-label="Delete this document"
+        >
+          <Trash2 />
+          Delete
+        </Button>
       </header>
+      {data && id && (
+        <DeleteDocumentDialog
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          project={project}
+          docId={id}
+          docLabel={data.title || data.path}
+          onDeleted={() => navigate("/docs")}
+        />
+      )}
 
       {chunksLoading ? (
         <LoadingSkeleton label="Loading content" rows={6} />

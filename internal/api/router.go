@@ -169,6 +169,7 @@ func NewRouter(prov llm.Provider, emb *embedder.Embedder, cfg *config.Config, re
 	mux.HandleFunc("GET /api/stats", h.getStats)
 	mux.HandleFunc("GET /api/documents", h.listDocuments)
 	mux.HandleFunc("GET /api/documents/{id}", h.getDocument)
+	mux.HandleFunc("DELETE /api/documents/{id}", h.deleteDocument)
 	mux.HandleFunc("GET /api/documents/{id}/chunks", h.getDocumentChunks)
 	mux.HandleFunc("GET /api/documents/{id}/versions", h.getDocumentVersions)
 	mux.HandleFunc("POST /api/search", h.search)

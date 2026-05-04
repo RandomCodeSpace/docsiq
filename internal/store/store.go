@@ -441,16 +441,70 @@ func (s *Store) ListDocuments(ctx context.Context, docType string, limit, offset
 	return docs, rows.Err()
 }
 
-// DeleteDocument hard-deletes a document row. ON DELETE CASCADE on
-// chunks/embeddings/relationships takes care of dependent rows.
-// Returns the number of rows removed so callers can distinguish "did
-// nothing" from "did something."
+// DeleteDocument hard-deletes a document and cascades cleanup of
+// graph artifacts that came from it. Runs as a single SQLite
+// transaction so partial failures roll back.
+//
+// Cascade order:
+//  1. relationships WHERE doc_id=?  — drop edges sourced from this doc
+//  2. claims        WHERE doc_id=?  — drop claims sourced from this doc
+//  3. chunks        WHERE doc_id=?  — embeddings cascade via FK
+//  4. documents     WHERE id=?      — the row itself
+//  5. orphan entities — entities with no remaining relationship or
+//     claim references are deleted; community_members rows cascade
+//     via FK so the graph stays consistent
+//
+// Communities are deliberately NOT recomputed here. Stale community
+// summaries are tolerable until the next manual `community.finalize`;
+// recomputing on every delete would dominate the request budget for
+// users dropping a bad upload. Trade-off documented in the API
+// handler comment as well.
+//
+// Returns the number of document rows removed (0 if the id did not
+// exist) so callers can distinguish "did nothing" from "did something."
 func (s *Store) DeleteDocument(ctx context.Context, id string) (int64, error) {
-	res, err := s.db.ExecContext(ctx, `DELETE FROM documents WHERE id=?`, id)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("begin tx: %w", err)
 	}
-	return res.RowsAffected()
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM relationships WHERE doc_id=?`, id); err != nil {
+		return 0, fmt.Errorf("delete relationships: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM claims WHERE doc_id=?`, id); err != nil {
+		return 0, fmt.Errorf("delete claims: %w", err)
+	}
+	// chunks cascade-deletes embeddings via embeddings.chunk_id FK.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM chunks WHERE doc_id=?`, id); err != nil {
+		return 0, fmt.Errorf("delete chunks: %w", err)
+	}
+	res, err := tx.ExecContext(ctx, `DELETE FROM documents WHERE id=?`, id)
+	if err != nil {
+		return 0, fmt.Errorf("delete document: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("rows affected: %w", err)
+	}
+
+	// Orphan entity sweep: an entity is orphan when no remaining row
+	// in relationships (as source or target) or claims still
+	// references it. Entities are deduped by name across docs, so
+	// shared entities (e.g. "OpenAI" mentioned in two unrelated docs)
+	// remain after deleting one of those docs.
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM entities
+		WHERE id NOT IN (SELECT source_id FROM relationships)
+		  AND id NOT IN (SELECT target_id FROM relationships)
+		  AND id NOT IN (SELECT entity_id FROM claims WHERE entity_id IS NOT NULL)`); err != nil {
+		return 0, fmt.Errorf("sweep orphan entities: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit: %w", err)
+	}
+	return affected, nil
 }
 
 // AllDocuments returns every row in the documents table regardless of

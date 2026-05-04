@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api-client";
 import { qk } from "./keys";
 import type { Document } from "@/types/api";
@@ -39,6 +39,28 @@ export function useDocChunks(project: string, id: string | undefined) {
         `/api/documents/${encodeURIComponent(id!)}/chunks?project=${encodeURIComponent(project)}`,
       );
       return Array.isArray(res) ? res : [];
+    },
+  });
+}
+
+// useDeleteDoc returns a mutation that hard-deletes a document and
+// cascades graph cleanup on the server. Invalidates the list, the
+// per-doc cache, the stats strip, and the entity graph so every view
+// that referenced the doc re-fetches.
+export function useDeleteDoc(project: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<void>(
+        `/api/documents/${encodeURIComponent(id)}?project=${encodeURIComponent(project)}`,
+        { method: "DELETE" },
+      ),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: qk.docs(project) });
+      qc.invalidateQueries({ queryKey: qk.stats(project) });
+      qc.invalidateQueries({ queryKey: qk.entityGraph(project) });
+      qc.removeQueries({ queryKey: qk.doc(project, id) });
+      qc.removeQueries({ queryKey: qk.docChunks(project, id) });
     },
   });
 }
