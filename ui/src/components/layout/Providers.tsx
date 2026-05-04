@@ -8,6 +8,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { BrowserRouter } from "react-router-dom";
 import { useUIStore } from "@/stores/ui";
 import { useAuthStore } from "@/stores/auth";
+import { Toaster } from "@/components/ui/sonner";
 
 // Defensive 401 gate. The HTTP boundary (apiFetch / mcpRequest in
 // lib/api-client.ts) is the primary signal for AuthRequiredBanner — it
@@ -63,6 +64,7 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={client}>
       <BrowserRouter>{children}</BrowserRouter>
+      <Toaster richColors position="bottom-right" />
     </QueryClientProvider>
   );
 }

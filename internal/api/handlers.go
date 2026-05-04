@@ -252,6 +252,64 @@ func (h *handlers) getDocumentChunks(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, out)
 }
 
+// deleteDocument hard-deletes a document and cascades cleanup of
+// chunks, embeddings, claims, doc-scoped relationships, and any
+// entities that no longer have a relationship or claim referencing
+// them.
+//
+// Communities are deliberately NOT recomputed inline. Louvain on a
+// graph of any meaningful size is too slow for an interactive DELETE,
+// and stale community titles/summaries are tolerable until the next
+// manual finalize. The vector index is invalidated so the next search
+// rebuilds against the post-delete chunk set.
+//
+// Returns 204 on success, 404 if the id does not exist, 500 on
+// transactional failure (the store rolls back so the graph stays
+// consistent).
+func (h *handlers) deleteDocument(w http.ResponseWriter, r *http.Request) {
+	st, ok := h.resolveStore(w, r)
+	if !ok {
+		return
+	}
+	id := r.PathValue("id")
+	doc, err := st.GetDocument(r.Context(), id)
+	if err != nil {
+		writeError(w, r, 500, err.Error(), err)
+		return
+	}
+	if doc == nil {
+		writeError(w, r, 404, "document not found", nil)
+		return
+	}
+
+	affected, err := st.DeleteDocument(r.Context(), id)
+	if err != nil {
+		writeError(w, r, 500, fmt.Errorf("delete document: %w", err).Error(), err)
+		return
+	}
+	if affected == 0 {
+		// Race: the row vanished between our GetDocument and the
+		// delete. Treat as 404 — the operation succeeded only if it
+		// actually removed something.
+		writeError(w, r, 404, "document not found", nil)
+		return
+	}
+
+	// Drop the cached vector index for this project so the next local
+	// search rebuilds against the post-delete chunk set. Safe on a nil
+	// receiver.
+	slug := ProjectFromContext(r.Context())
+	h.vecIndexes.Invalidate(slug)
+
+	slog.Info("🗑️  document deleted",
+		"project", slug,
+		"doc_id", id,
+		"path", doc.Path,
+	)
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *handlers) entityGraph(w http.ResponseWriter, r *http.Request) {
 	st, ok := h.resolveStore(w, r)
 	if !ok {

@@ -1,11 +1,13 @@
 import { Link } from "react-router-dom";
 import { useState } from "react";
+import { Trash2 } from "lucide-react";
 import { useDocs } from "@/hooks/api/useDocs";
 import { useProjectStore } from "@/stores/project";
 import { formatRelativeTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { UploadModal } from "./UploadModal";
+import { DeleteDocumentDialog } from "./DeleteDocumentDialog";
 import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/empty";
 
 export default function DocumentsList() {
@@ -14,6 +16,10 @@ export default function DocumentsList() {
   const docs = data ?? [];
   const err = error as Error | null | undefined;
   const [uploadOpen, setUploadOpen] = useState(false);
+  // Single-shot delete target. We only ever confirm one document at a
+  // time; storing the id here keeps the dialog component pure and the
+  // table's per-row buttons simple.
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; label: string } | null>(null);
 
   return (
     <div className="docs-page">
@@ -22,6 +28,17 @@ export default function DocumentsList() {
         <Button onClick={() => setUploadOpen(true)}>Upload</Button>
       </div>
       <UploadModal open={uploadOpen} onOpenChange={setUploadOpen} />
+      {pendingDelete && (
+        <DeleteDocumentDialog
+          open={!!pendingDelete}
+          onOpenChange={(next) => {
+            if (!next) setPendingDelete(null);
+          }}
+          project={project}
+          docId={pendingDelete.id}
+          docLabel={pendingDelete.label}
+        />
+      )}
       {isLoading ? (
         <LoadingSkeleton label="Loading documents" rows={6} />
       ) : err ? (
@@ -43,6 +60,7 @@ export default function DocumentsList() {
                 <TableHead>Title</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Updated</TableHead>
+                <TableHead className="w-12 text-right sr-only">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -56,6 +74,18 @@ export default function DocumentsList() {
                   <TableCell className="text-muted-foreground">{d.doc_type}</TableCell>
                   <TableCell className="text-muted-foreground">
                     {formatRelativeTime(d.updated_at * 1000)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Delete ${d.title || d.path}`}
+                      onClick={() =>
+                        setPendingDelete({ id: d.id, label: d.title || d.path })
+                      }
+                    >
+                      <Trash2 />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
