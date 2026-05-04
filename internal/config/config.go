@@ -273,6 +273,17 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
+	// Bind every defaulted key to its DOCSIQ_<UPPER_KEY> env variant so
+	// v.Unmarshal honours overrides without requiring a config file.
+	// Without this, only keys explicitly listed via BindEnv are read
+	// from env when nothing in the config tree already mentions them
+	// (Viper #761). The explicit BindEnv calls below stay because they
+	// document the secondary DOCSIQ_API_KEY alias for server.api_key
+	// and harmlessly double-bind the rest.
+	for _, key := range v.AllKeys() {
+		_ = v.BindEnv(key)
+	}
+
 	// Explicit alias: DOCSIQ_API_KEY is a convenience shortcut for
 	// DOCSIQ_SERVER_API_KEY (the auth-middleware API key). Bind both so
 	// either form populates server.api_key. BindEnv names are matched

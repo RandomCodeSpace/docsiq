@@ -719,3 +719,45 @@ func TestLoad_LogFormatFromEnv(t *testing.T) {
 		t.Errorf("env Log.Format=%q want json", cfg.Log.Format)
 	}
 }
+
+// TestLoad_EnvOverridesLLM is the regression test for the bug where
+// DOCSIQ_LLM_* env vars were silently ignored without a config file
+// because only a handful of keys were explicitly bound via BindEnv
+// (Viper #761). After the fix, every defaulted key — including the
+// nested LLM provider keys — must be reachable via env.
+func TestLoad_EnvOverridesLLM(t *testing.T) {
+	home := t.TempDir()
+	isolateEnv(t, home)
+
+	t.Setenv("DOCSIQ_LLM_OLLAMA_CHAT_MODEL", "envtest-chat")
+	t.Setenv("DOCSIQ_LLM_OLLAMA_EMBED_MODEL", "envtest-embed")
+	t.Setenv("DOCSIQ_LLM_PROVIDER", "azure")
+	t.Setenv("DOCSIQ_LLM_AZURE_API_KEY", "envtest-azure-key")
+	t.Setenv("DOCSIQ_LLM_AZURE_ENDPOINT", "https://envtest.openai.azure.com/")
+	t.Setenv("DOCSIQ_LLM_AZURE_CHAT_MODEL", "envtest-azure-chat")
+	t.Setenv("DOCSIQ_LLM_AZURE_EMBED_MODEL", "envtest-azure-embed")
+	t.Setenv("DOCSIQ_DATA_DIR", filepath.Join(home, "envtest-data"))
+
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	// Ollama keys must round-trip even when provider is azure — the
+	// fix is about *reachability* of the keys, not which one is active.
+	if got, want := cfg.LLM.Ollama.ChatModel, "envtest-chat"; got != want {
+		t.Errorf("LLM.Ollama.ChatModel = %q, want %q", got, want)
+	}
+	if got, want := cfg.LLM.Ollama.EmbedModel, "envtest-embed"; got != want {
+		t.Errorf("LLM.Ollama.EmbedModel = %q, want %q", got, want)
+	}
+	if got, want := cfg.LLM.Provider, "azure"; got != want {
+		t.Errorf("LLM.Provider = %q, want %q", got, want)
+	}
+	if got, want := cfg.LLM.Azure.APIKey, "envtest-azure-key"; got != want {
+		t.Errorf("LLM.Azure.APIKey = %q, want %q", got, want)
+	}
+	if got, want := cfg.DataDir, filepath.Join(home, "envtest-data"); got != want {
+		t.Errorf("DataDir = %q, want %q", got, want)
+	}
+}
